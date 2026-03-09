@@ -74,14 +74,17 @@ export const AdminRepositoryContents = () => {
 
   const handleSaveContent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.url || !formData.thumbnailUrl) {
-      return toast.error('Título, Imagem (Thumbnail) e URL são obrigatórios.');
+    
+    // Validação dos campos obrigatórios conforme solicitado
+    if (!formData.title || !formData.url) {
+      return toast.error('Os campos Título e URL são obrigatórios.');
     }
 
     if (editingId) {
       updateContent(editingId, formData);
-      toast.success('Conteúdo atualizado!');
+      toast.success('Conteúdo atualizado com sucesso!');
     } else {
+      // Salva vinculando automaticamente o companyId e o repositoryId da rota atual
       addContent({
         companyId: company.id,
         repositoryId: repo.id,
@@ -95,14 +98,14 @@ export const AdminRepositoryContents = () => {
   const handleDeleteContent = () => {
     if (contentToDelete) {
       deleteContent(contentToDelete.id);
-      toast.success('Conteúdo excluído.');
+      toast.success('Conteúdo excluído permanentemente.');
       setIsDeleteOpen(false);
     }
   };
 
   const toggleStatus = (content: Content) => {
     updateContent(content.id, { status: content.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
-    toast.success(`Conteúdo alterado para ${content.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
+    toast.success(`Conteúdo alterado para ${content.status === 'ACTIVE' ? 'Inativo (Rascunho)' : 'Ativo'}.`);
   };
 
   const getTypeIcon = (type: string) => {
@@ -130,7 +133,13 @@ export const AdminRepositoryContents = () => {
          </div>
          <div className="p-6 relative -mt-12 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
             <div className="flex gap-4 items-end">
-               <img src={repo.coverImage} alt="Capa" className="w-24 h-32 rounded-lg object-cover shadow-lg border-2 border-white bg-slate-200" />
+               <div className="w-24 h-32 rounded-lg shadow-lg border-2 border-white bg-slate-200 overflow-hidden shrink-0">
+                 {repo.coverImage ? (
+                   <img src={repo.coverImage} alt="Capa" className="w-full h-full object-cover" />
+                 ) : (
+                   <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400"><ImageIcon size={32} /></div>
+                 )}
+               </div>
                <div className="mb-2">
                   <h1 className="text-2xl font-bold text-white drop-shadow-sm">{repo.name}</h1>
                   <p className="text-sm text-slate-100 mt-1 max-w-xl line-clamp-2">{repo.description || 'Sem descrição'}</p>
@@ -159,7 +168,6 @@ export const AdminRepositoryContents = () => {
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Conteúdo</th>
                    <th className="p-4 w-32">Tipo</th>
-                   <th className="p-4 text-center">Destaque</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -168,12 +176,18 @@ export const AdminRepositoryContents = () => {
                    <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
                       <td className="p-4 text-center">
                          <div className="flex justify-center">
-                            {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Rascunho" />}
+                            {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
                          </div>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-4">
-                          <img src={content.thumbnailUrl} alt={content.title} className="w-24 h-14 rounded object-cover shadow-sm bg-slate-100 border border-slate-200 shrink-0" />
+                          <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                            {content.thumbnailUrl ? (
+                               <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" />
+                            ) : (
+                               <ImageIcon size={20} className="text-slate-400" />
+                            )}
+                          </div>
                           <div>
                             <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
                             <p className="text-xs text-slate-500 line-clamp-1 max-w-md">{content.description || 'Sem descrição'}</p>
@@ -184,13 +198,6 @@ export const AdminRepositoryContents = () => {
                          <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs">
                             {getTypeIcon(content.type)} {content.type}
                          </div>
-                      </td>
-                      <td className="p-4 text-center">
-                         {content.featured ? (
-                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">Sim</span>
-                         ) : (
-                            <span className="text-slate-300">-</span>
-                         )}
                       </td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1">
@@ -204,7 +211,7 @@ export const AdminRepositoryContents = () => {
                 ))}
                 {repoContents.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center">
+                    <td colSpan={4} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <Play size={48} className="text-slate-300 mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum conteúdo adicionado</p>
@@ -224,11 +231,11 @@ export const AdminRepositoryContents = () => {
           <form onSubmit={handleSaveContent} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Título do Conteúdo *</Label>
-              <Input placeholder="Ex: Aula 01 - Introdução" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} autoFocus />
+              <Input placeholder="Ex: Planilha de Metas 2024" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} autoFocus />
             </div>
             
             <div className="space-y-2">
-              <Label>Descrição</Label>
+              <Label>Descrição (Opcional)</Label>
               <textarea 
                 className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 min-h-[80px] resize-y"
                 placeholder="Uma breve descrição sobre este conteúdo..."
@@ -245,15 +252,15 @@ export const AdminRepositoryContents = () => {
                    onChange={(e) => setFormData({...formData, type: e.target.value as Content['type']})}
                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
                  >
-                    <option value="VIDEO">Vídeo (YouTube/Vimeo)</option>
+                    <option value="VIDEO">Vídeo</option>
                     <option value="PDF">Arquivo PDF</option>
-                    <option value="DOCUMENT">Documento (Docs, Slides)</option>
+                    <option value="DOCUMENT">Documento</option>
                     <option value="LINK">Link Externo</option>
                  </select>
                </div>
                
                <div className="space-y-2">
-                 <Label>Imagem de Thumbnail (Capa) *</Label>
+                 <Label>Imagem de Capa (Opcional)</Label>
                  <div className="flex items-center gap-2">
                     <div className="w-16 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
                        {formData.thumbnailUrl ? <img src={formData.thumbnailUrl} alt="Thumb" className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-400" />}
@@ -268,35 +275,17 @@ export const AdminRepositoryContents = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>URL Principal do Conteúdo *</Label>
+              <Label>URL Principal *</Label>
               <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
-              <p className="text-[10px] text-slate-500">O link de destino quando o usuário clicar.</p>
+              <p className="text-[10px] text-slate-500">Link de destino (do vídeo, arquivo PDF ou site).</p>
             </div>
 
-            {formData.type === 'VIDEO' && (
-              <div className="space-y-2">
-                <Label>URL de Incorporação (Embed - Opcional)</Label>
-                <Input placeholder="https://www.youtube.com/embed/..." value={formData.embedUrl} onChange={(e) => setFormData({...formData, embedUrl: e.target.value})} />
-                <p className="text-[10px] text-slate-500">Usado para tocar o vídeo direto na plataforma. (ex: YouTube Embed)</p>
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+              <div className="space-y-0.5">
+                <Label>Conteúdo Ativo</Label>
+                <p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível na plataforma' : 'Inativo (Rascunho)'}</p>
               </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-4">
-               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                 <div className="space-y-0.5">
-                   <Label>Destacar Conteúdo</Label>
-                   <p className="text-[10px] text-slate-500">Aparece em evidência.</p>
-                 </div>
-                 <Switch checked={formData.featured} onCheckedChange={(checked) => setFormData({...formData, featured: checked})} />
-               </div>
-
-               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                 <div className="space-y-0.5">
-                   <Label>Status</Label>
-                   <p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo Ativo e visível' : 'Oculto (Rascunho)'}</p>
-                 </div>
-                 <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
-               </div>
+              <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
