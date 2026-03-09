@@ -20,17 +20,22 @@ export const ContentDetail = () => {
 
        <Viewer content={content} />
 
-       <div className="max-w-5xl mx-auto mt-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+       <div className="max-w-6xl mx-auto mt-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">{content.title}</h1>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-[var(--c-primary)]">
+                 {content.type}
+               </span>
+               <h1 className="text-2xl md:text-3xl font-bold text-white">{content.title}</h1>
+            </div>
             <p className="text-zinc-400 text-sm md:text-base">{content.description}</p>
           </div>
-          <div className="flex gap-3">
-             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 transition-colors">
-                <Heart size={20} />
+          <div className="flex gap-3 shrink-0">
+             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-[var(--c-primary)] transition-colors group">
+                <Heart size={20} className="group-hover:scale-110 transition-transform" />
              </button>
-             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-zinc-700 transition-colors">
-                <Share2 size={20} />
+             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-[var(--c-primary)] transition-colors group">
+                <Share2 size={20} className="group-hover:scale-110 transition-transform" />
              </button>
           </div>
        </div>

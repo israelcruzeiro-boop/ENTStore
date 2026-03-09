@@ -1,13 +1,14 @@
 import { Content } from '../../types';
-import { FileText, ExternalLink, AlertCircle } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 export const Viewer = ({ content }: { content: Content }) => {
+  // Renderizador para Vídeos (Imersivo, formato 16:9, sem bordas falsas)
   if (content.type === 'VIDEO') {
     return (
-      <div className="aspect-video w-full max-w-5xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
+      <div className="aspect-video w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
         <iframe 
           src={content.embedUrl || content.url} 
-          className="w-full h-full"
+          className="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
           allowFullScreen
         ></iframe>
@@ -15,48 +16,49 @@ export const Viewer = ({ content }: { content: Content }) => {
     );
   }
 
-  if (content.type === 'PDF' || content.type === 'DOCUMENT') {
-    return (
-      <div className="w-full h-[80vh] max-w-5xl mx-auto bg-zinc-900 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col">
-         <div className="bg-zinc-800 p-4 border-b border-zinc-700 flex justify-between items-center">
-            <div className="flex items-center gap-2 text-white">
-                <FileText size={20} className="text-[var(--c-primary)]" />
-                <span className="font-medium">{content.title}</span>
-            </div>
-            <a href={content.url} target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white flex items-center gap-1 text-sm">
-                Abrir Externo <ExternalLink size={14} />
-            </a>
-         </div>
-         {/* Simulação de iframe para doc/pdf - Em produção usaria Google Docs Viewer ou PDF.js */}
-         <div className="flex-1 flex items-center justify-center bg-zinc-950 p-8 text-center text-zinc-500">
-            <div className="max-w-md">
-                <AlertCircle size={48} className="mx-auto mb-4 opacity-50" />
-                <p>O visualizador de documentos nativo não está disponível neste ambiente de teste.</p>
-                <p className="mt-2 text-sm">Em produção, o PDF/Documento "{content.title}" abriria aqui embutido.</p>
-                <a href={content.url} target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-[var(--c-primary)] text-white rounded-md hover:opacity-90 transition-opacity">
-                    Visualizar em nova aba <ExternalLink size={16} />
-                </a>
-            </div>
-         </div>
-      </div>
-    );
+  // Define a URL base baseada no tipo de documento
+  let iframeUrl = content.url;
+  
+  if (content.type === 'DOCUMENT') {
+    // Usa o Google Docs Viewer para forçar a renderização de doc, docx, xls, pptx dentro do iframe
+    iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
   }
 
+  // Renderizador para PDF, Documentos e Links (Formato "Navegador" vertical)
   return (
-    <div className="w-full max-w-3xl mx-auto bg-[var(--c-card)] p-8 rounded-xl shadow-2xl text-center border border-zinc-800">
-        <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-6">
-            <ExternalLink size={32} className="text-[var(--c-primary)]" />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-4">{content.title}</h2>
-        <p className="text-zinc-400 mb-8">{content.description}</p>
-        <a 
-          href={content.url} 
-          target="_blank" 
-          rel="noreferrer" 
-          className="inline-flex items-center gap-2 px-8 py-4 bg-[var(--c-primary)] text-white font-medium rounded-full hover:scale-105 transition-transform"
-        >
-            Acessar Link Externo
-        </a>
+    <div className="w-full max-w-6xl mx-auto bg-zinc-950 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col h-[75vh] max-h-[900px]">
+      {/* Barra de Navegação Falsa / Top Bar */}
+      <div className="bg-zinc-900 px-4 py-2.5 border-b border-zinc-800 flex justify-between items-center w-full z-10 shrink-0">
+         <div className="flex items-center gap-4 overflow-hidden">
+            <div className="flex gap-1.5 shrink-0">
+               <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+               <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
+               <div className="w-3 h-3 rounded-full bg-emerald-500/80"></div>
+            </div>
+            <span className="text-zinc-500 text-xs font-mono truncate hidden sm:block bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800 w-64 md:w-96">
+               {content.url}
+            </span>
+         </div>
+         <a 
+           href={content.url} 
+           target="_blank" 
+           rel="noreferrer" 
+           className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-md transition-colors shrink-0"
+           title="Abrir em uma nova aba caso o link bloqueie a visualização interna"
+         >
+             Abrir em nova aba <ExternalLink size={14} />
+         </a>
+      </div>
+      
+      {/* Container do Iframe (Fundo branco ajuda a ler PDFs e Docs que tenham fundo transparente) */}
+      <div className="flex-1 w-full bg-white relative">
+        <iframe 
+          src={iframeUrl} 
+          className="w-full h-full border-0 absolute inset-0"
+          title={content.title}
+          allowFullScreen
+        ></iframe>
+      </div>
     </div>
   );
 };
