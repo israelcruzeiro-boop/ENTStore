@@ -5,7 +5,7 @@ import { MOCK_USERS, MOCK_COMPANIES } from '../data/mock';
 interface AuthContextType {
   user: User | null;
   company: Company | null;
-  login: (userId: string) => void;
+  login: (email: string, pass: string) => boolean;
   logout: () => void;
 }
 
@@ -15,7 +15,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
 
-  // Apply theme when company changes
   useEffect(() => {
     if (company && company.theme) {
       const root = document.documentElement;
@@ -24,7 +23,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       root.style.setProperty('--c-card', company.theme.card);
       root.style.setProperty('--c-text', company.theme.text);
     } else {
-      // Default dark theme
       const root = document.documentElement;
       root.style.setProperty('--c-primary', '#3b82f6');
       root.style.setProperty('--c-bg', '#09090b');
@@ -33,8 +31,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [company]);
 
-  const login = (userId: string) => {
-    const foundUser = MOCK_USERS.find(u => u.id === userId);
+  const login = (email: string, pass: string) => {
+    // Validação mockada
+    const foundUser = MOCK_USERS.find(u => u.email === email && u.password === pass);
+    
     if (foundUser) {
       setUser(foundUser);
       if (foundUser.companyId) {
@@ -43,7 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setCompany(null);
       }
+      return true;
     }
+    return false;
   };
 
   const logout = () => {

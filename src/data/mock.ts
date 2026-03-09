@@ -7,14 +7,27 @@ export const mockThemes = {
 };
 
 export const MOCK_COMPANIES: Company[] = [
-  { id: 'c1', name: 'Acme Corp', active: true, theme: mockThemes.netflix },
-  { id: 'c2', name: 'TechFlow', active: true, theme: mockThemes.corporateBlue },
+  { 
+    id: 'c1', 
+    name: 'Acme Corp', 
+    active: true, 
+    theme: mockThemes.netflix,
+    // Logo definida no painel admin (mock)
+    logoUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=150&h=150&fit=crop&q=80' 
+  },
+  { 
+    id: 'c2', 
+    name: 'TechFlow', 
+    active: true, 
+    theme: mockThemes.corporateBlue 
+  },
 ];
 
+// Usuários solicitados com a mesma senha
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Super Chefe', email: 'super@store.com', role: 'SUPER_ADMIN' },
-  { id: 'u2', name: 'Admin Acme', email: 'admin@acme.com', role: 'ADMIN', companyId: 'c1' },
-  { id: 'u3', name: 'User Acme', email: 'user@acme.com', role: 'USER', companyId: 'c1', avatarUrl: 'https://i.pravatar.cc/150?u=u3' },
+  { id: 'u1', name: 'Super Admin', email: 'sadmin@entstore.com', password: '123456', role: 'SUPER_ADMIN' },
+  { id: 'u2', name: 'Admin Company', email: 'admin@entstore.com', password: '123456', role: 'ADMIN', companyId: 'c1' },
+  { id: 'u3', name: 'User Premium', email: 'user@entstore.com', password: '123456', role: 'USER', companyId: 'c1', avatarUrl: 'https://i.pravatar.cc/150?u=u3' },
 ];
 
 export const MOCK_REPOSITORIES: Repository[] = [

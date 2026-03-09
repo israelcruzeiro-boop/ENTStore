@@ -22,6 +22,7 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  password?: string; // Adicionado para o mock de login
   companyId?: string; // Super admins might not have one
   avatarUrl?: string;
 }
