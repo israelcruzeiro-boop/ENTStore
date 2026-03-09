@@ -17,6 +17,7 @@ export interface Company {
   theme: Theme;
   logoUrl?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface User {

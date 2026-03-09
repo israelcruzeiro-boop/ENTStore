@@ -7,31 +7,82 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { MoreVertical, CheckCircle2, XCircle, Building } from 'lucide-react';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2 } from 'lucide-react';
 
 export const SuperAdminDashboard = () => {
-  const { companies, addCompany, toggleCompanyStatus } = useAppStore();
+  const { companies, addCompany, updateCompany, deleteCompany, toggleCompanyStatus } = useAppStore();
   
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Estados para Modal de Criação/Edição
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', logoUrl: '', active: true });
 
-  const handleCreate = (e: React.FormEvent) => {
+  // Estados para Modal de Exclusão
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
+
+  // Geração de Slug em tempo real para preview
+  const previewSlug = formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
+
+  const openCreate = () => {
+    setEditingId(null);
+    setFormData({ name: '', logoUrl: '', active: true });
+    setIsFormOpen(true);
+  };
+
+  const openEdit = (company: any) => {
+    setEditingId(company.id);
+    setFormData({ name: company.name, logoUrl: company.logoUrl || '', active: company.active });
+    setIsFormOpen(true);
+  };
+
+  const confirmDelete = (company: any) => {
+    setCompanyToDelete({ id: company.id, name: company.name });
+    setIsDeleteOpen(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
-      toast.error('O nome da empresa é obrigatório');
-      return;
+    
+    const name = formData.name.trim();
+    if (!name) return toast.error('O nome da empresa é obrigatório');
+
+    const slug = previewSlug;
+    
+    // Validação de Duplicidade
+    const isDuplicate = companies.some(c => c.slug === slug && c.id !== editingId);
+    if (isDuplicate) {
+      return toast.error('Já existe uma empresa registrada com este nome (slug duplicado).');
     }
 
-    addCompany({
-      name: formData.name,
-      logoUrl: formData.logoUrl,
-      active: formData.active,
-      theme: mockThemes.corporateBlue // Tema padrão
-    });
+    if (editingId) {
+      updateCompany(editingId, {
+        name: formData.name,
+        slug: slug,
+        logoUrl: formData.logoUrl,
+        active: formData.active
+      });
+      toast.success('Empresa atualizada com sucesso!');
+    } else {
+      addCompany({
+        name: formData.name,
+        logoUrl: formData.logoUrl,
+        active: formData.active,
+        theme: mockThemes.corporateBlue // Tema Padrão
+      });
+      toast.success('Empresa criada! Admin padrão gerado.');
+    }
 
-    toast.success('Empresa criada com sucesso! Admin padrão gerado.');
-    setIsModalOpen(false);
-    setFormData({ name: '', logoUrl: '', active: true });
+    setIsFormOpen(false);
+  };
+
+  const handleDelete = () => {
+    if (companyToDelete) {
+      deleteCompany(companyToDelete.id);
+      toast.success('Empresa e usuários vinculados excluídos com sucesso.');
+      setIsDeleteOpen(false);
+      setCompanyToDelete(null);
+    }
   };
 
   return (
@@ -41,7 +92,7 @@ export const SuperAdminDashboard = () => {
            <h1 className="text-2xl font-bold text-slate-900">Gestão de Empresas (Tenants)</h1>
            <p className="text-sm text-slate-500 mt-1">Gerencie os clientes da plataforma ENTStore</p>
          </div>
-         <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800">
+         <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800">
             + Nova Company
          </Button>
       </div>
@@ -54,7 +105,7 @@ export const SuperAdminDashboard = () => {
                    <th className="p-4 w-16">Status</th>
                    <th className="p-4">Empresa</th>
                    <th className="p-4">Slug</th>
-                   <th className="p-4">Criada em</th>
+                   <th className="p-4">Atualizado em</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -70,7 +121,7 @@ export const SuperAdminDashboard = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                             {company.logoUrl ? (
                               <img src={company.logoUrl} alt={company.name} className="w-full h-full object-cover" />
                             ) : (
@@ -87,16 +138,21 @@ export const SuperAdminDashboard = () => {
                         {company.slug}
                       </td>
                       <td className="p-4 text-slate-500">
-                        {new Date(company.createdAt).toLocaleDateString('pt-BR')}
+                        {new Date(company.updatedAt || company.createdAt).toLocaleDateString('pt-BR')}
                       </td>
                       <td className="p-4 text-right">
-                         <div className="flex items-center justify-end gap-3">
+                         <div className="flex items-center justify-end gap-2">
                            <Switch 
                              checked={company.active} 
                              onCheckedChange={() => toggleCompanyStatus(company.id)}
+                             title="Ativar/Desativar"
+                             className="mr-2"
                            />
-                           <Button variant="ghost" size="icon" className="text-slate-400 hover:text-blue-600">
-                             <MoreVertical size={18} />
+                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600">
+                             <Edit2 size={16} />
+                           </Button>
+                           <Button variant="ghost" size="icon" onClick={() => confirmDelete(company)} className="text-slate-400 hover:text-red-600">
+                             <Trash2 size={16} />
                            </Button>
                          </div>
                       </td>
@@ -114,12 +170,13 @@ export const SuperAdminDashboard = () => {
         </div>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Nova Empresa</DialogTitle>
+            <DialogTitle>{editingId ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-6 mt-4">
+          <form onSubmit={handleSave} className="space-y-6 mt-4">
             <div className="space-y-2">
               <Label>Nome da Empresa *</Label>
               <Input 
@@ -128,6 +185,11 @@ export const SuperAdminDashboard = () => {
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 autoFocus
               />
+              {formData.name && (
+                <p className="text-[10px] text-slate-400 font-mono mt-1">
+                  Slug gerado: {previewSlug}
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -151,12 +213,34 @@ export const SuperAdminDashboard = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button type="submit">Criar Empresa</Button>
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+              <Button type="submit">{editingId ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Excluir Empresa</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+             <p className="text-slate-600 text-sm">
+               Tem certeza que deseja excluir a empresa <strong>{companyToDelete?.name}</strong>?
+             </p>
+             <p className="text-red-500 text-sm mt-2 font-medium">
+               Aviso: Isso apagará também todos os usuários e dados vinculados a ela localmente.
+             </p>
+          </div>
+          <div className="flex justify-end gap-3">
+             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
+             <Button variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

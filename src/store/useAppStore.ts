@@ -13,6 +13,7 @@ interface AppState {
   // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt'>) => void;
   updateCompany: (id: string, data: Partial<Company>) => void;
+  deleteCompany: (id: string) => void;
   toggleCompanyStatus: (id: string) => void;
   updateCompanyTheme: (id: string, theme: any) => void;
 }
@@ -34,10 +35,10 @@ export const useAppStore = create<AppState>()(
           ...companyData,
           id,
           slug,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
 
-        // Cria automaticamente um admin para a nova company para que você possa testar
         const adminUser: User = {
           id: crypto.randomUUID(),
           name: `Admin ${companyData.name}`,
@@ -54,19 +55,38 @@ export const useAppStore = create<AppState>()(
       }),
 
       updateCompany: (id, data) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, ...data } : c)
+        companies: state.companies.map(c => c.id === id ? { 
+          ...c, 
+          ...data, 
+          updatedAt: new Date().toISOString() 
+        } : c)
+      })),
+
+      deleteCompany: (id) => set((state) => ({
+        companies: state.companies.filter(c => c.id !== id),
+        // Exclusão em cascata: remove usuários da empresa deletada para não deixar lixo no banco
+        users: state.users.filter(u => u.companyId !== id),
+        repositories: state.repositories.filter(r => r.companyId !== id),
       })),
 
       toggleCompanyStatus: (id) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, active: !c.active } : c)
+        companies: state.companies.map(c => c.id === id ? { 
+          ...c, 
+          active: !c.active,
+          updatedAt: new Date().toISOString()
+        } : c)
       })),
 
       updateCompanyTheme: (id, theme) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, theme: { ...c.theme, ...theme } } : c)
+        companies: state.companies.map(c => c.id === id ? { 
+          ...c, 
+          theme: { ...c.theme, ...theme },
+          updatedAt: new Date().toISOString()
+        } : c)
       }))
     }),
     {
-      name: 'entstore-storage', // Nome no localStorage
+      name: 'entstore-storage',
     }
   )
 );
