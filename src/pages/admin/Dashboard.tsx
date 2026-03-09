@@ -1,16 +1,22 @@
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
-import { Users, FolderTree, FileVideo } from 'lucide-react';
+import { Users, FolderTree, FileVideo, ArrowRight } from 'lucide-react';
 
 export const AdminDashboard = () => {
   const { linkName } = useParams();
   const { companies, repositories, contents, users } = useAppStore();
   
+  // 1. Identifica a empresa atual pela URL
   const company = companies.find(c => c.linkName === linkName);
   
+  // 2. Filtra os dados apenas desta empresa
   const companyRepos = repositories.filter(r => r.companyId === company?.id);
   const repoIds = companyRepos.map(r => r.id);
+  
+  // Os conteúdos pertencem aos repositórios desta empresa
   const companyContents = contents.filter(c => repoIds.includes(c.repositoryId));
+  
+  // Usuários vinculados a esta empresa
   const companyUsers = users.filter(u => u.companyId === company?.id);
   
   const adminsCount = companyUsers.filter(u => u.role === 'ADMIN').length;
@@ -77,18 +83,23 @@ export const AdminDashboard = () => {
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <FolderTree size={18} className="text-slate-400" /> Seus Repositórios
             </h2>
+            <Link to={`/admin/${linkName}/repos`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+              Ver todos <ArrowRight size={16} />
+            </Link>
           </div>
-          <div className="divide-y divide-slate-100 flex-1">
+          <div className="divide-y divide-slate-100 flex-1 max-h-[400px] overflow-y-auto">
             {companyRepos.map(repo => (
                 <div key={repo.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-4">
-                      <img src={repo.coverImage} alt={repo.name} className="w-10 h-10 rounded-md object-cover shadow-sm" />
+                      <img src={repo.coverImage} alt={repo.name} className="w-10 h-10 rounded-md object-cover shadow-sm bg-slate-100" />
                       <div>
-                        <p className="font-medium text-slate-900">{repo.name}</p>
+                        <p className="font-medium text-slate-900 truncate max-w-[200px]">{repo.name}</p>
                         <p className="text-xs text-slate-500">{repo.status === 'ACTIVE' ? 'Ativo' : 'Rascunho'}</p>
                       </div>
                   </div>
-                  <button className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">Gerenciar</button>
+                  <Link to={`/admin/${linkName}/repos`} className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0">
+                    Gerenciar
+                  </Link>
                 </div>
             ))}
             {companyRepos.length === 0 && (
@@ -105,22 +116,25 @@ export const AdminDashboard = () => {
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <Users size={18} className="text-slate-400" /> Usuários da Empresa
             </h2>
+            <Link to={`/admin/${linkName}/users`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+              Ver todos <ArrowRight size={16} />
+            </Link>
           </div>
-          <div className="divide-y divide-slate-100 flex-1">
+          <div className="divide-y divide-slate-100 flex-1 max-h-[400px] overflow-y-auto">
             {companyUsers.map(user => (
                 <div key={user.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
                         {user.name.charAt(0)}
                       </div>
-                      <div>
+                      <div className="overflow-hidden">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-slate-900">{user.name}</p>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${user.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
+                          <p className="font-medium text-slate-900 truncate">{user.name}</p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${user.role === 'ADMIN' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
                             {user.role}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500">{user.email}</p>
+                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
                       </div>
                   </div>
                 </div>
