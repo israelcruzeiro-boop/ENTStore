@@ -31,6 +31,15 @@ export const SuperAdminDashboard = () => {
 
   const previewSlug = formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
 
+  // ---- MÉTRICAS DO DASHBOARD ----
+  const totalCompanies = companies.length;
+  const activeCompanies = companies.filter(c => c.active).length;
+  const inactiveCompanies = totalCompanies - activeCompanies;
+  const totalAdmins = users.filter(u => u.role === 'ADMIN').length;
+
+  // Lista ordenada pelas mais recentes
+  const sortedCompanies = [...companies].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   // ---- FUNÇÕES COMPANY ----
   const openCreate = () => {
     setEditingId(null);
@@ -135,15 +144,56 @@ export const SuperAdminDashboard = () => {
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
          <div>
-           <h1 className="text-2xl font-bold text-slate-900">Gestão de Empresas (Tenants)</h1>
-           <p className="text-sm text-slate-500 mt-1">Gerencie os clientes da plataforma ENTStore</p>
+           <h1 className="text-2xl font-bold text-slate-900">Dashboard do Super Admin</h1>
+           <p className="text-sm text-slate-500 mt-1">Visão geral e gestão de Tenants (Empresas)</p>
          </div>
          <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800">
             + Nova Company
          </Button>
       </div>
+
+      {/* METRICS CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+             <Building size={24} />
+          </div>
+          <div>
+             <p className="text-sm font-medium text-slate-500">Total Companies</p>
+             <p className="text-2xl font-bold text-slate-900">{totalCompanies}</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
+             <CheckCircle2 size={24} />
+          </div>
+          <div>
+             <p className="text-sm font-medium text-slate-500">Ativas</p>
+             <p className="text-2xl font-bold text-slate-900">{activeCompanies}</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
+             <XCircle size={24} />
+          </div>
+          <div>
+             <p className="text-sm font-medium text-slate-500">Inativas</p>
+             <p className="text-2xl font-bold text-slate-900">{inactiveCompanies}</p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+             <Users size={24} />
+          </div>
+          <div>
+             <p className="text-sm font-medium text-slate-500">Total Admins</p>
+             <p className="text-2xl font-bold text-slate-900">{totalAdmins}</p>
+          </div>
+        </div>
+      </div>
       
       {/* TABELA DE EMPRESAS */}
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">Empresas Cadastradas (Mais recentes)</h2>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
@@ -157,7 +207,7 @@ export const SuperAdminDashboard = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
-                {companies.map(company => (
+                {sortedCompanies.map(company => (
                    <tr key={company.id} className={`hover:bg-slate-50 transition-colors ${!company.active ? 'opacity-60' : ''}`}>
                       <td className="p-4">
                          {company.active ? <CheckCircle2 className="text-emerald-500" size={20} /> : <XCircle className="text-slate-300" size={20} />}
@@ -196,7 +246,7 @@ export const SuperAdminDashboard = () => {
                       </td>
                    </tr>
                 ))}
-                {companies.length === 0 && (
+                {sortedCompanies.length === 0 && (
                   <tr><td colSpan={5} className="p-8 text-center text-slate-500">Nenhuma empresa cadastrada ainda.</td></tr>
                 )}
              </tbody>
