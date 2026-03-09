@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Upload, Image as ImageIcon, Star } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Upload, Image as ImageIcon, Star, Layers } from 'lucide-react';
 import { Repository } from '../../types';
 
 export const AdminRepositories = () => {
   const { linkName } = useParams();
-  const { companies, repositories, addRepository, updateRepository, deleteRepository } = useAppStore();
+  const { companies, repositories, contents, addRepository, updateRepository, deleteRepository } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
   
@@ -108,13 +108,13 @@ export const AdminRepositories = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
          <div>
            <h1 className="text-2xl font-bold text-slate-900">Repositórios de Conteúdo</h1>
-           <p className="text-sm text-slate-500 mt-1">Gerencie os "Canais/Trilhas" da sua plataforma.</p>
+           <p className="text-sm text-slate-500 mt-1">Gerencie os "Canais/Trilhas" da sua plataforma e veja seus conteúdos.</p>
          </div>
-         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
             + Novo Repositório
          </Button>
       </div>
@@ -126,49 +126,63 @@ export const AdminRepositories = () => {
                 <tr>
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Repositório</th>
+                   <th className="p-4 text-center">Conteúdos</th>
                    <th className="p-4 text-center">Destaque</th>
                    <th className="p-4">Atualizado</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
-                {companyRepos.map(repo => (
-                   <tr key={repo.id} className={`hover:bg-slate-50 transition-colors ${repo.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
-                      <td className="p-4 text-center">
-                         <div className="flex justify-center">
-                            {repo.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Rascunho" />}
-                         </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-16 h-24 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                            {repo.coverImage ? <img src={repo.coverImage} alt={repo.name} className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
+                {companyRepos.map(repo => {
+                   // Calcula a quantidade de conteúdos vinculados a este repositório
+                   const repoContentsCount = contents.filter(c => c.repositoryId === repo.id).length;
+
+                   return (
+                     <tr key={repo.id} className={`hover:bg-slate-50 transition-colors ${repo.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
+                        <td className="p-4 text-center">
+                           <div className="flex justify-center">
+                              {repo.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Rascunho" />}
+                           </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-16 h-24 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                              {repo.coverImage ? <img src={repo.coverImage} alt={repo.name} className="w-full h-full object-cover" /> : <ImageIcon className="text-slate-400" size={24} />}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900 text-base mb-1">{repo.name}</p>
+                              <p className="text-xs text-slate-500 line-clamp-2 max-w-sm">{repo.description || 'Sem descrição'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-semibold text-slate-900 text-base mb-1">{repo.name}</p>
-                            <p className="text-xs text-slate-500 line-clamp-2 max-w-sm">{repo.description || 'Sem descrição'}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                          <button onClick={() => toggleFeatured(repo)} className={`p-2 rounded-full transition-colors ${repo.featured ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}>
-                             <Star size={20} fill={repo.featured ? "currentColor" : "none"} />
-                          </button>
-                      </td>
-                      <td className="p-4 text-slate-500">{new Date(repo.updatedAt || repo.createdAt || '').toLocaleDateString('pt-BR')}</td>
-                      <td className="p-4 text-right">
-                         <div className="flex items-center justify-end gap-1 md:gap-2">
-                           <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Rascunho" />
-                           <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
-                         </div>
-                      </td>
-                   </tr>
-                ))}
+                        </td>
+                        <td className="p-4 text-center">
+                           <div className="flex flex-col items-center justify-center">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${repoContentsCount > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                                <Layers size={14} />
+                                {repoContentsCount}
+                              </span>
+                           </div>
+                        </td>
+                        <td className="p-4 text-center">
+                            <button onClick={() => toggleFeatured(repo)} className={`p-2 rounded-full transition-colors ${repo.featured ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}>
+                               <Star size={20} fill={repo.featured ? "currentColor" : "none"} />
+                            </button>
+                        </td>
+                        <td className="p-4 text-slate-500">{new Date(repo.updatedAt || repo.createdAt || '').toLocaleDateString('pt-BR')}</td>
+                        <td className="p-4 text-right">
+                           <div className="flex items-center justify-end gap-1 md:gap-2">
+                             <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Rascunho" />
+                             <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                             <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                           </div>
+                        </td>
+                     </tr>
+                   );
+                })}
                 {companyRepos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center">
+                    <td colSpan={6} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <FolderTree size={48} className="text-slate-300 mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum repositório criado</p>
