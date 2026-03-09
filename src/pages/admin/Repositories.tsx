@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Star, Layers, Settings } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen } from 'lucide-react';
 import { Repository } from '../../types';
 
 export const AdminRepositories = () => {
@@ -102,11 +102,6 @@ export const AdminRepositories = () => {
     toast.success(`Status alterado para ${repo.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
   };
 
-  const toggleFeatured = (repo: Repository) => {
-    updateRepository(repo.id, { featured: !repo.featured });
-    toast.success(repo.featured ? 'Removido dos destaques.' : 'Adicionado aos destaques!');
-  };
-
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
@@ -127,7 +122,7 @@ export const AdminRepositories = () => {
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Repositório</th>
                    <th className="p-4 text-center">Conteúdos</th>
-                   <th className="p-4 text-center">Destaque</th>
+                   <th className="p-4 text-center">Atualizado em</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -135,6 +130,8 @@ export const AdminRepositories = () => {
                 {companyRepos.map(repo => {
                    // Calcula a quantidade de conteúdos vinculados a este repositório
                    const repoContentsCount = contents.filter(c => c.repositoryId === repo.id).length;
+                   // Formata a data de atualização
+                   const updateDate = new Date(repo.updatedAt || repo.createdAt || new Date()).toLocaleDateString('pt-BR');
 
                    return (
                      <tr key={repo.id} className={`hover:bg-slate-50 transition-colors ${repo.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
@@ -156,28 +153,26 @@ export const AdminRepositories = () => {
                         </td>
                         <td className="p-4 text-center">
                            <div className="flex flex-col items-center justify-center">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${repoContentsCount > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${repoContentsCount > 0 ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-slate-100 text-slate-500'}`}>
                                 <Layers size={14} />
                                 {repoContentsCount}
                               </span>
                            </div>
                         </td>
-                        <td className="p-4 text-center">
-                            <button onClick={() => toggleFeatured(repo)} className={`p-2 rounded-full transition-colors ${repo.featured ? 'text-amber-500 hover:bg-amber-50' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}>
-                               <Star size={20} fill={repo.featured ? "currentColor" : "none"} />
-                            </button>
+                        <td className="p-4 text-center text-slate-500 font-medium">
+                            {updateDate}
                         </td>
                         <td className="p-4 text-right">
                            <div className="flex items-center justify-end gap-1 md:gap-2">
-                             <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                             <Button asChild variant="default" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 bg-indigo-600 hover:bg-indigo-700 text-white">
                                 <Link to={`/admin/${linkName}/repos/${repo.id}`}>
-                                   <Settings size={14} /> Conteúdos
+                                   <FolderOpen size={14} /> Abrir
                                 </Link>
                              </Button>
-                             <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Rascunho" />
+                             <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Inativar" />
                              <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                             <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                             <Button variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600" title="Editar Repositório"><Edit2 size={16} /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600" title="Excluir Repositório"><Trash2 size={16} /></Button>
                            </div>
                         </td>
                      </tr>
@@ -260,12 +255,22 @@ export const AdminRepositories = () => {
                </div>
             </div>
 
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-              <div className="space-y-0.5">
-                <Label>Repositório Ativo</Label>
-                <p className="text-xs text-slate-500">Se desmarcado, ficará como rascunho e invisível aos usuários.</p>
-              </div>
-              <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
+            <div className="grid grid-cols-2 gap-4">
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                 <div className="space-y-0.5">
+                   <Label>Destacar Repositório</Label>
+                   <p className="text-[10px] text-slate-500">Aparecerá no topo da home.</p>
+                 </div>
+                 <Switch checked={formData.featured} onCheckedChange={(checked) => setFormData({...formData, featured: checked})} />
+               </div>
+
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                 <div className="space-y-0.5">
+                   <Label>Repositório Ativo</Label>
+                   <p className="text-[10px] text-slate-500">Inativos ficam invisíveis.</p>
+                 </div>
+                 <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
+               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
