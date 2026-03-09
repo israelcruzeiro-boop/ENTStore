@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
@@ -7,65 +8,76 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink } from 'lucide-react';
 import { Company, User } from '../../types';
 
 export const SuperAdminDashboard = () => {
   const { companies, users, addCompany, updateCompany, deleteCompany, toggleCompanyStatus, addUser, updateUser, deleteUser, toggleUserStatus } = useAppStore();
   
-  // Estados - Company Modal
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', logoUrl: '', active: true });
+  const [formData, setFormData] = useState({ name: '', linkName: '', logoUrl: '', active: true });
 
-  // Estados - Exclusão Company
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
 
-  // Estados - Admins Modal
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   const [adminFormView, setAdminFormView] = useState(false);
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [adminFormData, setAdminFormData] = useState({ name: '', email: '', password: '', active: true });
 
-  const previewSlug = formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
-
-  // ---- MÉTRICAS DO DASHBOARD ----
   const totalCompanies = companies.length;
   const activeCompanies = companies.filter(c => c.active).length;
   const inactiveCompanies = totalCompanies - activeCompanies;
   const totalAdmins = users.filter(u => u.role === 'ADMIN').length;
 
-  // Lista ordenada pelas mais recentes
   const sortedCompanies = [...companies].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // ---- FUNÇÕES COMPANY ----
+  // Tratamento da digitação do Nome para gerar o linkName automaticamente (apenas se for vazio ou compatível)
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     const newName = e.target.value;
+     const newLinkName = newName.toLowerCase().trim().replace(/[\s\W-]+/g, '');
+     
+     if (!editingId && (!formData.linkName || formData.linkName === formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, ''))) {
+        setFormData({ ...formData, name: newName, linkName: newLinkName });
+     } else {
+        setFormData({ ...formData, name: newName });
+     }
+  };
+
+  const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+     const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
+     setFormData({ ...formData, linkName: newLink });
+  };
+
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', logoUrl: '', active: true });
+    setFormData({ name: '', linkName: '', logoUrl: '', active: true });
     setIsFormOpen(true);
   };
 
   const openEdit = (company: Company) => {
     setEditingId(company.id);
-    setFormData({ name: company.name, logoUrl: company.logoUrl || '', active: company.active });
+    setFormData({ name: company.name, linkName: company.linkName, logoUrl: company.logoUrl || '', active: company.active });
     setIsFormOpen(true);
   };
 
   const handleSaveCompany = (e: React.FormEvent) => {
     e.preventDefault();
     const name = formData.name.trim();
-    if (!name) return toast.error('O nome da empresa é obrigatório');
+    const linkName = formData.linkName.trim();
+    
+    if (!name || !linkName) return toast.error('Nome e Link da Empresa são obrigatórios.');
 
-    const isDuplicate = companies.some(c => c.slug === previewSlug && c.id !== editingId);
-    if (isDuplicate) return toast.error('Já existe uma empresa registrada com este nome.');
+    const isDuplicate = companies.some(c => c.linkName === linkName && c.id !== editingId);
+    if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
 
     if (editingId) {
-      updateCompany(editingId, { name, slug: previewSlug, logoUrl: formData.logoUrl, active: formData.active });
+      updateCompany(editingId, { name, linkName, logoUrl: formData.logoUrl, active: formData.active });
       toast.success('Empresa atualizada com sucesso!');
     } else {
-      addCompany({ name, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
+      addCompany({ name, linkName, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
       toast.success('Empresa criada! Admin padrão gerado.');
     }
     setIsFormOpen(false);
@@ -79,7 +91,6 @@ export const SuperAdminDashboard = () => {
     }
   };
 
-  // ---- FUNÇÕES ADMINS ----
   const openAdminsModal = (company: Company) => {
     setActiveCompany(company);
     setAdminFormView(false);
@@ -152,47 +163,25 @@ export const SuperAdminDashboard = () => {
          </Button>
       </div>
 
-      {/* METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-             <Building size={24} />
-          </div>
-          <div>
-             <p className="text-sm font-medium text-slate-500">Total Companies</p>
-             <p className="text-2xl font-bold text-slate-900">{totalCompanies}</p>
-          </div>
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0"><Building size={24} /></div>
+          <div><p className="text-sm font-medium text-slate-500">Total Companies</p><p className="text-2xl font-bold text-slate-900">{totalCompanies}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0">
-             <CheckCircle2 size={24} />
-          </div>
-          <div>
-             <p className="text-sm font-medium text-slate-500">Ativas</p>
-             <p className="text-2xl font-bold text-slate-900">{activeCompanies}</p>
-          </div>
+          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0"><CheckCircle2 size={24} /></div>
+          <div><p className="text-sm font-medium text-slate-500">Ativas</p><p className="text-2xl font-bold text-slate-900">{activeCompanies}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0">
-             <XCircle size={24} />
-          </div>
-          <div>
-             <p className="text-sm font-medium text-slate-500">Inativas</p>
-             <p className="text-2xl font-bold text-slate-900">{inactiveCompanies}</p>
-          </div>
+          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0"><XCircle size={24} /></div>
+          <div><p className="text-sm font-medium text-slate-500">Inativas</p><p className="text-2xl font-bold text-slate-900">{inactiveCompanies}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-             <Users size={24} />
-          </div>
-          <div>
-             <p className="text-sm font-medium text-slate-500">Total Admins</p>
-             <p className="text-2xl font-bold text-slate-900">{totalAdmins}</p>
-          </div>
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0"><Users size={24} /></div>
+          <div><p className="text-sm font-medium text-slate-500">Total Admins</p><p className="text-2xl font-bold text-slate-900">{totalAdmins}</p></div>
         </div>
       </div>
       
-      {/* TABELA DE EMPRESAS */}
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Empresas Cadastradas (Mais recentes)</h2>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -201,8 +190,8 @@ export const SuperAdminDashboard = () => {
                 <tr>
                    <th className="p-4 w-16">Status</th>
                    <th className="p-4">Empresa</th>
-                   <th className="p-4">Slug</th>
-                   <th className="p-4">Atualizado em</th>
+                   <th className="p-4">Acesso e Rota</th>
+                   <th className="p-4">Atualizado</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -223,25 +212,24 @@ export const SuperAdminDashboard = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 font-mono text-xs text-slate-500">{company.slug}</td>
+                      <td className="p-4">
+                         <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/admin/{company.linkName}</span>
+                            <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                               <Link to={`/admin/${company.linkName}`}>
+                                 Entrar <ExternalLink size={12} />
+                               </Link>
+                            </Button>
+                         </div>
+                      </td>
                       <td className="p-4 text-slate-500">{new Date(company.updatedAt || company.createdAt).toLocaleDateString('pt-BR')}</td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1 md:gap-2">
-                           <Switch 
-                             checked={company.active} 
-                             onCheckedChange={() => toggleCompanyStatus(company.id)}
-                             title="Ativar/Desativar"
-                           />
+                           <Switch checked={company.active} onCheckedChange={() => toggleCompanyStatus(company.id)} title="Ativar/Desativar" />
                            <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" onClick={() => openAdminsModal(company)} title="Gerenciar Admins" className="text-slate-400 hover:text-indigo-600">
-                             <Users size={16} />
-                           </Button>
-                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600">
-                             <Edit2 size={16} />
-                           </Button>
-                           <Button variant="ghost" size="icon" onClick={() => {setCompanyToDelete({id: company.id, name: company.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600">
-                             <Trash2 size={16} />
-                           </Button>
+                           <Button variant="ghost" size="icon" onClick={() => openAdminsModal(company)} title="Gerenciar Admins" className="text-slate-400 hover:text-indigo-600"><Users size={16} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => {setCompanyToDelete({id: company.id, name: company.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
                          </div>
                       </td>
                    </tr>
@@ -254,15 +242,20 @@ export const SuperAdminDashboard = () => {
         </div>
       </div>
 
-      {/* MODAL: NOVA/EDITAR COMPANY */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveCompany} className="space-y-6 mt-4">
             <div className="space-y-2">
               <Label>Nome da Empresa *</Label>
-              <Input placeholder="Ex: Globex" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus />
-              {formData.name && <p className="text-[10px] text-slate-400 font-mono mt-1">Slug gerado: {previewSlug}</p>}
+              <Input placeholder="Ex: Globex" value={formData.name} onChange={handleNameChange} autoFocus />
+            </div>
+            <div className="space-y-2">
+              <Label>Link do Admin *</Label>
+              <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200">
+                <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">/admin/</span>
+                <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.linkName} onChange={handleLinkNameChange} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>URL da Logo (Opcional)</Label>
@@ -283,7 +276,6 @@ export const SuperAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: EXCLUIR COMPANY */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Empresa</DialogTitle></DialogHeader>
@@ -298,50 +290,32 @@ export const SuperAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL: GERENCIAR ADMINS */}
       <Dialog open={adminModalOpen} onOpenChange={setAdminModalOpen}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader className="pb-4 border-b border-slate-100 flex-shrink-0">
              <DialogTitle className="flex items-center gap-2 text-xl">
-               {adminFormView && (
-                 <Button variant="ghost" size="icon" onClick={() => setAdminFormView(false)} className="-ml-2 h-8 w-8">
-                   <ArrowLeft size={18} />
-                 </Button>
-               )}
+               {adminFormView && <Button variant="ghost" size="icon" onClick={() => setAdminFormView(false)} className="-ml-2 h-8 w-8"><ArrowLeft size={18} /></Button>}
                {adminFormView ? (editingAdminId ? 'Editar Admin' : 'Novo Admin') : `Admins: ${activeCompany?.name}`}
              </DialogTitle>
           </DialogHeader>
-          
           <div className="flex-1 overflow-y-auto py-4">
             {!adminFormView ? (
-              // LIST VIEW
               <div className="space-y-4">
-                 <div className="flex justify-end">
-                    <Button onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700">+ Novo Admin</Button>
-                 </div>
+                 <div className="flex justify-end"><Button onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700">+ Novo Admin</Button></div>
                  {activeAdmins.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">
-                       Nenhum administrador cadastrado para esta empresa.
-                    </div>
+                    <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">Nenhum administrador cadastrado para esta empresa.</div>
                  ) : (
                     <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
                        {activeAdmins.map(admin => (
                           <div key={admin.id} className={`flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors ${admin.active === false ? 'opacity-60' : ''}`}>
                              <div>
-                                <div className="flex items-center gap-2">
-                                   <p className="font-semibold text-slate-900">{admin.name}</p>
-                                   {admin.active === false && <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Inativo</span>}
-                                </div>
+                                <div className="flex items-center gap-2"><p className="font-semibold text-slate-900">{admin.name}</p>{admin.active === false && <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Inativo</span>}</div>
                                 <p className="text-sm text-slate-500">{admin.email}</p>
                              </div>
                              <div className="flex items-center gap-2">
                                 <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id)} title="Ativar/Desativar" className="mr-2" />
-                                <Button variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8">
-                                  <Edit2 size={16} />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteAdmin(admin.id)} className="text-slate-400 hover:text-red-600 h-8 w-8">
-                                  <Trash2 size={16} />
-                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8"><Edit2 size={16} /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteAdmin(admin.id)} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
                              </div>
                           </div>
                        ))}
@@ -349,44 +323,22 @@ export const SuperAdminDashboard = () => {
                  )}
               </div>
             ) : (
-              // FORM VIEW
               <form id="admin-form" onSubmit={handleSaveAdmin} className="space-y-4 px-1">
-                 <div className="space-y-2">
-                    <Label>Nome Completo *</Label>
-                    <Input placeholder="Ex: João Silva" value={adminFormData.name} onChange={(e) => setAdminFormData({...adminFormData, name: e.target.value})} autoFocus />
-                 </div>
-                 <div className="space-y-2">
-                    <Label>E-mail *</Label>
-                    <Input type="email" placeholder="admin@empresa.com" value={adminFormData.email} onChange={(e) => setAdminFormData({...adminFormData, email: e.target.value})} />
-                 </div>
-                 <div className="space-y-2">
-                    <Label>{editingAdminId ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</Label>
-                    <Input type="text" placeholder="••••••••" value={adminFormData.password} onChange={(e) => setAdminFormData({...adminFormData, password: e.target.value})} />
-                 </div>
+                 <div className="space-y-2"><Label>Nome Completo *</Label><Input placeholder="Ex: João Silva" value={adminFormData.name} onChange={(e) => setAdminFormData({...adminFormData, name: e.target.value})} autoFocus /></div>
+                 <div className="space-y-2"><Label>E-mail *</Label><Input type="email" placeholder="admin@empresa.com" value={adminFormData.email} onChange={(e) => setAdminFormData({...adminFormData, email: e.target.value})} /></div>
+                 <div className="space-y-2"><Label>{editingAdminId ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</Label><Input type="text" placeholder="••••••••" value={adminFormData.password} onChange={(e) => setAdminFormData({...adminFormData, password: e.target.value})} /></div>
                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                    <div className="space-y-0.5">
-                       <Label>Status do Admin</Label>
-                       <p className="text-xs text-slate-500">Admins inativos não podem acessar o painel.</p>
-                    </div>
+                    <div className="space-y-0.5"><Label>Status do Admin</Label><p className="text-xs text-slate-500">Admins inativos não podem acessar o painel.</p></div>
                     <Switch checked={adminFormData.active} onCheckedChange={(checked) => setAdminFormData({...adminFormData, active: checked})} />
                  </div>
               </form>
             )}
           </div>
-
           <div className="flex-shrink-0 pt-4 border-t border-slate-100 flex justify-end gap-3">
-             {adminFormView ? (
-                <>
-                  <Button variant="outline" onClick={() => setAdminFormView(false)}>Cancelar</Button>
-                  <Button type="submit" form="admin-form">Salvar Admin</Button>
-                </>
-             ) : (
-                <Button variant="outline" onClick={() => setAdminModalOpen(false)}>Fechar</Button>
-             )}
+             {adminFormView ? (<><Button variant="outline" onClick={() => setAdminFormView(false)}>Cancelar</Button><Button type="submit" form="admin-form">Salvar Admin</Button></>) : (<Button variant="outline" onClick={() => setAdminModalOpen(false)}>Fechar</Button>)}
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 };

@@ -22,12 +22,17 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 // Route Protectors
-const RequireAuth = ({ children, role }: { children: JSX.Element, role?: string }) => {
+const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: JSX.Element, role?: string, allowSuperAdmin?: boolean }) => {
   const { user } = useAuth();
+  
   if (!user) return <Navigate to="/login" replace />;
+  
   if (role && user.role !== role) {
+     if (allowSuperAdmin && user.role === 'SUPER_ADMIN') {
+         return children; // Permite Super Admin acessar (Impersonate)
+     }
      if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
-     if (user.role === 'ADMIN') return <Navigate to="/admin" replace />;
+     if (user.role === 'ADMIN') return <Navigate to="/login" replace />; // Volta para o login para recalcular rota
      return <Navigate to="/" replace />;
   }
   return children;
@@ -44,13 +49,15 @@ const AppRoutes = () => (
       <Route path="content/:id" element={<ContentDetail />} />
     </Route>
 
-    {/* Admin Routes (CMS style) */}
-    <Route path="/admin" element={<RequireAuth role="ADMIN"><AdminLayout /></RequireAuth>}>
+    {/* Admin Routes (Com linkName na URL) */}
+    <Route path="/admin/:linkName" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
       <Route index element={<AdminDashboard />} />
       <Route path="appearance" element={<AdminAppearance />} />
-      {/* Outras rotas mockadas apontariam para o dashboard por enquanto */}
       <Route path="*" element={<AdminDashboard />} /> 
     </Route>
+
+    {/* Fallback de Admin sem parametro volta pro Login pra pegar a rota certa */}
+    <Route path="/admin" element={<Navigate to="/login" replace />} />
 
     {/* Super Admin Routes */}
     <Route path="/super-admin" element={<RequireAuth role="SUPER_ADMIN"><AdminLayout superAdmin /></RequireAuth>}>

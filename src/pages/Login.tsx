@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppStore } from '../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
 
 export const Login = () => {
   const { login } = useAuth();
+  const { companies } = useAppStore();
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
@@ -17,11 +19,15 @@ export const Login = () => {
     const loggedUser = login(email, password);
     
     if (loggedUser) {
-      // Redirecionamento dinâmico baseado na Role real do usuário no banco
       if (loggedUser.role === 'SUPER_ADMIN') {
         navigate('/super-admin');
       } else if (loggedUser.role === 'ADMIN') {
-        navigate('/admin');
+        const adminCompany = companies.find(c => c.id === loggedUser.companyId);
+        if (adminCompany) {
+           navigate(`/admin/${adminCompany.linkName}`);
+        } else {
+           setError('Empresa não encontrada ou inativa.');
+        }
       } else {
         navigate('/');
       }

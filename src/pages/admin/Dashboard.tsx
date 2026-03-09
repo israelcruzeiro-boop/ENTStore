@@ -1,15 +1,13 @@
-import { useAuth } from '../../contexts/AuthContext';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { Users, FolderTree, FileVideo } from 'lucide-react';
 
 export const AdminDashboard = () => {
-  const { company } = useAuth();
-  const { repositories, contents, users } = useAppStore();
+  const { linkName } = useParams();
+  const { companies, repositories, contents, users } = useAppStore();
   
-  // =========================================================================
-  // FILTROS DE ISOLAMENTO (MULTI-TENANT)
-  // Todo o dado nesta página é estritamente filtrado pelo ID da empresa atual
-  // =========================================================================
+  const company = companies.find(c => c.linkName === linkName);
+  
   const companyRepos = repositories.filter(r => r.companyId === company?.id);
   const repoIds = companyRepos.map(r => r.id);
   const companyContents = contents.filter(c => repoIds.includes(c.repositoryId));
@@ -18,12 +16,14 @@ export const AdminDashboard = () => {
   const adminsCount = companyUsers.filter(u => u.role === 'ADMIN').length;
   const regularUsersCount = companyUsers.filter(u => u.role === 'USER').length;
 
+  if (!company) return null;
+
   return (
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Visão Geral</h1>
         <p className="text-slate-500 text-sm mt-1">
-          Dashboard isolado: exibindo apenas dados pertencentes à <strong>{company?.name}</strong>.
+          Dashboard isolado: exibindo apenas dados pertencentes à <strong>{company.name}</strong>.
         </p>
       </div>
       
@@ -93,7 +93,7 @@ export const AdminDashboard = () => {
             ))}
             {companyRepos.length === 0 && (
                 <div className="p-8 text-center text-slate-500">
-                  Nenhum repositório criado ainda para a {company?.name}.
+                  Nenhum repositório criado ainda para a {company.name}.
                 </div>
             )}
           </div>

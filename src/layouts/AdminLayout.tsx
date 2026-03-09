@@ -1,42 +1,56 @@
-import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft } from 'lucide-react';
 
 export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) => {
   const { user, company, logout } = useAuth();
+  const { companies } = useAppStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { linkName } = useParams();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  // Se for superadmin visitando o Admin de uma empresa, o displayCompany será pego da URL
+  const displayCompany = linkName ? companies.find(c => c.linkName === linkName) : company;
+
   const navItems = superAdmin ? [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/super-admin' },
     { label: 'Companies', icon: FolderTree, path: '/super-admin/companies' },
   ] : [
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/admin' },
-    { label: 'Repositórios', icon: FolderTree, path: '/admin/repos' },
-    { label: 'Usuários', icon: Users, path: '/admin/users' },
-    { label: 'Aparência', icon: Palette, path: '/admin/appearance' },
-    { label: 'Configurações', icon: Settings, path: '/admin/settings' },
+    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${linkName}` },
+    { label: 'Repositórios', icon: FolderTree, path: `/admin/${linkName}/repos` },
+    { label: 'Usuários', icon: Users, path: `/admin/${linkName}/users` },
+    { label: 'Aparência', icon: Palette, path: `/admin/${linkName}/appearance` },
+    { label: 'Configurações', icon: Settings, path: `/admin/${linkName}/settings` },
   ];
+
+  if (!superAdmin && !displayCompany) {
+    return <div className="flex h-screen items-center justify-center p-4">Empresa não encontrada para a URL /admin/{linkName}.</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col hidden md:flex">
-        <div className="p-6 border-b border-slate-100">
-          <h1 className="text-xl font-bold text-slate-900">
-            {superAdmin ? 'Super Admin' : company?.name || 'Admin'}
+        <div className="p-6 border-b border-slate-100 flex flex-col">
+          {user?.role === 'SUPER_ADMIN' && !superAdmin && (
+             <Link to="/super-admin" className="text-xs text-indigo-600 flex items-center gap-1 mb-2 hover:underline font-medium">
+               <ArrowLeft size={12} /> Voltar p/ Super Admin
+             </Link>
+          )}
+          <h1 className="text-xl font-bold text-slate-900 truncate">
+            {superAdmin ? 'Super Admin' : displayCompany?.name}
           </h1>
           <p className="text-xs text-slate-500 mt-1">Painel de Controle</p>
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || (location.pathname === `/admin/${linkName}` && item.path === `/admin/${linkName}`);
             const Icon = item.icon;
             return (
               <Link 
@@ -71,11 +85,9 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Mobile Header */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-            <h1 className="font-bold">{superAdmin ? 'Super Admin' : 'Admin'}</h1>
+            <h1 className="font-bold truncate">{superAdmin ? 'Super Admin' : displayCompany?.name}</h1>
             <button onClick={handleLogout} className="text-red-600"><LogOut size={20}/></button>
         </header>
         

@@ -11,25 +11,25 @@ interface AppState {
   contents: Content[];
   
   // Actions de Company
-  addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt'>) => void;
+  addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
   updateCompany: (id: string, data: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
   toggleCompanyStatus: (id: string) => void;
   updateCompanyTheme: (id: string, theme: any) => void;
 
   // Actions de User
-  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
+  addUser: (user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateUser: (id: string, data: Partial<User>) => void;
   deleteUser: (id: string) => void;
   toggleUserStatus: (id: string) => void;
 
   // Actions de Repositório
-  addRepository: (repo: Omit<Repository, 'id' | 'createdAt'>) => void;
+  addRepository: (repo: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateRepository: (id: string, data: Partial<Repository>) => void;
   deleteRepository: (id: string) => void;
 
   // Actions de Conteúdo
-  addContent: (content: Omit<Content, 'id' | 'createdAt'>) => void;
+  addContent: (content: Omit<Content, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateContent: (id: string, data: Partial<Content>) => void;
   deleteContent: (id: string) => void;
 }
@@ -61,12 +61,13 @@ export const useAppStore = create<AppState>()(
         const adminUser: User = {
           id: crypto.randomUUID(),
           name: `Admin ${companyData.name}`,
-          email: `admin@${slug}.com`,
+          email: `admin@${companyData.linkName}.com`,
           password: '123456',
           role: 'ADMIN',
           companyId: id,
           active: true,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
 
         return { 
@@ -84,7 +85,6 @@ export const useAppStore = create<AppState>()(
       })),
 
       deleteCompany: (id) => set((state) => {
-        // Cascade delete: Pega todos os repositórios da empresa para apagar os conteúdos
         const reposToDelete = state.repositories.filter(r => r.companyId === id).map(r => r.id);
         
         return {

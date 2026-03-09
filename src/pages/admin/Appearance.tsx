@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
@@ -7,11 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export const AdminAppearance = () => {
-  const { company } = useAuth();
-  const { updateCompanyTheme } = useAppStore();
+  const { linkName } = useParams();
+  const { companies, updateCompanyTheme } = useAppStore();
+  const company = companies.find(c => c.linkName === linkName);
   
   const [activeThemeKey, setActiveThemeKey] = useState('corporateBlue');
   const [primaryColor, setPrimaryColor] = useState(company?.theme?.primary || '#2563EB');
+
+  useEffect(() => {
+     if (company?.theme?.primary) setPrimaryColor(company.theme.primary);
+  }, [company]);
 
   const handleApplyPreset = (key: string, theme: any) => {
     if (!company) return;
@@ -26,6 +31,8 @@ export const AdminAppearance = () => {
     updateCompanyTheme(company.id, { primary: primaryColor });
     toast.success('Cor primária customizada salva!');
   };
+
+  if (!company) return null;
 
   return (
     <div className="max-w-4xl">

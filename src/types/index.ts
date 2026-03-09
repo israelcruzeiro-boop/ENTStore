@@ -13,6 +13,7 @@ export interface Company {
   id: string;
   name: string;
   slug: string;
+  linkName: string; // Novo campo para a rota
   active: boolean;
   theme: Theme;
   logoUrl?: string;

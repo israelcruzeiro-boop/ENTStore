@@ -11,6 +11,7 @@ export const MOCK_COMPANIES: Company[] = [
     id: 'c1', 
     name: 'Acme Corp', 
     slug: 'acme-corp',
+    linkName: 'acme',
     active: true, 
     theme: mockThemes.netflix,
     logoUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=150&h=150&fit=crop&q=80',
@@ -20,6 +21,7 @@ export const MOCK_COMPANIES: Company[] = [
     id: 'c2', 
     name: 'TechFlow', 
     slug: 'techflow',
+    linkName: 'techflow',
     active: true, 
     theme: mockThemes.corporateBlue,
     createdAt: new Date('2024-02-15').toISOString()
