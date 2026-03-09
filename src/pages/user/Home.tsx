@@ -13,15 +13,16 @@ export const UserHome = () => {
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
      
-     // Verifica a regra de acesso restrito (apenas para quem é do tipo USER)
-     if (r.accessType === 'RESTRICTED' && !r.allowedUserIds?.includes(user?.id || '')) {
-         return false;
+     // Regra de Acesso: Se for restrito, apenas os IDs permitidos (ou Admins) podem ver
+     if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
+         if (!r.allowedUserIds?.includes(user.id)) return false;
      }
      
      return true;
   });
   
   const repoIds = companyRepos.map(r => r.id);
+  // Puxa apenas os conteúdos dos repositórios que o usuário tem acesso
   const companyContents = contents.filter(c => repoIds.includes(c.repositoryId) && c.status === 'ACTIVE');
 
   const featuredContent = companyContents.find(c => c.featured);
@@ -39,7 +40,6 @@ export const UserHome = () => {
               alt="Hero" 
               className="w-full h-full object-cover"
             />
-            {/* Gradient Overlay for Netflix effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-transparent to-transparent"></div>
           </div>

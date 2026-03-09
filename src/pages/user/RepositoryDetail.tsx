@@ -11,8 +11,8 @@ export const RepositoryDetail = () => {
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
-  // Verificação de Acesso: Bloqueia se o repositório for restrito e o ID do usuário não estiver na lista
-  const isAuthorized = repo?.accessType === 'ALL' || (repo?.accessType === 'RESTRICTED' && repo?.allowedUserIds?.includes(user?.id || ''));
+  // Regra de Acesso (Admins sempre acessam, Usuários apenas se "ALL" ou se o ID estiver na lista)
+  const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
 
   if (!repo) {
      return <div className="p-12 text-center text-zinc-500 mt-20">Repositório inativo ou não encontrado.</div>;
