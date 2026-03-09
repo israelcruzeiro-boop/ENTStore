@@ -16,6 +16,7 @@ import { RepositoryDetail } from './pages/user/RepositoryDetail';
 import { ContentDetail } from './pages/user/ContentDetail';
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { AdminRepositories } from './pages/admin/Repositories';
+import { AdminRepositoryContents } from './pages/admin/RepositoryContents';
 import { AdminUsers } from './pages/admin/Users';
 import { AdminAppearance } from './pages/admin/Appearance';
 import { AdminSettings } from './pages/admin/Settings';
@@ -56,6 +57,7 @@ const AppRoutes = () => (
     <Route path="/admin/:linkName" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
       <Route index element={<AdminDashboard />} />
       <Route path="repos" element={<AdminRepositories />} />
+      <Route path="repos/:repoId" element={<AdminRepositoryContents />} />
       <Route path="users" element={<AdminUsers />} />
       <Route path="appearance" element={<AdminAppearance />} />
       <Route path="settings" element={<AdminSettings />} />

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Upload, Image as ImageIcon, Star, Layers } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Star, Layers, Settings } from 'lucide-react';
 import { Repository } from '../../types';
 
 export const AdminRepositories = () => {
@@ -128,7 +128,6 @@ export const AdminRepositories = () => {
                    <th className="p-4">Repositório</th>
                    <th className="p-4 text-center">Conteúdos</th>
                    <th className="p-4 text-center">Destaque</th>
-                   <th className="p-4">Atualizado</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -168,9 +167,13 @@ export const AdminRepositories = () => {
                                <Star size={20} fill={repo.featured ? "currentColor" : "none"} />
                             </button>
                         </td>
-                        <td className="p-4 text-slate-500">{new Date(repo.updatedAt || repo.createdAt || '').toLocaleDateString('pt-BR')}</td>
                         <td className="p-4 text-right">
                            <div className="flex items-center justify-end gap-1 md:gap-2">
+                             <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                                <Link to={`/admin/${linkName}/repos/${repo.id}`}>
+                                   <Settings size={14} /> Conteúdos
+                                </Link>
+                             </Button>
                              <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Rascunho" />
                              <div className="h-6 w-px bg-slate-200 mx-1"></div>
                              <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
@@ -182,7 +185,7 @@ export const AdminRepositories = () => {
                 })}
                 {companyRepos.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center">
+                    <td colSpan={5} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <FolderTree size={48} className="text-slate-300 mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum repositório criado</p>
