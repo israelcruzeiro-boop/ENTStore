@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 interface AuthContextType {
   user: User | null;
   company: Company | null;
-  login: (email: string, pass: string) => boolean;
+  login: (email: string, pass: string) => User | null; // Agora retorna o usuário ou null
   logout: () => void;
 }
 
@@ -35,28 +35,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [company]);
 
-  const login = (email: string, pass: string) => {
+  const login = (email: string, pass: string): User | null => {
     const foundUser = users.find(u => u.email === email && u.password === pass);
     
     if (foundUser) {
       // Bloqueia se o usuário estiver inativo
       if (foundUser.active === false) {
-         return false;
+         return null;
       }
 
       if (foundUser.role !== 'SUPER_ADMIN') {
         const userCompany = companies.find(c => c.id === foundUser.companyId);
-        // Bloqueia se a empresa estiver inativa
+        // Bloqueia se a empresa estiver inativa ou excluída
         if (!userCompany || !userCompany.active) {
-          return false; 
+          return null; 
         }
       }
 
       localStorage.setItem('entstore_auth_user', foundUser.id);
       setActiveUserId(foundUser.id);
-      return true;
+      return foundUser;
     }
-    return false;
+    return null;
   };
 
   const logout = () => {
