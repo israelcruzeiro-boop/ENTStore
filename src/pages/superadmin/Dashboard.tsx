@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
 import { Company, User } from '../../types';
 
 export const SuperAdminDashboard = () => {
@@ -49,6 +49,22 @@ export const SuperAdminDashboard = () => {
   const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
      setFormData({ ...formData, linkName: newLink });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Limite de 2MB para evitar travar o localStorage (já que é salvo em base64)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('A imagem deve ter no máximo 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, logoUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const openCreate = () => {
@@ -243,13 +259,14 @@ export const SuperAdminDashboard = () => {
       </div>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveCompany} className="space-y-6 mt-4">
             <div className="space-y-2">
               <Label>Nome da Empresa *</Label>
               <Input placeholder="Ex: Globex" value={formData.name} onChange={handleNameChange} autoFocus />
             </div>
+            
             <div className="space-y-2">
               <Label>Link do Admin *</Label>
               <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200">
@@ -257,10 +274,46 @@ export const SuperAdminDashboard = () => {
                 <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.linkName} onChange={handleLinkNameChange} />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label>URL da Logo (Opcional)</Label>
-              <Input placeholder="https://..." value={formData.logoUrl} onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} />
+              <Label>Logo da Empresa</Label>
+              <div className="flex gap-4 items-start">
+                 <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 mt-1">
+                    {formData.logoUrl ? (
+                      <img src={formData.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <Building className="text-slate-400" size={24} />
+                    )}
+                 </div>
+                 <div className="flex-1 space-y-2">
+                    <Input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload}
+                      className="hidden" 
+                      id="logo-upload"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      className="w-full flex items-center justify-center gap-2 h-9"
+                    >
+                      <Upload size={16} /> Fazer Upload da Imagem
+                    </Button>
+                    <div className="flex items-center gap-2">
+                       <span className="text-xs text-slate-400 font-medium">OU</span>
+                       <Input 
+                         placeholder="Cole a URL da imagem (https://...)" 
+                         value={formData.logoUrl} 
+                         onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} 
+                         className="h-9 text-xs"
+                       />
+                    </div>
+                 </div>
+              </div>
             </div>
+
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
               <div className="space-y-0.5">
                 <Label>Status da Conta</Label>
@@ -268,7 +321,8 @@ export const SuperAdminDashboard = () => {
               </div>
               <Switch checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} />
             </div>
-            <div className="flex justify-end gap-3 pt-4">
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
               <Button type="submit">{editingId ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
             </div>
