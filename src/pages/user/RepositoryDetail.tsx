@@ -7,11 +7,12 @@ export const RepositoryDetail = () => {
   const { id } = useParams();
   const { repositories, categories: allCategories, contents: allContents } = useAppStore();
 
-  const repo = repositories.find(r => r.id === id);
+  const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   const categories = allCategories.filter(c => c.repositoryId === id);
-  const contents = allContents.filter(c => c.repositoryId === id);
+  // Garante que só puxa os conteúdos ativos daquele repositório
+  const contents = allContents.filter(c => c.repositoryId === id && c.status === 'ACTIVE');
 
-  if (!repo) return <div className="p-12 text-center text-white">Repositório não encontrado</div>;
+  if (!repo) return <div className="p-12 text-center text-white">Repositório inativo ou não encontrado.</div>;
 
   return (
     <div className="pb-12">
@@ -48,7 +49,7 @@ export const RepositoryDetail = () => {
             ))}
             {contents.length === 0 && (
                 <div className="col-span-full py-12 text-center text-zinc-500">
-                    Nenhum conteúdo neste repositório ainda.
+                    Nenhum conteúdo liberado neste repositório ainda.
                 </div>
             )}
         </div>

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle } from 'lucide-react';
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
@@ -31,7 +31,8 @@ export const AdminRepositoryContents = () => {
     url: '',
     embedUrl: '',
     featured: false,
-    recent: true
+    recent: true,
+    status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -51,7 +52,7 @@ export const AdminRepositoryContents = () => {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true });
+    setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' });
     setIsFormOpen(true);
   };
 
@@ -65,7 +66,8 @@ export const AdminRepositoryContents = () => {
       url: content.url, 
       embedUrl: content.embedUrl || '', 
       featured: content.featured, 
-      recent: content.recent 
+      recent: content.recent,
+      status: content.status || 'ACTIVE'
     });
     setIsFormOpen(true);
   };
@@ -81,6 +83,7 @@ export const AdminRepositoryContents = () => {
       toast.success('Conteúdo atualizado!');
     } else {
       addContent({
+        companyId: company.id,
         repositoryId: repo.id,
         ...formData
       });
@@ -95,6 +98,11 @@ export const AdminRepositoryContents = () => {
       toast.success('Conteúdo excluído.');
       setIsDeleteOpen(false);
     }
+  };
+
+  const toggleStatus = (content: Content) => {
+    updateContent(content.id, { status: content.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
+    toast.success(`Conteúdo alterado para ${content.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
   };
 
   const getTypeIcon = (type: string) => {
@@ -148,6 +156,7 @@ export const AdminRepositoryContents = () => {
           <table className="w-full text-left text-sm text-slate-600">
              <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
                 <tr>
+                   <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Conteúdo</th>
                    <th className="p-4 w-32">Tipo</th>
                    <th className="p-4 text-center">Destaque</th>
@@ -156,7 +165,12 @@ export const AdminRepositoryContents = () => {
              </thead>
              <tbody className="divide-y divide-slate-100">
                 {repoContents.map(content => (
-                   <tr key={content.id} className="hover:bg-slate-50 transition-colors">
+                   <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
+                      <td className="p-4 text-center">
+                         <div className="flex justify-center">
+                            {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Rascunho" />}
+                         </div>
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center gap-4">
                           <img src={content.thumbnailUrl} alt={content.title} className="w-24 h-14 rounded object-cover shadow-sm bg-slate-100 border border-slate-200 shrink-0" />
@@ -180,6 +194,8 @@ export const AdminRepositoryContents = () => {
                       </td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1">
+                           <Switch checked={content.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(content)} title="Ativar/Inativar" />
+                           <div className="h-6 w-px bg-slate-200 mx-1"></div>
                            <Button variant="ghost" size="icon" onClick={() => openEdit(content)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
                            <Button variant="ghost" size="icon" onClick={() => {setContentToDelete({id: content.id, title: content.title}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
                          </div>
@@ -188,7 +204,7 @@ export const AdminRepositoryContents = () => {
                 ))}
                 {repoContents.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-12 text-center">
+                    <td colSpan={5} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <Play size={48} className="text-slate-300 mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum conteúdo adicionado</p>
@@ -265,12 +281,22 @@ export const AdminRepositoryContents = () => {
               </div>
             )}
 
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-              <div className="space-y-0.5">
-                <Label>Destacar Conteúdo</Label>
-                <p className="text-xs text-slate-500">Aparecerá com maior relevância para o usuário.</p>
-              </div>
-              <Switch checked={formData.featured} onCheckedChange={(checked) => setFormData({...formData, featured: checked})} />
+            <div className="grid grid-cols-2 gap-4">
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                 <div className="space-y-0.5">
+                   <Label>Destacar Conteúdo</Label>
+                   <p className="text-[10px] text-slate-500">Aparece em evidência.</p>
+                 </div>
+                 <Switch checked={formData.featured} onCheckedChange={(checked) => setFormData({...formData, featured: checked})} />
+               </div>
+
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                 <div className="space-y-0.5">
+                   <Label>Status</Label>
+                   <p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo Ativo e visível' : 'Oculto (Rascunho)'}</p>
+                 </div>
+                 <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
+               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

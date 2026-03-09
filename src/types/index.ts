@@ -57,6 +57,7 @@ export interface Category {
 
 export interface Content {
   id: string;
+  companyId: string;
   repositoryId: string;
   categoryId?: string;
   title: string;
@@ -67,6 +68,7 @@ export interface Content {
   embedUrl?: string;
   featured: boolean;
   recent: boolean;
+  status: 'ACTIVE' | 'DRAFT';
   createdAt?: string;
   updatedAt?: string;
 }

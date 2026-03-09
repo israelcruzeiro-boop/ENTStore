@@ -9,10 +9,10 @@ export const UserHome = () => {
   const { company } = useAuth();
   const { repositories, contents } = useAppStore();
 
-  // Filtra dados da Store local pela empresa logada
-  const companyRepos = repositories.filter(r => r.companyId === company?.id);
+  // Filtra dados da Store local pela empresa logada E pelo status ATIVO
+  const companyRepos = repositories.filter(r => r.companyId === company?.id && r.status === 'ACTIVE');
   const repoIds = companyRepos.map(r => r.id);
-  const companyContents = contents.filter(c => repoIds.includes(c.repositoryId));
+  const companyContents = contents.filter(c => repoIds.includes(c.repositoryId) && c.status === 'ACTIVE');
 
   const featuredContent = companyContents.find(c => c.featured);
   const featuredRepos = companyRepos.filter(r => r.featured);

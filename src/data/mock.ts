@@ -57,10 +57,10 @@ export const MOCK_CATEGORIES: Category[] = [
 
 export const MOCK_CONTENTS: Content[] = [
   {
-    id: 'cnt1', repositoryId: 'r1', categoryId: 'cat1',
+    id: 'cnt1', companyId: 'c1', repositoryId: 'r1', categoryId: 'cat1',
     title: 'A Arte de Fechar Negócios', description: 'Vídeo aula avançada sobre negociação.',
     thumbnailUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&q=80',
     type: 'VIDEO', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    featured: true, recent: true
+    featured: true, recent: true, status: 'ACTIVE'
   }
 ];
