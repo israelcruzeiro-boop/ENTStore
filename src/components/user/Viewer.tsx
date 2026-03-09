@@ -4,10 +4,31 @@ import { ExternalLink } from 'lucide-react';
 export const Viewer = ({ content }: { content: Content }) => {
   // Renderizador para Vídeos (Imersivo, formato 16:9, sem bordas falsas)
   if (content.type === 'VIDEO') {
+    let videoSrc = content.embedUrl || content.url;
+
+    // Conversão automática de links padrão para links de embed (Iframe Seguro)
+    if (videoSrc) {
+      try {
+        if (videoSrc.includes('youtube.com/watch?v=')) {
+          const urlObj = new URL(videoSrc);
+          const videoId = urlObj.searchParams.get('v');
+          if (videoId) videoSrc = `https://www.youtube.com/embed/${videoId}`;
+        } else if (videoSrc.includes('youtu.be/')) {
+          const videoId = videoSrc.split('youtu.be/')[1]?.split('?')[0];
+          if (videoId) videoSrc = `https://www.youtube.com/embed/${videoId}`;
+        } else if (videoSrc.includes('vimeo.com/') && !videoSrc.includes('player.vimeo.com')) {
+          const videoId = videoSrc.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
+          if (videoId) videoSrc = `https://player.vimeo.com/video/${videoId}`;
+        }
+      } catch (e) {
+        console.error("Erro ao converter URL de vídeo", e);
+      }
+    }
+
     return (
-      <div className="aspect-video w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl border border-zinc-800">
+      <div className="aspect-video w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative group">
         <iframe 
-          src={content.embedUrl || content.url} 
+          src={videoSrc} 
           className="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
           allowFullScreen
