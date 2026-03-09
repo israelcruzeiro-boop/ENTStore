@@ -42,12 +42,16 @@ export interface Repository {
   bannerImage?: string;
   featured: boolean;
   status: 'ACTIVE' | 'DRAFT';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Category {
   id: string;
   repositoryId: string;
   name: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Content {
@@ -62,4 +66,6 @@ export interface Content {
   embedUrl?: string;
   featured: boolean;
   recent: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }

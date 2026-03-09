@@ -17,22 +17,35 @@ interface AppState {
   toggleCompanyStatus: (id: string) => void;
   updateCompanyTheme: (id: string, theme: any) => void;
 
-  // Actions de User (Admins)
+  // Actions de User
   addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
   updateUser: (id: string, data: Partial<User>) => void;
   deleteUser: (id: string) => void;
   toggleUserStatus: (id: string) => void;
+
+  // Actions de Repositório
+  addRepository: (repo: Omit<Repository, 'id' | 'createdAt'>) => void;
+  updateRepository: (id: string, data: Partial<Repository>) => void;
+  deleteRepository: (id: string) => void;
+
+  // Actions de Conteúdo
+  addContent: (content: Omit<Content, 'id' | 'createdAt'>) => void;
+  updateContent: (id: string, data: Partial<Content>) => void;
+  deleteContent: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       companies: MOCK_COMPANIES,
-      users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })), // Add default fields to mocks
-      repositories: MOCK_REPOSITORIES,
+      users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })),
+      repositories: MOCK_REPOSITORIES.map(r => ({ ...r, createdAt: new Date().toISOString() })),
       categories: MOCK_CATEGORIES,
-      contents: MOCK_CONTENTS,
+      contents: MOCK_CONTENTS.map(c => ({ ...c, createdAt: new Date().toISOString() })),
       
+      // ==========================
+      // EMPRESAS (COMPANIES)
+      // ==========================
       addCompany: (companyData) => set((state) => {
         const id = crypto.randomUUID();
         const slug = companyData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
@@ -70,11 +83,18 @@ export const useAppStore = create<AppState>()(
         } : c)
       })),
 
-      deleteCompany: (id) => set((state) => ({
-        companies: state.companies.filter(c => c.id !== id),
-        users: state.users.filter(u => u.companyId !== id),
-        repositories: state.repositories.filter(r => r.companyId !== id),
-      })),
+      deleteCompany: (id) => set((state) => {
+        // Cascade delete: Pega todos os repositórios da empresa para apagar os conteúdos
+        const reposToDelete = state.repositories.filter(r => r.companyId === id).map(r => r.id);
+        
+        return {
+          companies: state.companies.filter(c => c.id !== id),
+          users: state.users.filter(u => u.companyId !== id),
+          repositories: state.repositories.filter(r => r.companyId !== id),
+          categories: state.categories.filter(c => !reposToDelete.includes(c.repositoryId)),
+          contents: state.contents.filter(c => !reposToDelete.includes(c.repositoryId)),
+        };
+      }),
 
       toggleCompanyStatus: (id) => set((state) => ({
         companies: state.companies.map(c => c.id === id ? { 
@@ -92,7 +112,9 @@ export const useAppStore = create<AppState>()(
         } : c)
       })),
 
-      // USER ACTIONS
+      // ==========================
+      // USUÁRIOS (USERS)
+      // ==========================
       addUser: (userData) => set((state) => ({
         users: [...state.users, { 
           ...userData, 
@@ -120,7 +142,57 @@ export const useAppStore = create<AppState>()(
           active: u.active === false ? true : false,
           updatedAt: new Date().toISOString()
         } : u)
-      }))
+      })),
+
+      // ==========================
+      // REPOSITÓRIOS (REPOSITORIES)
+      // ==========================
+      addRepository: (repoData) => set((state) => ({
+        repositories: [...state.repositories, {
+          ...repoData,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }]
+      })),
+
+      updateRepository: (id, data) => set((state) => ({
+        repositories: state.repositories.map(r => r.id === id ? {
+          ...r,
+          ...data,
+          updatedAt: new Date().toISOString()
+        } : r)
+      })),
+
+      deleteRepository: (id) => set((state) => ({
+        repositories: state.repositories.filter(r => r.id !== id),
+        categories: state.categories.filter(c => c.repositoryId !== id),
+        contents: state.contents.filter(c => c.repositoryId !== id),
+      })),
+
+      // ==========================
+      // CONTEÚDOS (CONTENTS)
+      // ==========================
+      addContent: (contentData) => set((state) => ({
+        contents: [...state.contents, {
+          ...contentData,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }]
+      })),
+
+      updateContent: (id, data) => set((state) => ({
+        contents: state.contents.map(c => c.id === id ? {
+          ...c,
+          ...data,
+          updatedAt: new Date().toISOString()
+        } : c)
+      })),
+
+      deleteContent: (id) => set((state) => ({
+        contents: state.contents.filter(c => c.id !== id)
+      })),
 
     }),
     {
