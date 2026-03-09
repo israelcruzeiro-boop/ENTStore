@@ -6,11 +6,21 @@ import { ContentRow } from '../../components/user/ContentRow';
 import { Play, Info } from 'lucide-react';
 
 export const UserHome = () => {
-  const { company } = useAuth();
+  const { company, user } = useAuth();
   const { repositories, contents } = useAppStore();
 
-  // Filtra dados da Store local pela empresa logada E pelo status ATIVO
-  const companyRepos = repositories.filter(r => r.companyId === company?.id && r.status === 'ACTIVE');
+  // Filtra dados da Store local pela empresa logada, status ATIVO e Regras de Acesso
+  const companyRepos = repositories.filter(r => {
+     if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
+     
+     // Verifica a regra de acesso restrito (apenas para quem é do tipo USER)
+     if (r.accessType === 'RESTRICTED' && !r.allowedUserIds?.includes(user?.id || '')) {
+         return false;
+     }
+     
+     return true;
+  });
+  
   const repoIds = companyRepos.map(r => r.id);
   const companyContents = contents.filter(c => repoIds.includes(c.repositoryId) && c.status === 'ACTIVE');
 
@@ -83,7 +93,7 @@ export const UserHome = () => {
       {companyRepos.length === 0 && (
          <div className="h-[60vh] flex items-center justify-center flex-col text-zinc-500">
            <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo à {company?.name}</h2>
-           <p>Nenhum conteúdo disponível no momento.</p>
+           <p>Nenhum conteúdo disponível para o seu acesso no momento.</p>
          </div>
       )}
     </div>

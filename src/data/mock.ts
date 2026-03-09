@@ -40,13 +40,13 @@ export const MOCK_REPOSITORIES: Repository[] = [
     description: 'Materiais completos para capacitação do time comercial.',
     coverImage: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&q=80',
     bannerImage: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=1600&q=80',
-    featured: true, status: 'ACTIVE'
+    featured: true, status: 'ACTIVE', accessType: 'ALL', allowedUserIds: []
   },
   {
     id: 'r2', companyId: 'c1', name: 'Cultura & Onboarding',
     description: 'Bem-vindo à Acme! Tudo que você precisa saber.',
     coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&q=80',
-    featured: true, status: 'ACTIVE'
+    featured: true, status: 'ACTIVE', accessType: 'ALL', allowedUserIds: []
   }
 ];
 

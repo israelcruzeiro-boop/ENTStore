@@ -43,6 +43,8 @@ export interface Repository {
   bannerImage?: string;
   featured: boolean;
   status: 'ACTIVE' | 'DRAFT';
+  accessType?: 'ALL' | 'RESTRICTED';
+  allowedUserIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

@@ -7,18 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen, Lock, Globe } from 'lucide-react';
 import { Repository } from '../../types';
 
 export const AdminRepositories = () => {
   const { linkName } = useParams();
-  const { companies, repositories, contents, addRepository, updateRepository, deleteRepository } = useAppStore();
+  const { companies, users, repositories, contents, addRepository, updateRepository, deleteRepository } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
   
   // Filtra apenas repositórios dessa empresa
   const companyRepos = repositories.filter(r => r.companyId === company?.id)
                                    .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+
+  // Filtra os usuários pertencentes a esta empresa para exibir na lista de acessos
+  const companyUsers = users.filter(u => u.companyId === company?.id && u.role === 'USER');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -28,7 +31,9 @@ export const AdminRepositories = () => {
     coverImage: '',
     bannerImage: '',
     featured: false,
-    status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
+    status: 'ACTIVE' as 'ACTIVE' | 'DRAFT',
+    accessType: 'ALL' as 'ALL' | 'RESTRICTED',
+    allowedUserIds: [] as string[]
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -53,7 +58,16 @@ export const AdminRepositories = () => {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', description: '', coverImage: '', bannerImage: '', featured: false, status: 'ACTIVE' });
+    setFormData({ 
+       name: '', 
+       description: '', 
+       coverImage: '', 
+       bannerImage: '', 
+       featured: false, 
+       status: 'ACTIVE',
+       accessType: 'ALL',
+       allowedUserIds: []
+    });
     setIsFormOpen(true);
   };
 
@@ -65,7 +79,9 @@ export const AdminRepositories = () => {
       coverImage: repo.coverImage, 
       bannerImage: repo.bannerImage || '', 
       featured: repo.featured, 
-      status: repo.status 
+      status: repo.status,
+      accessType: repo.accessType || 'ALL',
+      allowedUserIds: repo.allowedUserIds || []
     });
     setIsFormOpen(true);
   };
@@ -74,6 +90,10 @@ export const AdminRepositories = () => {
     e.preventDefault();
     if (!formData.name || !formData.coverImage) {
       return toast.error('Nome e Capa são obrigatórios.');
+    }
+
+    if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0) {
+      return toast.error('Selecione ao menos um usuário para o acesso restrito.');
     }
 
     if (editingId) {
@@ -102,6 +122,15 @@ export const AdminRepositories = () => {
     toast.success(`Status alterado para ${repo.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
   };
 
+  const toggleUserAccess = (userId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      allowedUserIds: prev.allowedUserIds.includes(userId)
+        ? prev.allowedUserIds.filter(id => id !== userId)
+        : [...prev.allowedUserIds, userId]
+    }));
+  };
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
       <div className="flex justify-between items-center mb-8">
@@ -121,6 +150,7 @@ export const AdminRepositories = () => {
                 <tr>
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Repositório</th>
+                   <th className="p-4 text-center">Acesso</th>
                    <th className="p-4 text-center">Conteúdos</th>
                    <th className="p-4 text-center">Atualizado em</th>
                    <th className="p-4 text-right">Ações</th>
@@ -128,10 +158,9 @@ export const AdminRepositories = () => {
              </thead>
              <tbody className="divide-y divide-slate-100">
                 {companyRepos.map(repo => {
-                   // Calcula a quantidade de conteúdos vinculados a este repositório
                    const repoContentsCount = contents.filter(c => c.repositoryId === repo.id).length;
-                   // Formata a data de atualização
                    const updateDate = new Date(repo.updatedAt || repo.createdAt || new Date()).toLocaleDateString('pt-BR');
+                   const isRestricted = repo.accessType === 'RESTRICTED';
 
                    return (
                      <tr key={repo.id} className={`hover:bg-slate-50 transition-colors ${repo.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
@@ -150,6 +179,19 @@ export const AdminRepositories = () => {
                               <p className="text-xs text-slate-500 line-clamp-2 max-w-sm">{repo.description || 'Sem descrição'}</p>
                             </div>
                           </div>
+                        </td>
+                        <td className="p-4 text-center">
+                           <div className="flex justify-center">
+                             {isRestricted ? (
+                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100" title={`${repo.allowedUserIds?.length || 0} usuários permitidos`}>
+                                 <Lock size={12} /> Restrito
+                               </span>
+                             ) : (
+                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                 <Globe size={12} /> Todos
+                               </span>
+                             )}
+                           </div>
                         </td>
                         <td className="p-4 text-center">
                            <div className="flex flex-col items-center justify-center">
@@ -180,7 +222,7 @@ export const AdminRepositories = () => {
                 })}
                 {companyRepos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-12 text-center">
+                    <td colSpan={6} className="p-12 text-center">
                       <div className="flex flex-col items-center justify-center text-slate-500">
                         <FolderTree size={48} className="text-slate-300 mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum repositório criado</p>
@@ -195,68 +237,131 @@ export const AdminRepositories = () => {
       </div>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Repositório' : 'Novo Repositório'}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSaveRepo} className="space-y-5 mt-4">
-            <div className="space-y-2">
-              <Label>Nome do Repositório *</Label>
-              <Input placeholder="Ex: Treinamento de Vendas 2024" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus />
-            </div>
+          <form onSubmit={handleSaveRepo} className="space-y-6 mt-4">
             
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <textarea 
-                className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 min-h-[80px] resize-y"
-                placeholder="Uma breve descrição sobre o conteúdo deste repositório..."
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {/* Cover Image */}
+            {/* Informações Básicas */}
+            <div className="space-y-4">
                <div className="space-y-2">
-                 <Label>Capa (Retrato) *</Label>
-                 <div className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center relative bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group h-48 overflow-hidden" onClick={() => document.getElementById('cover-upload')?.click()}>
-                    {formData.coverImage ? (
-                       <>
-                         <img src={formData.coverImage} alt="Capa" className="w-full h-full object-cover rounded-md opacity-80 group-hover:opacity-40 transition-opacity" />
-                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Button type="button" variant="secondary" size="sm">Trocar Imagem</Button></div>
-                       </>
-                    ) : (
-                       <div className="text-center p-4">
-                          <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
-                          <p className="text-xs text-slate-500">Proporção 2:3 (Pôster)</p>
-                       </div>
-                    )}
-                 </div>
-                 <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'coverImage')} className="hidden" id="cover-upload" />
-                 <Input placeholder="Ou cole a URL da imagem..." value={formData.coverImage} onChange={(e) => setFormData({...formData, coverImage: e.target.value})} className="h-8 text-xs mt-2" />
+                 <Label>Nome do Repositório *</Label>
+                 <Input placeholder="Ex: Treinamento de Vendas 2024" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus />
+               </div>
+               
+               <div className="space-y-2">
+                 <Label>Descrição</Label>
+                 <textarea 
+                   className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 min-h-[80px] resize-y"
+                   placeholder="Uma breve descrição sobre o conteúdo deste repositório..."
+                   value={formData.description}
+                   onChange={(e) => setFormData({...formData, description: e.target.value})}
+                 />
                </div>
 
-               {/* Banner Image */}
-               <div className="space-y-2">
-                 <Label>Banner (Paisagem)</Label>
-                 <div className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center relative bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group h-48 overflow-hidden" onClick={() => document.getElementById('banner-upload')?.click()}>
-                    {formData.bannerImage ? (
-                       <>
-                         <img src={formData.bannerImage} alt="Banner" className="w-full h-full object-cover rounded-md opacity-80 group-hover:opacity-40 transition-opacity" />
-                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Button type="button" variant="secondary" size="sm">Trocar Banner</Button></div>
-                       </>
-                    ) : (
-                       <div className="text-center p-4">
-                          <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
-                          <p className="text-xs text-slate-500">Proporção 16:9 (Opcional)</p>
-                       </div>
-                    )}
-                 </div>
-                 <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'bannerImage')} className="hidden" id="banner-upload" />
-                 <Input placeholder="Ou cole a URL da imagem..." value={formData.bannerImage} onChange={(e) => setFormData({...formData, bannerImage: e.target.value})} className="h-8 text-xs mt-2" />
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Cover Image */}
+                  <div className="space-y-2">
+                    <Label>Capa (Retrato) *</Label>
+                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center relative bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group h-48 overflow-hidden" onClick={() => document.getElementById('cover-upload')?.click()}>
+                       {formData.coverImage ? (
+                          <>
+                            <img src={formData.coverImage} alt="Capa" className="w-full h-full object-cover rounded-md opacity-80 group-hover:opacity-40 transition-opacity" />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Button type="button" variant="secondary" size="sm">Trocar Imagem</Button></div>
+                          </>
+                       ) : (
+                          <div className="text-center p-4">
+                             <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+                             <p className="text-xs text-slate-500">Proporção 2:3 (Pôster)</p>
+                          </div>
+                       )}
+                    </div>
+                    <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'coverImage')} className="hidden" id="cover-upload" />
+                    <Input placeholder="Ou cole a URL da imagem..." value={formData.coverImage} onChange={(e) => setFormData({...formData, coverImage: e.target.value})} className="h-8 text-xs mt-2" />
+                  </div>
+
+                  {/* Banner Image */}
+                  <div className="space-y-2">
+                    <Label>Banner (Paisagem)</Label>
+                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center relative bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group h-48 overflow-hidden" onClick={() => document.getElementById('banner-upload')?.click()}>
+                       {formData.bannerImage ? (
+                          <>
+                            <img src={formData.bannerImage} alt="Banner" className="w-full h-full object-cover rounded-md opacity-80 group-hover:opacity-40 transition-opacity" />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Button type="button" variant="secondary" size="sm">Trocar Banner</Button></div>
+                          </>
+                       ) : (
+                          <div className="text-center p-4">
+                             <ImageIcon className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+                             <p className="text-xs text-slate-500">Proporção 16:9 (Opcional)</p>
+                          </div>
+                       )}
+                    </div>
+                    <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'bannerImage')} className="hidden" id="banner-upload" />
+                    <Input placeholder="Ou cole a URL da imagem..." value={formData.bannerImage} onChange={(e) => setFormData({...formData, bannerImage: e.target.value})} className="h-8 text-xs mt-2" />
+                  </div>
                </div>
             </div>
 
+            <div className="border-t border-slate-100 my-4"></div>
+
+            {/* Controle de Acesso */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900">Privacidade e Acesso</h3>
+              <div className="flex gap-6">
+                 <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="accessType" 
+                      checked={formData.accessType === 'ALL'} 
+                      onChange={() => setFormData({...formData, accessType: 'ALL'})} 
+                      className="accent-indigo-600 w-4 h-4" 
+                    />
+                    <span className="text-sm font-medium text-slate-700">Todos os Usuários</span>
+                 </label>
+                 <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="accessType" 
+                      checked={formData.accessType === 'RESTRICTED'} 
+                      onChange={() => setFormData({...formData, accessType: 'RESTRICTED', allowedUserIds: formData.allowedUserIds.length ? formData.allowedUserIds : []})} 
+                      className="accent-indigo-600 w-4 h-4" 
+                    />
+                    <span className="text-sm font-medium text-slate-700">Acesso Restrito</span>
+                 </label>
+              </div>
+
+              {formData.accessType === 'RESTRICTED' && (
+                 <div className="mt-3 border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
+                   <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Selecione quem pode acessar:</p>
+                   <div className="space-y-1">
+                     {companyUsers.map(u => (
+                        <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                          <input 
+                            type="checkbox" 
+                            checked={formData.allowedUserIds.includes(u.id)} 
+                            onChange={() => toggleUserAccess(u.id)} 
+                            className="accent-indigo-600 rounded w-4 h-4" 
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span>
+                            <span className="text-xs text-slate-500">{u.email}</span>
+                          </div>
+                        </label>
+                     ))}
+                     {companyUsers.length === 0 && (
+                        <div className="text-sm text-slate-500 text-center py-4 bg-white rounded border border-slate-200">
+                           Nenhum usuário final ("USER") cadastrado nesta empresa para liberar acesso.
+                        </div>
+                     )}
+                   </div>
+                 </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 my-4"></div>
+
+            {/* Destaque e Status */}
             <div className="grid grid-cols-2 gap-4">
-               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                  <div className="space-y-0.5">
                    <Label>Destacar Repositório</Label>
                    <p className="text-[10px] text-slate-500">Aparecerá no topo da home.</p>
@@ -264,7 +369,7 @@ export const AdminRepositories = () => {
                  <Switch checked={formData.featured} onCheckedChange={(checked) => setFormData({...formData, featured: checked})} />
                </div>
 
-               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                  <div className="space-y-0.5">
                    <Label>Repositório Ativo</Label>
                    <p className="text-[10px] text-slate-500">Inativos ficam invisíveis.</p>
@@ -273,7 +378,7 @@ export const AdminRepositories = () => {
                </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Criar Repositório'}</Button>
             </div>

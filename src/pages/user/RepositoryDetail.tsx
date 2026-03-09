@@ -1,18 +1,41 @@
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
+import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Lock } from 'lucide-react';
 
 export const RepositoryDetail = () => {
   const { id } = useParams();
+  const { user } = useAuth();
   const { repositories, categories: allCategories, contents: allContents } = useAppStore();
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
+  
+  // Verificação de Acesso: Bloqueia se o repositório for restrito e o ID do usuário não estiver na lista
+  const isAuthorized = repo?.accessType === 'ALL' || (repo?.accessType === 'RESTRICTED' && repo?.allowedUserIds?.includes(user?.id || ''));
+
+  if (!repo) {
+     return <div className="p-12 text-center text-zinc-500 mt-20">Repositório inativo ou não encontrado.</div>;
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="h-[70vh] flex flex-col items-center justify-center text-zinc-400 p-4 text-center">
+         <div className="w-16 h-16 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
+            <Lock size={24} className="text-[var(--c-primary)]" />
+         </div>
+         <h1 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h1>
+         <p className="max-w-md mb-6">Você não tem permissão para acessar os conteúdos deste repositório.</p>
+         <Link to="/" className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
+            Voltar ao Início
+         </Link>
+      </div>
+    );
+  }
+
   const categories = allCategories.filter(c => c.repositoryId === id);
   // Garante que só puxa os conteúdos ativos daquele repositório
   const contents = allContents.filter(c => c.repositoryId === id && c.status === 'ACTIVE');
-
-  if (!repo) return <div className="p-12 text-center text-white">Repositório inativo ou não encontrado.</div>;
 
   return (
     <div className="pb-12">
