@@ -16,13 +16,19 @@ interface AppState {
   deleteCompany: (id: string) => void;
   toggleCompanyStatus: (id: string) => void;
   updateCompanyTheme: (id: string, theme: any) => void;
+
+  // Actions de User (Admins)
+  addUser: (user: Omit<User, 'id' | 'createdAt'>) => void;
+  updateUser: (id: string, data: Partial<User>) => void;
+  deleteUser: (id: string) => void;
+  toggleUserStatus: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       companies: MOCK_COMPANIES,
-      users: MOCK_USERS,
+      users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })), // Add default fields to mocks
       repositories: MOCK_REPOSITORIES,
       categories: MOCK_CATEGORIES,
       contents: MOCK_CONTENTS,
@@ -45,7 +51,9 @@ export const useAppStore = create<AppState>()(
           email: `admin@${slug}.com`,
           password: '123456',
           role: 'ADMIN',
-          companyId: id
+          companyId: id,
+          active: true,
+          createdAt: new Date().toISOString()
         };
 
         return { 
@@ -64,7 +72,6 @@ export const useAppStore = create<AppState>()(
 
       deleteCompany: (id) => set((state) => ({
         companies: state.companies.filter(c => c.id !== id),
-        // Exclusão em cascata: remove usuários da empresa deletada para não deixar lixo no banco
         users: state.users.filter(u => u.companyId !== id),
         repositories: state.repositories.filter(r => r.companyId !== id),
       })),
@@ -83,7 +90,38 @@ export const useAppStore = create<AppState>()(
           theme: { ...c.theme, ...theme },
           updatedAt: new Date().toISOString()
         } : c)
+      })),
+
+      // USER ACTIONS
+      addUser: (userData) => set((state) => ({
+        users: [...state.users, { 
+          ...userData, 
+          id: crypto.randomUUID(), 
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }]
+      })),
+
+      updateUser: (id, data) => set((state) => ({
+        users: state.users.map(u => u.id === id ? { 
+          ...u, 
+          ...data, 
+          updatedAt: new Date().toISOString() 
+        } : u)
+      })),
+
+      deleteUser: (id) => set((state) => ({
+        users: state.users.filter(u => u.id !== id)
+      })),
+
+      toggleUserStatus: (id) => set((state) => ({
+        users: state.users.map(u => u.id === id ? { 
+          ...u, 
+          active: u.active === false ? true : false,
+          updatedAt: new Date().toISOString()
+        } : u)
       }))
+
     }),
     {
       name: 'entstore-storage',

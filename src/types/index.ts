@@ -28,6 +28,9 @@ export interface User {
   password?: string;
   companyId?: string;
   avatarUrl?: string;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Repository {
