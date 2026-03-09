@@ -32,7 +32,7 @@ export const UserLayout = () => {
       <header className={`fixed top-0 w-full z-50 transition-colors duration-300 px-4 md:px-12 py-4 flex justify-between items-center ${scrolled ? 'bg-black/90 backdrop-blur-sm' : 'bg-gradient-to-b from-black/80 to-transparent'}`}>
         <div className="flex items-center gap-8">
           <Link to="/" className="text-2xl font-bold tracking-tighter" style={{ color: 'var(--c-primary)' }}>
-             [NOME]<span className="text-white">Store</span>
+             ENT<span className="text-white">Store</span>
           </Link>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-300">
             <Link to="/" className="hover:text-white transition-colors">Início</Link>
