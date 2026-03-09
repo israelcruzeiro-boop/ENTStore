@@ -1,18 +1,22 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { MOCK_REPOSITORIES, MOCK_CONTENTS, MOCK_USERS } from '../../data/mock';
+import { useAppStore } from '../../store/useAppStore';
 
 export const AdminDashboard = () => {
   const { company } = useAuth();
+  const { repositories, contents, users } = useAppStore();
   
-  // Filter mocks for current company
-  const companyRepos = MOCK_REPOSITORIES.filter(r => r.companyId === company?.id);
+  // Filtros em tempo real do banco local baseados na empresa logada
+  const companyRepos = repositories.filter(r => r.companyId === company?.id);
   const repoIds = companyRepos.map(r => r.id);
-  const companyContents = MOCK_CONTENTS.filter(c => repoIds.includes(c.repositoryId));
-  const companyUsers = MOCK_USERS.filter(u => u.companyId === company?.id);
+  const companyContents = contents.filter(c => repoIds.includes(c.repositoryId));
+  const companyUsers = users.filter(u => u.companyId === company?.id);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Visão Geral</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-slate-900">Visão Geral</h1>
+        <p className="text-slate-500 text-sm mt-1">Mostrando dados de <strong>{company?.name}</strong></p>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -47,6 +51,11 @@ export const AdminDashboard = () => {
                  <button className="px-3 py-1 bg-white border border-slate-200 rounded text-sm font-medium text-slate-600 hover:bg-slate-50">Editar</button>
               </div>
            ))}
+           {companyRepos.length === 0 && (
+              <div className="p-6 text-center text-slate-500">
+                 Nenhum repositório criado ainda para esta empresa.
+              </div>
+           )}
         </div>
       </div>
     </div>

@@ -1,12 +1,14 @@
 import { useParams, Link } from 'react-router-dom';
-import { MOCK_CONTENTS, MOCK_REPOSITORIES } from '../../data/mock';
+import { useAppStore } from '../../store/useAppStore';
 import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Share2, Heart } from 'lucide-react';
 
 export const ContentDetail = () => {
   const { id } = useParams();
-  const content = MOCK_CONTENTS.find(c => c.id === id);
-  const repo = content ? MOCK_REPOSITORIES.find(r => r.id === content.repositoryId) : null;
+  const { contents, repositories } = useAppStore();
+
+  const content = contents.find(c => c.id === id);
+  const repo = content ? repositories.find(r => r.id === content.repositoryId) : null;
 
   if (!content) return <div className="p-12 text-center text-white mt-20">Conteúdo não encontrado</div>;
 

@@ -12,9 +12,11 @@ export interface Theme {
 export interface Company {
   id: string;
   name: string;
+  slug: string;
   active: boolean;
   theme: Theme;
   logoUrl?: string;
+  createdAt: string;
 }
 
 export interface User {
@@ -22,8 +24,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
-  password?: string; // Adicionado para o mock de login
-  companyId?: string; // Super admins might not have one
+  password?: string;
+  companyId?: string;
   avatarUrl?: string;
 }
 

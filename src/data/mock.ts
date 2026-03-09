@@ -10,20 +10,22 @@ export const MOCK_COMPANIES: Company[] = [
   { 
     id: 'c1', 
     name: 'Acme Corp', 
+    slug: 'acme-corp',
     active: true, 
     theme: mockThemes.netflix,
-    // Logo definida no painel admin (mock)
-    logoUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=150&h=150&fit=crop&q=80' 
+    logoUrl: 'https://images.unsplash.com/photo-1614680376573-df3480f0c6ff?w=150&h=150&fit=crop&q=80',
+    createdAt: new Date('2024-01-01').toISOString()
   },
   { 
     id: 'c2', 
     name: 'TechFlow', 
+    slug: 'techflow',
     active: true, 
-    theme: mockThemes.corporateBlue 
+    theme: mockThemes.corporateBlue,
+    createdAt: new Date('2024-02-15').toISOString()
   },
 ];
 
-// Usuários solicitados com a mesma senha
 export const MOCK_USERS: User[] = [
   { id: 'u1', name: 'Super Admin', email: 'sadmin@entstore.com', password: '123456', role: 'SUPER_ADMIN' },
   { id: 'u2', name: 'Admin Company', email: 'admin@entstore.com', password: '123456', role: 'ADMIN', companyId: 'c1' },
@@ -43,19 +45,12 @@ export const MOCK_REPOSITORIES: Repository[] = [
     description: 'Bem-vindo à Acme! Tudo que você precisa saber.',
     coverImage: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800&q=80',
     featured: true, status: 'ACTIVE'
-  },
-  {
-    id: 'r3', companyId: 'c1', name: 'Manuais Técnicos',
-    description: 'Documentação profunda dos nossos produtos.',
-    coverImage: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&q=80',
-    featured: false, status: 'ACTIVE'
   }
 ];
 
 export const MOCK_CATEGORIES: Category[] = [
   { id: 'cat1', repositoryId: 'r1', name: 'Técnicas de Fechamento' },
   { id: 'cat2', repositoryId: 'r1', name: 'Prospecção' },
-  { id: 'cat3', repositoryId: 'r2', name: 'Primeira Semana' },
 ];
 
 export const MOCK_CONTENTS: Content[] = [
@@ -65,26 +60,5 @@ export const MOCK_CONTENTS: Content[] = [
     thumbnailUrl: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&q=80',
     type: 'VIDEO', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
     featured: true, recent: true
-  },
-  {
-    id: 'cnt2', repositoryId: 'r1', categoryId: 'cat2',
-    title: 'Script de Prospecção Outbound', description: 'PDF com os melhores scripts.',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&q=80',
-    type: 'PDF', url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    featured: false, recent: true
-  },
-  {
-    id: 'cnt3', repositoryId: 'r2', categoryId: 'cat3',
-    title: 'Nossa Missão e Visão', description: 'Apresentação institucional.',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&q=80',
-    type: 'DOCUMENT', url: 'https://docs.google.com/presentation/d/1...',
-    featured: true, recent: false
-  },
-  {
-    id: 'cnt4', repositoryId: 'r1',
-    title: 'Portal de Metas', description: 'Acesso rápido ao sistema de metas.',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&q=80',
-    type: 'LINK', url: 'https://google.com',
-    featured: false, recent: true
   }
 ];

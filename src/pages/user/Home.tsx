@@ -1,22 +1,31 @@
-import { MOCK_REPOSITORIES, MOCK_CONTENTS } from '../../data/mock';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppStore } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
 import { Play, Info } from 'lucide-react';
 
 export const UserHome = () => {
-  const featuredContent = MOCK_CONTENTS.find(c => c.featured);
-  const featuredRepos = MOCK_REPOSITORIES.filter(r => r.featured);
-  const recentContents = MOCK_CONTENTS.filter(c => c.recent);
+  const { company } = useAuth();
+  const { repositories, contents } = useAppStore();
+
+  // Filtra dados da Store local pela empresa logada
+  const companyRepos = repositories.filter(r => r.companyId === company?.id);
+  const repoIds = companyRepos.map(r => r.id);
+  const companyContents = contents.filter(c => repoIds.includes(c.repositoryId));
+
+  const featuredContent = companyContents.find(c => c.featured);
+  const featuredRepos = companyRepos.filter(r => r.featured);
+  const recentContents = companyContents.filter(c => c.recent);
 
   return (
     <div className="pb-10">
       {/* Hero Banner */}
-      {featuredContent && (
+      {featuredContent && companyRepos.length > 0 && (
         <div className="relative h-[70vh] w-full mb-12">
           <div className="absolute inset-0">
             <img 
-              src={MOCK_REPOSITORIES[0].bannerImage || MOCK_REPOSITORIES[0].coverImage} 
+              src={companyRepos[0].bannerImage || companyRepos[0].coverImage} 
               alt="Hero" 
               className="w-full h-full object-cover"
             />
@@ -30,7 +39,7 @@ export const UserHome = () => {
               {featuredContent.title}
             </h1>
             <p className="text-lg text-zinc-300 mb-8 line-clamp-3 drop-shadow-md">
-              {featuredContent.description} Este é um conteúdo em destaque definido pelo administrador da sua empresa para garantir que as informações mais importantes cheguem até você.
+              {featuredContent.description} Este é um conteúdo em destaque da {company?.name}.
             </p>
             <div className="flex gap-4">
               <button className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-md font-bold hover:bg-zinc-200 transition-colors">
@@ -47,23 +56,36 @@ export const UserHome = () => {
       )}
 
       {/* Trilhos de Conteúdo */}
-      <ContentRow title="Repositórios em Destaque">
-        {featuredRepos.map(repo => (
-          <RepoCard key={repo.id} repo={repo} />
-        ))}
-      </ContentRow>
+      {featuredRepos.length > 0 && (
+        <ContentRow title="Repositórios em Destaque">
+          {featuredRepos.map(repo => (
+            <RepoCard key={repo.id} repo={repo} />
+          ))}
+        </ContentRow>
+      )}
 
-      <ContentRow title="Adicionados Recentemente">
-        {recentContents.map(content => (
-          <ContentCard key={content.id} content={content} />
-        ))}
-      </ContentRow>
+      {recentContents.length > 0 && (
+        <ContentRow title="Adicionados Recentemente">
+          {recentContents.map(content => (
+            <ContentCard key={content.id} content={content} />
+          ))}
+        </ContentRow>
+      )}
 
-      <ContentRow title="Todos os Repositórios">
-        {MOCK_REPOSITORIES.map(repo => (
-          <RepoCard key={repo.id} repo={repo} />
-        ))}
-      </ContentRow>
+      {companyRepos.length > 0 && (
+        <ContentRow title="Todos os Repositórios">
+          {companyRepos.map(repo => (
+            <RepoCard key={repo.id} repo={repo} />
+          ))}
+        </ContentRow>
+      )}
+
+      {companyRepos.length === 0 && (
+         <div className="h-[60vh] flex items-center justify-center flex-col text-zinc-500">
+           <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo à {company?.name}</h2>
+           <p>Nenhum conteúdo disponível no momento.</p>
+         </div>
+      )}
     </div>
   );
 };

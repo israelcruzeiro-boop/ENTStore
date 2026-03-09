@@ -1,13 +1,15 @@
 import { useParams, Link } from 'react-router-dom';
-import { MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS } from '../../data/mock';
+import { useAppStore } from '../../store/useAppStore';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ArrowLeft } from 'lucide-react';
 
 export const RepositoryDetail = () => {
   const { id } = useParams();
-  const repo = MOCK_REPOSITORIES.find(r => r.id === id);
-  const categories = MOCK_CATEGORIES.filter(c => c.repositoryId === id);
-  const contents = MOCK_CONTENTS.filter(c => c.repositoryId === id);
+  const { repositories, categories: allCategories, contents: allContents } = useAppStore();
+
+  const repo = repositories.find(r => r.id === id);
+  const categories = allCategories.filter(c => c.repositoryId === id);
+  const contents = allContents.filter(c => c.repositoryId === id);
 
   if (!repo) return <div className="p-12 text-center text-white">Repositório não encontrado</div>;
 

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Company } from '../types';
-import { MOCK_USERS, MOCK_COMPANIES } from '../data/mock';
+import { useAppStore } from '../store/useAppStore';
 
 interface AuthContextType {
   user: User | null;
@@ -12,10 +12,17 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
+  const { users, companies } = useAppStore();
+  
+  // Mantemos apenas o ID na sessão local
+  const [activeUserId, setActiveUserId] = useState<string | null>(localStorage.getItem('entstore_auth_user'));
+
+  // Derivamos User e Company diretamente do nosso "banco" (store)
+  const user = users.find(u => u.id === activeUserId) || null;
+  const company = user?.companyId ? companies.find(c => c.id === user.companyId) || null : null;
 
   useEffect(() => {
+    // Aplica o tema dinamicamente na raiz (CSS Variables)
     if (company && company.theme) {
       const root = document.documentElement;
       root.style.setProperty('--c-primary', company.theme.primary);
@@ -32,25 +39,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [company]);
 
   const login = (email: string, pass: string) => {
-    // Validação mockada
-    const foundUser = MOCK_USERS.find(u => u.email === email && u.password === pass);
+    const foundUser = users.find(u => u.email === email && u.password === pass);
     
     if (foundUser) {
-      setUser(foundUser);
-      if (foundUser.companyId) {
-        const foundCompany = MOCK_COMPANIES.find(c => c.id === foundUser.companyId);
-        setCompany(foundCompany || null);
-      } else {
-        setCompany(null);
+      // Se for admin/user, valida se a empresa está ativa
+      if (foundUser.role !== 'SUPER_ADMIN') {
+        const userCompany = companies.find(c => c.id === foundUser.companyId);
+        if (!userCompany || !userCompany.active) {
+          return false; // Empresa inativa ou não encontrada
+        }
       }
+
+      localStorage.setItem('entstore_auth_user', foundUser.id);
+      setActiveUserId(foundUser.id);
       return true;
     }
     return false;
   };
 
   const logout = () => {
-    setUser(null);
-    setCompany(null);
+    localStorage.removeItem('entstore_auth_user');
+    setActiveUserId(null);
   };
 
   return (
