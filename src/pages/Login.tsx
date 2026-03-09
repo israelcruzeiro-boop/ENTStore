@@ -17,7 +17,7 @@ export const Login = () => {
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-zinc-800">
         <div className="p-8 text-center border-b border-zinc-800">
-          <h1 className="text-3xl font-bold text-white mb-2">[NOME] <span className="text-blue-500">Store</span></h1>
+          <h1 className="text-3xl font-bold text-white mb-2">ENT<span className="text-blue-500">Store</span></h1>
           <p className="text-zinc-400">Ambiente de Demonstração (Mock)</p>
         </div>
         
