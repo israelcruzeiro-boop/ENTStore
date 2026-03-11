@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2 } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users } from 'lucide-react';
 
 // Configuração Premium de Ícones (Tema Claro - Admin)
 const getPremiumAdminConfig = (type: string) => {
@@ -34,7 +34,7 @@ const getPremiumAdminConfig = (type: string) => {
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
-  const { companies, repositories, contents, simpleLinks, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
+  const { companies, repositories, contents, simpleLinks, contentViews, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
 
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
@@ -362,6 +362,7 @@ export const AdminRepositoryContents = () => {
                      <th className="p-4">Nome do Link</th>
                      <th className="p-4">Tipo / Categoria</th>
                      <th className="p-4">Data</th>
+                     <th className="p-4 text-center">Métricas</th>
                      <th className="p-4 text-right">Ações</th>
                   </tr>
                </thead>
@@ -369,6 +370,11 @@ export const AdminRepositoryContents = () => {
                   {filteredLinks.map(link => {
                      const conf = getPremiumAdminConfig(link.type);
                      const Icon = conf.icon;
+                     
+                     // Calculando as métricas para o link simples
+                     const linkViews = contentViews.filter(v => v.contentId === link.id);
+                     const totalViews = linkViews.length;
+                     const uniqueUsers = new Set(linkViews.map(v => v.userId)).size;
 
                      return (
                        <tr key={link.id} className={`hover:bg-slate-50/80 transition-colors group ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
@@ -401,6 +407,16 @@ export const AdminRepositoryContents = () => {
                               {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                             </div>
                           </td>
+                          <td className="p-4 text-center">
+                             <div className="flex flex-col items-center justify-center gap-1.5">
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações (Cliques)">
+                                   <Eye size={13} className="text-slate-400" /> {totalViews}
+                                </span>
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos que acessaram">
+                                   <Users size={13} className="text-slate-400" /> {uniqueUsers}
+                                </span>
+                             </div>
+                          </td>
                           <td className="p-4 text-right">
                              <div className="flex items-center justify-end gap-1">
                                <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-sm">
@@ -417,7 +433,7 @@ export const AdminRepositoryContents = () => {
                   })}
                   {filteredLinks.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-12 text-center text-slate-500">
+                      <td colSpan={6} className="p-12 text-center text-slate-500">
                         <LinkIcon size={48} className="text-slate-300 mx-auto mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum link encontrado</p>
                         <p className="text-sm mt-1">Verifique os filtros ou crie um novo link.</p>
@@ -434,46 +450,64 @@ export const AdminRepositoryContents = () => {
                      <th className="p-4 w-16 text-center">Status</th>
                      <th className="p-4">Conteúdo</th>
                      <th className="p-4 w-32">Tipo</th>
+                     <th className="p-4 text-center">Métricas</th>
                      <th className="p-4 text-right">Ações</th>
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                  {repoContents.map(content => (
-                     <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
-                        <td className="p-4 text-center">
-                           <div className="flex justify-center">
-                              {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
-                           </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
-                              {content.thumbnailUrl ? <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
+                  {repoContents.map(content => {
+                     // Calculando as métricas para o conteúdo
+                     const cViews = contentViews.filter(v => v.contentId === content.id);
+                     const totalViews = cViews.length;
+                     const uniqueUsers = new Set(cViews.map(v => v.userId)).size;
+
+                     return (
+                       <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
+                          <td className="p-4 text-center">
+                             <div className="flex justify-center">
+                                {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                             </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                                {content.thumbnailUrl ? <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
+                                <p className="text-xs text-slate-500 line-clamp-1 max-w-md">{content.description || 'Sem descrição'}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
-                              <p className="text-xs text-slate-500 line-clamp-1 max-w-md">{content.description || 'Sem descrição'}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                           <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs border border-slate-200">
-                              {getTypeIcon(content.type)} {content.type}
-                           </div>
-                        </td>
-                        <td className="p-4 text-right">
-                           <div className="flex items-center justify-end gap-1">
-                             <Switch checked={content.status === 'ACTIVE'} onCheckedChange={() => toggleStatusFull(content)} title="Ativar/Inativar" />
-                             <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                             <Button variant="ghost" size="icon" onClick={() => openEditFull(content)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                             <Button variant="ghost" size="icon" onClick={() => confirmDelete(content.id, content.title)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
-                           </div>
-                        </td>
-                     </tr>
-                  ))}
+                          </td>
+                          <td className="p-4">
+                             <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                                {getTypeIcon(content.type)} {content.type}
+                             </div>
+                          </td>
+                          <td className="p-4 text-center">
+                             <div className="flex flex-col items-center justify-center gap-1.5">
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações (Cliques)">
+                                   <Eye size={13} className="text-slate-400" /> {totalViews}
+                                </span>
+                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos que acessaram">
+                                   <Users size={13} className="text-slate-400" /> {uniqueUsers}
+                                </span>
+                             </div>
+                          </td>
+                          <td className="p-4 text-right">
+                             <div className="flex items-center justify-end gap-1">
+                               <Switch checked={content.status === 'ACTIVE'} onCheckedChange={() => toggleStatusFull(content)} title="Ativar/Inativar" />
+                               <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                               <Button variant="ghost" size="icon" onClick={() => openEditFull(content)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                               <Button variant="ghost" size="icon" onClick={() => confirmDelete(content.id, content.title)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                             </div>
+                          </td>
+                       </tr>
+                     );
+                  })}
                   {repoContents.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="p-12 text-center text-slate-500">
+                      <td colSpan={5} className="p-12 text-center text-slate-500">
                         <Play size={48} className="text-slate-300 mx-auto mb-4" />
                         <p className="text-lg font-medium text-slate-900">Nenhum conteúdo adicionado</p>
                         <p className="text-sm mt-1">Clique em "Novo Conteúdo" para adicionar.</p>
