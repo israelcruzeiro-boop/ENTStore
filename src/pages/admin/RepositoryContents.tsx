@@ -8,7 +8,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, FolderCloud, Link2 } from 'lucide-react';
+
+// Helper para definir Cores e Ícones dinamicamente no Admin (Tema Claro)
+const getAdminLinkTypeConfig = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case 'vídeo':
+    case 'video': return { icon: PlayCircle, bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200' };
+    case 'pdf': return { icon: FileText, bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' };
+    case 'planilha': return { icon: FileSpreadsheet, bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' };
+    case 'documento': return { icon: FileText, bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' };
+    case 'imagem': return { icon: ImageIcon, bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-200' };
+    case 'apresentação':
+    case 'apresentacao': return { icon: Presentation, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
+    case 'drive/pasta':
+    case 'pasta': return { icon: FolderCloud, bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' };
+    default: return { icon: Link2, bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
+  }
+};
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
@@ -359,41 +376,53 @@ export const AdminRepositoryContents = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                  {filteredLinks.map(link => (
-                     <tr key={link.id} className={`hover:bg-slate-50 transition-colors ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
-                        <td className="p-4 text-center">
-                           <div className="flex justify-center">
-                              {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
-                           </div>
-                        </td>
-                        <td className="p-4">
-                           <p className="font-semibold text-slate-900 text-base mb-0.5">{link.name}</p>
-                           <p className="text-xs text-slate-500 line-clamp-1 max-w-sm">{link.url}</p>
-                        </td>
-                        <td className="p-4">
-                           <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200">
-                              {link.type}
-                           </span>
-                        </td>
-                        <td className="p-4 font-medium text-slate-600">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar size={14} className="text-slate-400" />
-                            {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                          </div>
-                        </td>
-                        <td className="p-4 text-right">
-                           <div className="flex items-center justify-end gap-1">
-                             <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
-                                <a href={link.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
-                             </Button>
-                             <Switch checked={link.status === 'ACTIVE'} onCheckedChange={() => toggleStatusSimple(link)} title="Ativar/Inativar" />
-                             <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                             <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                             <Button variant="ghost" size="icon" onClick={() => confirmDelete(link.id, link.name)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
-                           </div>
-                        </td>
-                     </tr>
-                  ))}
+                  {filteredLinks.map(link => {
+                     const typeConfig = getAdminLinkTypeConfig(link.type);
+                     const Icon = typeConfig.icon;
+
+                     return (
+                       <tr key={link.id} className={`hover:bg-slate-50 transition-colors ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
+                          <td className="p-4 text-center">
+                             <div className="flex justify-center">
+                                {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                             </div>
+                          </td>
+                          <td className="p-4">
+                             <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border} shrink-0`}>
+                                   <Icon size={18} strokeWidth={1.5} />
+                                </div>
+                                <div>
+                                   <p className="font-semibold text-slate-900 text-base mb-0.5">{link.name}</p>
+                                   <p className="text-xs text-slate-500 line-clamp-1 max-w-sm">{link.url}</p>
+                                </div>
+                             </div>
+                          </td>
+                          <td className="p-4">
+                             <span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border}`}>
+                                {link.type}
+                             </span>
+                          </td>
+                          <td className="p-4 font-medium text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar size={14} className="text-slate-400" />
+                              {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                             <div className="flex items-center justify-end gap-1">
+                               <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                                  <a href={link.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
+                               </Button>
+                               <Switch checked={link.status === 'ACTIVE'} onCheckedChange={() => toggleStatusSimple(link)} title="Ativar/Inativar" />
+                               <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                               <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                               <Button variant="ghost" size="icon" onClick={() => confirmDelete(link.id, link.name)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                             </div>
+                          </td>
+                       </tr>
+                     );
+                  })}
                   {filteredLinks.length === 0 && (
                     <tr>
                       <td colSpan={5} className="p-12 text-center text-slate-500">

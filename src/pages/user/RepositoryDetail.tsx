@@ -3,8 +3,33 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, FolderCloud, Link2 } from 'lucide-react';
 import { SimpleLink } from '../../types';
+
+// Helper para definir Cores e Ícones dinamicamente
+const getLinkTypeConfig = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case 'vídeo':
+    case 'video':
+      return { icon: PlayCircle, colorClass: 'text-rose-500 border-zinc-700 group-hover:text-rose-400 group-hover:border-rose-500 group-hover:shadow-[0_0_15px_rgba(244,63,94,0.3)]' };
+    case 'pdf':
+      return { icon: FileText, colorClass: 'text-red-500 border-zinc-700 group-hover:text-red-400 group-hover:border-red-500 group-hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]' };
+    case 'planilha':
+      return { icon: FileSpreadsheet, colorClass: 'text-emerald-500 border-zinc-700 group-hover:text-emerald-400 group-hover:border-emerald-500 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.3)]' };
+    case 'documento':
+      return { icon: FileText, colorClass: 'text-blue-500 border-zinc-700 group-hover:text-blue-400 group-hover:border-blue-500 group-hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]' };
+    case 'imagem':
+      return { icon: ImageIcon, colorClass: 'text-fuchsia-500 border-zinc-700 group-hover:text-fuchsia-400 group-hover:border-fuchsia-500 group-hover:shadow-[0_0_15px_rgba(217,70,239,0.3)]' };
+    case 'apresentação':
+    case 'apresentacao':
+      return { icon: Presentation, colorClass: 'text-amber-500 border-zinc-700 group-hover:text-amber-400 group-hover:border-amber-500 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]' };
+    case 'drive/pasta':
+    case 'pasta':
+      return { icon: FolderCloud, colorClass: 'text-indigo-500 border-zinc-700 group-hover:text-indigo-400 group-hover:border-indigo-500 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.3)]' };
+    default:
+      return { icon: Link2, colorClass: 'text-zinc-400 border-zinc-700 group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] group-hover:shadow-[0_0_15px_var(--c-primary)]' };
+  }
+};
 
 export const RepositoryDetail = () => {
   const { id } = useParams();
@@ -191,32 +216,39 @@ export const RepositoryDetail = () => {
                 </div>
              </div>
 
-             {/* Lista de Links */}
+             {/* Lista de Links Dinâmica */}
              <div className="space-y-3">
-               {filteredLinks.map(link => (
-                 <button 
-                   key={link.id} 
-                   onClick={() => setActiveLink(link)}
-                   className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[var(--c-primary)] hover:bg-zinc-800/80 transition-all gap-4 shadow-sm text-left w-full"
-                 >
-                    <div className="flex items-start sm:items-center gap-4">
-                       <div className="w-12 h-12 rounded-full bg-black/50 border border-zinc-700 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] text-zinc-400">
-                          <LinkIcon size={20} />
-                       </div>
-                       <div>
-                          <h3 className="text-white font-medium text-lg group-hover:text-[var(--c-primary)] transition-colors">{link.name}</h3>
-                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-medium">
-                            <span className="bg-zinc-950 border border-zinc-700 px-2 py-0.5 rounded text-zinc-300">{link.type}</span>
-                            <span className="text-zinc-500">•</span>
-                            <span className="flex items-center gap-1 text-zinc-400"><Calendar size={12} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                          </div>
-                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-[var(--c-primary)] font-bold bg-[var(--c-primary)]/10 px-5 py-2.5 rounded-lg group-hover:bg-[var(--c-primary)] group-hover:text-white transition-colors shrink-0">
-                       Acessar
-                    </div>
-                 </button>
-               ))}
+               {filteredLinks.map(link => {
+                 const typeConfig = getLinkTypeConfig(link.type);
+                 const Icon = typeConfig.icon;
+
+                 return (
+                   <button 
+                     key={link.id} 
+                     onClick={() => setActiveLink(link)}
+                     className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-all gap-4 shadow-sm text-left w-full relative overflow-hidden"
+                   >
+                      <div className="flex items-start sm:items-center gap-4 relative z-10 w-full sm:w-auto">
+                         <div className={`w-12 h-12 rounded-full bg-black/50 border flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 ${typeConfig.colorClass}`}>
+                            <Icon size={20} strokeWidth={1.5} />
+                         </div>
+                         <div className="flex-1">
+                            <h3 className="text-white font-medium text-lg transition-colors group-hover:text-zinc-200">{link.name}</h3>
+                            <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-medium">
+                              <span className="bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded text-zinc-400 group-hover:border-zinc-700 transition-colors">
+                                {link.type}
+                              </span>
+                              <span className="text-zinc-600">•</span>
+                              <span className="flex items-center gap-1 text-zinc-500"><Calendar size={12} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                            </div>
+                         </div>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-2 text-sm text-zinc-400 font-medium px-4 py-2 rounded-lg group-hover:text-white group-hover:bg-zinc-800 transition-colors shrink-0">
+                         Abrir <ExternalLink size={14} />
+                      </div>
+                   </button>
+                 );
+               })}
                {filteredLinks.length === 0 && (
                   <div className="text-center py-20 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800 text-zinc-500">
                     <Search size={40} className="mx-auto mb-4 opacity-30" />
