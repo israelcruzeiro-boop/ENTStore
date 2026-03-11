@@ -13,10 +13,13 @@ export interface Company {
   id: string;
   name: string;
   slug: string;
-  linkName: string; // Novo campo para a rota
+  linkName: string;
   active: boolean;
   theme: Theme;
   logoUrl?: string;
+  heroImage?: string;     // Nova imagem do banner principal
+  heroTitle?: string;     // Novo título do banner
+  heroSubtitle?: string;  // Novo subtítulo do banner
   createdAt: string;
   updatedAt?: string;
 }
