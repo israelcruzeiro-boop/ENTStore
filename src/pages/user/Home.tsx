@@ -4,7 +4,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
-import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink, MonitorPlay } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const UserHome = () => {
@@ -40,7 +40,8 @@ export const UserHome = () => {
 
   // Listas para a Busca
   const query = searchQuery.toLowerCase().trim();
-  const filteredRepos = query ? companyRepos.filter(r => r.name.toLowerCase().includes(query)) : [];
+  const filteredHubs = query ? hubRepos.filter(r => r.name.toLowerCase().includes(query)) : [];
+  const filteredLibs = query ? libraryRepos.filter(r => r.name.toLowerCase().includes(query)) : [];
   const filteredContents = query ? companyContents.filter(c => c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query)) : [];
   const filteredLinks = query ? companyLinks.filter(l => l.name.toLowerCase().includes(query) || l.url.toLowerCase().includes(query)) : [];
 
@@ -95,7 +96,7 @@ export const UserHome = () => {
          {query ? (
            /* RESULTADOS DA BUSCA */
            <div className="px-4 md:px-12 max-w-7xl mx-auto space-y-12 animate-in fade-in duration-300">
-             {filteredRepos.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 ? (
+             {filteredHubs.length === 0 && filteredLibs.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 ? (
                 <div className="text-center text-zinc-500 py-12">
                   <div className="w-16 h-16 bg-zinc-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-800">
                      <Search size={28} className="text-zinc-600" />
@@ -105,14 +106,28 @@ export const UserHome = () => {
                 </div>
              ) : (
                 <>
-                  {filteredRepos.length > 0 && (
+                  {filteredHubs.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-6">
-                        <Library size={20} className="text-[var(--c-primary)]" />
-                        <h2 className="text-xl font-bold text-white">Hubs e Bibliotecas</h2>
+                        <MonitorPlay size={20} className="text-[var(--c-primary)]" />
+                        <h2 className="text-xl font-bold text-white">Hubs</h2>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-                        {filteredRepos.map(repo => (
+                        {filteredHubs.map(repo => (
+                           <RepoCard key={repo.id} repo={repo} fullWidth />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredLibs.length > 0 && (
+                    <div className={filteredHubs.length > 0 ? "border-t border-zinc-800/50 pt-8" : ""}>
+                      <div className="flex items-center gap-2 mb-6">
+                        <Library size={20} className="text-[var(--c-primary)]" />
+                        <h2 className="text-xl font-bold text-white">Bibliotecas</h2>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 md:gap-5">
+                        {filteredLibs.map(repo => (
                            <RepoCard key={repo.id} repo={repo} fullWidth />
                         ))}
                       </div>
