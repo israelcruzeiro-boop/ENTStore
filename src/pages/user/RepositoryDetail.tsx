@@ -259,8 +259,8 @@ export const RepositoryDetail = () => {
                                 <Calendar size={13} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                               </span>
                               <span className="text-zinc-700">•</span>
-                              <span className="flex items-center gap-1 text-amber-400" title={`${linkRatings.length} avaliações`}>
-                                <Star size={13} fill="currentColor" /> {avgRating}
+                              <span className="flex items-center gap-1 text-amber-400">
+                                <Star size={13} fill="currentColor" /> {avgRating} <span className="text-zinc-500 font-normal">({linkRatings.length} {linkRatings.length === 1 ? 'avaliação' : 'avaliações'})</span>
                               </span>
                               <span className="text-zinc-700">•</span>
                               <span className="flex items-center gap-1 text-zinc-500" title="Visualizações">

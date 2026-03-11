@@ -28,17 +28,22 @@ export const ContentCard = ({ content }: { content: Content }) => {
           </div>
         </div>
       </div>
-      <div className="mt-3 flex items-center justify-between text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors px-1">
-        <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800/50 font-medium tracking-wide">
-          {content.type}
-        </span>
-        <div className="flex items-center gap-2">
-           <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-amber-400" title={`${ratings.length} avaliações`}>
-              <Star size={12} fill="currentColor" /> {avgRating}
-           </span>
-           <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
-              <Eye size={12} /> {views}
-           </span>
+      
+      <div className="mt-3 flex flex-col gap-2 px-1">
+        <div className="flex items-center justify-between text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
+          <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800/50 font-medium tracking-wide">
+            {content.type}
+          </span>
+          <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
+            <Eye size={12} /> {views}
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-1 font-medium text-amber-400 text-xs">
+          <Star size={12} fill="currentColor" /> {avgRating} 
+          <span className="text-zinc-500 font-normal ml-0.5">
+            ({ratings.length} {ratings.length === 1 ? 'avaliação' : 'avaliações'})
+          </span>
         </div>
       </div>
     </Link>
