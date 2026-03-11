@@ -307,9 +307,9 @@ export const AdminRepositoryContents = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         
         {isSimple && (
-          /* BARRA DE FILTROS - APENAS REPOSITÓRIO SIMPLES */
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+          /* BARRA DE FILTROS - APENAS REPOSITÓRIO SIMPLES (COMPACTA) */
+          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-2.5 shadow-sm">
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <Input 
                 placeholder="Buscar por nome ou URL..." 
@@ -318,28 +318,30 @@ export const AdminRepositoryContents = () => {
                 className="pl-9 bg-white" 
               />
             </div>
-            <select 
-              value={filterType} 
-              onChange={(e) => setFilterType(e.target.value)} 
-              className="flex h-10 w-full md:w-48 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="ALL">Todos os Tipos</option>
-              {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <Input 
-              type="date" 
-              value={filterDate} 
-              onChange={(e) => setFilterDate(e.target.value)} 
-              className="w-full md:w-auto bg-white text-slate-600" 
-            />
-            <Button 
-              variant="outline" 
-              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} 
-              className="bg-white min-w-[150px] flex items-center gap-2"
-            >
-              <ArrowDownUp size={16} className="text-slate-500" />
-              {sortOrder === 'desc' ? 'Mais recentes' : 'Mais antigos'}
-            </Button>
+            <div className="grid grid-cols-2 md:flex md:flex-row gap-2 w-full">
+               <select 
+                 value={filterType} 
+                 onChange={(e) => setFilterType(e.target.value)} 
+                 className="col-span-1 w-full md:w-48 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+               >
+                 <option value="ALL">Tipos (Todos)</option>
+                 {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+               </select>
+               <Input 
+                 type="date" 
+                 value={filterDate} 
+                 onChange={(e) => setFilterDate(e.target.value)} 
+                 className="col-span-1 w-full md:w-auto bg-white text-slate-600" 
+               />
+               <Button 
+                 variant="outline" 
+                 onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} 
+                 className="col-span-2 md:col-span-1 bg-white min-w-[150px] flex items-center gap-2 h-9"
+               >
+                 <ArrowDownUp size={14} className="text-slate-500" />
+                 {sortOrder === 'desc' ? 'Recentes' : 'Antigos'}
+               </Button>
+            </div>
           </div>
         )}
 
