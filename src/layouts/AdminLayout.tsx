@@ -1,7 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStore } from '../store/useAppStore';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) => {
@@ -64,6 +64,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
     { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${linkName}` },
     { label: 'Repositórios', icon: FolderTree, path: `/admin/${linkName}/repos` },
     { label: 'Usuários', icon: Users, path: `/admin/${linkName}/users` },
+    { label: 'Estrutura Org.', icon: Network, path: `/admin/${linkName}/structure` },
     { label: 'Aparência', icon: Palette, path: `/admin/${linkName}/appearance` },
     { label: 'Configurações', icon: Settings, path: `/admin/${linkName}/settings` },
   ];

@@ -20,6 +20,11 @@ export interface Company {
   heroImage?: string;
   heroTitle?: string;
   heroSubtitle?: string;
+  
+  // Nomenclaturas da Estrutura Organizacional
+  orgTopLevelName?: string;
+  orgUnitName?: string;
+  
   createdAt: string;
   updatedAt?: string;
 }
