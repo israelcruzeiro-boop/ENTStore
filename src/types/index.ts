@@ -128,3 +128,13 @@ export interface OrgTopLevel {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface OrgUnit {
+  id: string;
+  companyId: string;
+  parentId: string; // ID do OrgTopLevel que ela pertence
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

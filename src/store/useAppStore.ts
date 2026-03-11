@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric, ContentRating, OrgTopLevel } from '../types';
+import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric, ContentRating, OrgTopLevel, OrgUnit } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
 interface AppState {
@@ -12,7 +12,8 @@ interface AppState {
   simpleLinks: SimpleLink[];
   contentViews: ContentViewMetric[];
   contentRatings: ContentRating[]; 
-  orgTopLevels: OrgTopLevel[]; // Novo estado para Nível Superior
+  orgTopLevels: OrgTopLevel[]; // Estado para Nível Superior
+  orgUnits: OrgUnit[];         // Estado para Unidades Base
   
   // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
@@ -52,11 +53,17 @@ interface AppState {
   addContentView: (metric: Omit<ContentViewMetric, 'id' | 'viewedAt'>) => void;
   rateContent: (metric: Omit<ContentRating, 'id' | 'createdAt' | 'updatedAt'>) => void;
 
-  // Actions da Estrutura Organizacional
+  // Actions da Estrutura Organizacional - Nível Superior
   addOrgTopLevel: (data: Omit<OrgTopLevel, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateOrgTopLevel: (id: string, data: Partial<OrgTopLevel>) => void;
   deleteOrgTopLevel: (id: string) => void;
   toggleOrgTopLevelStatus: (id: string) => void;
+
+  // Actions da Estrutura Organizacional - Unidades
+  addOrgUnit: (data: Omit<OrgUnit, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateOrgUnit: (id: string, data: Partial<OrgUnit>) => void;
+  deleteOrgUnit: (id: string) => void;
+  toggleOrgUnitStatus: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -71,6 +78,7 @@ export const useAppStore = create<AppState>()(
       contentViews: [],
       contentRatings: [],
       orgTopLevels: [],
+      orgUnits: [],
       
       addCompany: (companyData) => set((state) => {
         const id = crypto.randomUUID();
@@ -118,6 +126,7 @@ export const useAppStore = create<AppState>()(
           contentViews: state.contentViews.filter(v => v.companyId !== id),
           contentRatings: state.contentRatings.filter(r => r.companyId !== id),
           orgTopLevels: state.orgTopLevels.filter(o => o.companyId !== id),
+          orgUnits: state.orgUnits.filter(u => u.companyId !== id),
         };
       }),
 
@@ -251,11 +260,28 @@ export const useAppStore = create<AppState>()(
       })),
 
       deleteOrgTopLevel: (id) => set((state) => ({
-        orgTopLevels: state.orgTopLevels.filter(o => o.id !== id)
+        orgTopLevels: state.orgTopLevels.filter(o => o.id !== id),
+        orgUnits: state.orgUnits.filter(u => u.parentId !== id) // Exclui em cascata
       })),
 
       toggleOrgTopLevelStatus: (id) => set((state) => ({
         orgTopLevels: state.orgTopLevels.map(o => o.id === id ? { ...o, active: !o.active, updatedAt: new Date().toISOString() } : o)
+      })),
+
+      addOrgUnit: (data) => set((state) => ({
+        orgUnits: [...state.orgUnits, { ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+      })),
+
+      updateOrgUnit: (id, data) => set((state) => ({
+        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o)
+      })),
+
+      deleteOrgUnit: (id) => set((state) => ({
+        orgUnits: state.orgUnits.filter(o => o.id !== id)
+      })),
+
+      toggleOrgUnitStatus: (id) => set((state) => ({
+        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, active: !o.active, updatedAt: new Date().toISOString() } : o)
       })),
 
     }),
