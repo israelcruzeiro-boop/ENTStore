@@ -36,7 +36,8 @@ export interface User {
   role: UserRole;
   password?: string;
   companyId?: string;
-  orgUnitId?: string; // Vínculo com a Unidade
+  orgUnitId?: string; // Vínculo com a Unidade (unit_id)
+  orgTopLevelId?: string; // Nível Superior herdado da unidade (parent_id)
   avatarUrl?: string;
   active?: boolean;
   createdAt?: string;
@@ -51,7 +52,7 @@ export interface Repository {
   coverImage: string;
   bannerImage?: string;
   featured: boolean;
-  type: 'FULL' | 'SIMPLE'; // Novo campo para definir o tipo de repositório
+  type: 'FULL' | 'SIMPLE';
   status: 'ACTIVE' | 'DRAFT';
   accessType?: 'ALL' | 'RESTRICTED';
   allowedUserIds?: string[];
@@ -106,6 +107,8 @@ export interface ContentViewMetric {
   companyId: string;
   repositoryId: string;
   contentType: string;
+  orgUnitId?: string; // Para métricas por unidade
+  orgTopLevelId?: string; // Para métricas por regional/grupo
   viewedAt: string;
 }
 
@@ -116,11 +119,12 @@ export interface ContentRating {
   companyId: string;
   repositoryId: string;
   rating: number; // 0 a 10
+  orgUnitId?: string;
+  orgTopLevelId?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-// Novos tipos da Estrutura Organizacional
 export interface OrgTopLevel {
   id: string;
   companyId: string;

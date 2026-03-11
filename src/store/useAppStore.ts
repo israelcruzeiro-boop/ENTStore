@@ -12,8 +12,8 @@ interface AppState {
   simpleLinks: SimpleLink[];
   contentViews: ContentViewMetric[];
   contentRatings: ContentRating[]; 
-  orgTopLevels: OrgTopLevel[]; // Estado para Nível Superior
-  orgUnits: OrgUnit[];         // Estado para Unidades Base
+  orgTopLevels: OrgTopLevel[];
+  orgUnits: OrgUnit[];
   
   // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
@@ -138,13 +138,46 @@ export const useAppStore = create<AppState>()(
         companies: state.companies.map(c => c.id === id ? { ...c, theme: { ...c.theme, ...theme }, updatedAt: new Date().toISOString() } : c)
       })),
 
-      addUser: (userData) => set((state) => ({
-        users: [...state.users, { ...userData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
-      })),
+      addUser: (userData) => set((state) => {
+        let orgTopLevelId = userData.orgTopLevelId;
+        
+        // Se vinculou uma unidade, herda automaticamente o parent_id (Top Level)
+        if (userData.orgUnitId) {
+          const unit = state.orgUnits.find(u => u.id === userData.orgUnitId);
+          if (unit) orgTopLevelId = unit.parentId;
+        }
 
-      updateUser: (id, data) => set((state) => ({
-        users: state.users.map(u => u.id === id ? { ...u, ...data, updatedAt: new Date().toISOString() } : u)
-      })),
+        return {
+          users: [...state.users, { 
+            ...userData, 
+            orgTopLevelId, 
+            id: crypto.randomUUID(), 
+            createdAt: new Date().toISOString(), 
+            updatedAt: new Date().toISOString() 
+          }]
+        };
+      }),
+
+      updateUser: (id, data) => set((state) => {
+        const newUsers = state.users.map(u => {
+          if (u.id === id) {
+            const updatedUser = { ...u, ...data, updatedAt: new Date().toISOString() };
+            
+            // Recalcula o parent_id (orgTopLevelId) caso a unidade (orgUnitId) tenha mudado
+            if ('orgUnitId' in data) {
+              if (data.orgUnitId) {
+                const unit = state.orgUnits.find(org => org.id === data.orgUnitId);
+                updatedUser.orgTopLevelId = unit ? unit.parentId : undefined;
+              } else {
+                updatedUser.orgTopLevelId = undefined; // Limpou a unidade
+              }
+            }
+            return updatedUser;
+          }
+          return u;
+        });
+        return { users: newUsers };
+      }),
 
       deleteUser: (id) => set((state) => ({ 
         users: state.users.filter(u => u.id !== id),
@@ -224,25 +257,41 @@ export const useAppStore = create<AppState>()(
         contentRatings: state.contentRatings.filter(r => r.contentId !== id),
       })),
 
-      addContentView: (metricData) => set((state) => ({
-        contentViews: [...state.contentViews, {
-          ...metricData,
-          id: crypto.randomUUID(),
-          viewedAt: new Date().toISOString()
-        }]
-      })),
+      addContentView: (metricData) => set((state) => {
+        // Carimba os dados organizacionais do usuário na hora da view
+        const user = state.users.find(u => u.id === metricData.userId);
+        
+        return {
+          contentViews: [...state.contentViews, {
+            ...metricData,
+            orgUnitId: user?.orgUnitId,
+            orgTopLevelId: user?.orgTopLevelId,
+            id: crypto.randomUUID(),
+            viewedAt: new Date().toISOString()
+          }]
+        };
+      }),
 
       rateContent: (ratingData) => set((state) => {
+        const user = state.users.find(u => u.id === ratingData.userId);
         const existingIndex = state.contentRatings.findIndex(r => r.userId === ratingData.userId && r.contentId === ratingData.contentId);
         
         if (existingIndex >= 0) {
           const newRatings = [...state.contentRatings];
-          newRatings[existingIndex] = { ...newRatings[existingIndex], rating: ratingData.rating, updatedAt: new Date().toISOString() };
+          newRatings[existingIndex] = { 
+            ...newRatings[existingIndex], 
+            rating: ratingData.rating, 
+            orgUnitId: user?.orgUnitId,
+            orgTopLevelId: user?.orgTopLevelId,
+            updatedAt: new Date().toISOString() 
+          };
           return { contentRatings: newRatings };
         } else {
           return {
             contentRatings: [...state.contentRatings, {
               ...ratingData,
+              orgUnitId: user?.orgUnitId,
+              orgTopLevelId: user?.orgTopLevelId,
               id: crypto.randomUUID(),
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
