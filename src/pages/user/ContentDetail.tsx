@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { Viewer } from '../../components/user/Viewer';
-import { ArrowLeft, Share2, Heart, Lock, Eye, Star } from 'lucide-react';
+import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
 
 export const ContentDetail = () => {
   const { id } = useParams();
@@ -75,7 +75,7 @@ export const ContentDetail = () => {
        <Viewer content={content} />
 
        <div className="max-w-6xl mx-auto mt-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
+          <div className="w-full">
             <div className="flex items-center gap-3 mb-2">
                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-[var(--c-primary)]">
                  {content.type}
@@ -110,14 +110,6 @@ export const ContentDetail = () => {
               </div>
             </div>
 
-          </div>
-          <div className="flex gap-3 shrink-0 mt-4 md:mt-0">
-             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-[var(--c-primary)] transition-colors group">
-                <Heart size={20} className="group-hover:scale-110 transition-transform" />
-             </button>
-             <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-[var(--c-primary)] transition-colors group">
-                <Share2 size={20} className="group-hover:scale-110 transition-transform" />
-             </button>
           </div>
        </div>
     </div>
