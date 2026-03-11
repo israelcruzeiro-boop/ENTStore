@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStore } from '../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
+import { ShieldAlert, Building, User as UserIcon } from 'lucide-react';
 
 export const Login = () => {
   const { login } = useAuth();
@@ -34,6 +35,12 @@ export const Login = () => {
     } else {
       setError('E-mail ou senha incorretos, ou conta inativa.');
     }
+  };
+
+  const fillCredentials = (testEmail: string, testPass: string) => {
+    setEmail(testEmail);
+    setPassword(testPass);
+    setError('');
   };
 
   return (
@@ -91,10 +98,33 @@ export const Login = () => {
         </form>
 
         <div className="mt-8 pt-6 border-t border-zinc-800/50">
-           <p className="text-xs text-zinc-500 text-center mb-2 uppercase tracking-widest font-semibold">Acesso de Teste (Super Admin)</p>
-           <div className="text-xs text-zinc-400 flex flex-col items-center gap-1 font-mono">
-              <span>sadmin@entstore.com</span>
-              <span className="mt-1 font-sans bg-zinc-800 px-2 py-1 rounded text-zinc-300">Senha: 123456</span>
+           <p className="text-xs text-zinc-500 text-center mb-4 uppercase tracking-widest font-semibold">
+             Acessos Rápidos de Teste
+           </p>
+           <div className="flex flex-col gap-2.5">
+              <button 
+                type="button" 
+                onClick={() => fillCredentials('sadmin@entstore.com', '123456')}
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
+              >
+                 <ShieldAlert size={16} /> Preencher Super Admin
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={() => fillCredentials('admin@entstore.com', '123456')}
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
+              >
+                 <Building size={16} /> Preencher Admin (Acme)
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => fillCredentials('user@entstore.com', '123456')}
+                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
+              >
+                 <UserIcon size={16} /> Preencher Usuário Final
+              </button>
            </div>
         </div>
       </div>
