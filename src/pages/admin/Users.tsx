@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar } from 'lucide-react';
 import { User } from '../../types';
 
 export const AdminUsers = () => {
   const { linkName } = useParams();
-  const { user: currentUser } = useAuth(); // Para evitar que o admin exclua a si mesmo
-  const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus } = useAppStore();
+  const { user: currentUser } = useAuth();
+  const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus, contentViews, contents, simpleLinks, repositories } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
   
@@ -34,6 +34,62 @@ export const AdminUsers = () => {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{id: string, name: string} | null>(null);
+
+  // Estados e cálculos para as Métricas de Atividade
+  const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  const userMetrics = useMemo(() => {
+    if (!selectedUser) return null;
+    const views = contentViews.filter(v => v.userId === selectedUser.id);
+    
+    let lastAccess = '';
+    const contentMap = new Map<string, any>();
+
+    views.forEach(v => {
+      if (!lastAccess || new Date(v.viewedAt) > new Date(lastAccess)) {
+        lastAccess = v.viewedAt;
+      }
+      const existing = contentMap.get(v.contentId);
+      if (existing) {
+        existing.viewCount += 1;
+        if (new Date(v.viewedAt) > new Date(existing.lastView)) existing.lastView = v.viewedAt;
+      } else {
+        contentMap.set(v.contentId, { viewCount: 1, lastView: v.viewedAt, repoId: v.repositoryId, type: v.contentType });
+      }
+    });
+
+    const history = Array.from(contentMap.entries()).map(([contentId, data]) => {
+      let title = 'Conteúdo Excluído ou Desconhecido';
+      
+      const fullC = contents.find(c => c.id === contentId);
+      if (fullC) {
+         title = fullC.title;
+      } else {
+         const sLink = simpleLinks.find(l => l.id === contentId);
+         if (sLink) title = sLink.name;
+      }
+
+      const repo = repositories.find(r => r.id === data.repoId);
+      
+      return {
+        id: contentId,
+        title,
+        type: data.type,
+        repoName: repo ? repo.name : 'Repositório Excluído',
+        viewCount: data.viewCount,
+        lastView: data.lastView
+      };
+    }).sort((a, b) => new Date(b.lastView).getTime() - new Date(a.lastView).getTime());
+
+    return {
+      totalViews: views.length,
+      uniqueContents: contentMap.size,
+      lastAccess,
+      history
+    };
+  }, [selectedUser, contentViews, contents, simpleLinks, repositories]);
+
 
   if (!company) return null;
 
@@ -55,6 +111,11 @@ export const AdminUsers = () => {
     setIsFormOpen(true);
   };
 
+  const openActivity = (user: User) => {
+     setSelectedUser(user);
+     setIsActivityOpen(true);
+  };
+
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) {
@@ -65,7 +126,7 @@ export const AdminUsers = () => {
       return toast.error('A senha é obrigatória para novos usuários.');
     }
 
-    // Verifica e-mail duplicado (em toda a base, pois o login é global)
+    // Verifica e-mail duplicado
     const emailExists = users.some(u => u.email === formData.email && u.id !== editingId);
     if (emailExists) {
       return toast.error('Este e-mail já está em uso por outro usuário.');
@@ -77,7 +138,7 @@ export const AdminUsers = () => {
         email: formData.email,
         role: formData.role,
         active: formData.active,
-        ...(formData.password ? { password: formData.password } : {}) // Atualiza senha só se foi preenchida
+        ...(formData.password ? { password: formData.password } : {})
       });
       toast.success('Usuário atualizado com sucesso!');
     } else {
@@ -122,7 +183,7 @@ export const AdminUsers = () => {
            <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso aos conteúdos da {company.name}.</p>
          </div>
-         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
             + Novo Usuário
          </Button>
       </div>
@@ -175,11 +236,17 @@ export const AdminUsers = () => {
                       <td className="p-4 text-slate-500">{new Date(user.createdAt || '').toLocaleDateString('pt-BR')}</td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1 md:gap-2">
+                           {user.role === 'USER' && (
+                              <Button variant="ghost" size="icon" onClick={() => openActivity(user)} className="text-slate-400 hover:text-emerald-600" title="Ver Atividade">
+                                 <Activity size={16} />
+                              </Button>
+                           )}
                            <Switch 
                              checked={user.active !== false} 
                              onCheckedChange={() => toggleStatus(user)} 
                              disabled={user.id === currentUser?.id}
                              title="Ativar/Inativar" 
+                             className="ml-2"
                            />
                            <div className="h-6 w-px bg-slate-200 mx-1"></div>
                            <Button variant="ghost" size="icon" onClick={() => openEdit(user)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
@@ -212,6 +279,95 @@ export const AdminUsers = () => {
         </div>
       </div>
 
+      {/* MODAL DE ATIVIDADE E MÉTRICAS DO USUÁRIO */}
+      <Dialog open={isActivityOpen} onOpenChange={setIsActivityOpen}>
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+             <DialogTitle className="text-xl">Atividade do Usuário</DialogTitle>
+             <p className="text-sm text-slate-500 mt-1">Histórico de consumo e métricas de <strong>{selectedUser?.name}</strong>.</p>
+          </DialogHeader>
+
+          {userMetrics && (
+            <div className="flex-1 overflow-y-auto mt-4 space-y-6 px-1 pb-2">
+               {/* Resumo de Métricas */}
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                     <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Eye size={14} className="text-indigo-500"/> Visitas</p>
+                     <p className="text-3xl font-black text-slate-900">{userMetrics.totalViews}</p>
+                     <p className="text-xs text-slate-400 mt-1">Total de cliques em links e conteúdos</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                     <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5"><BookOpen size={14} className="text-emerald-500"/> Engajamento</p>
+                     <p className="text-3xl font-black text-slate-900">{userMetrics.uniqueContents}</p>
+                     <p className="text-xs text-slate-400 mt-1">Conteúdos diferentes visualizados</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                     <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Calendar size={14} className="text-amber-500"/> Último Acesso</p>
+                     <p className="text-lg font-bold text-slate-900 mt-1 leading-tight">
+                       {userMetrics.lastAccess ? (
+                         <>
+                           {new Date(userMetrics.lastAccess).toLocaleDateString('pt-BR')} <br/>
+                           <span className="text-sm text-slate-500 font-medium">às {new Date(userMetrics.lastAccess).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                         </>
+                       ) : 'Nunca acessou'}
+                     </p>
+                  </div>
+               </div>
+
+               {/* Tabela de Histórico */}
+               <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3 border-b border-slate-200 pb-2">Conteúdos Acessados (Linha do Tempo)</h3>
+                  {userMetrics.history.length > 0 ? (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                       <table className="w-full text-left text-sm text-slate-600">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                             <tr>
+                                <th className="p-3 font-semibold text-slate-900">Conteúdo</th>
+                                <th className="p-3 font-semibold text-slate-900">Repositório</th>
+                                <th className="p-3 font-semibold text-slate-900 text-center">Visualizações</th>
+                                <th className="p-3 font-semibold text-slate-900 text-right">Acessado em</th>
+                             </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                             {userMetrics.history.map(item => (
+                                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                                   <td className="p-3">
+                                      <p className="font-semibold text-slate-900 line-clamp-1">{item.title}</p>
+                                      <p className="text-xs text-slate-500 mt-0.5 font-medium">{item.type}</p>
+                                   </td>
+                                   <td className="p-3 text-slate-500 line-clamp-1 text-xs">{item.repoName}</td>
+                                   <td className="p-3 text-center">
+                                      <span className="inline-flex items-center justify-center bg-indigo-50 text-indigo-700 font-bold text-xs rounded-full px-2.5 py-0.5 border border-indigo-100">
+                                         {item.viewCount}x
+                                      </span>
+                                   </td>
+                                   <td className="p-3 text-right text-xs text-slate-500 font-medium">
+                                      {new Date(item.lastView).toLocaleDateString('pt-BR')} <br/>
+                                      <span className="text-[10px] text-slate-400">{new Date(item.lastView).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span>
+                                   </td>
+                                </tr>
+                             ))}
+                          </tbody>
+                       </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 bg-slate-50 rounded-lg border border-dashed border-slate-300 text-slate-500">
+                       <Activity size={32} className="mx-auto text-slate-300 mb-3" />
+                       <p className="font-medium text-slate-700">O usuário ainda não visualizou nenhum conteúdo.</p>
+                       <p className="text-sm mt-1">As métricas aparecerão aqui automaticamente.</p>
+                    </div>
+                  )}
+               </div>
+            </div>
+          )}
+          
+          <div className="shrink-0 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
+             <Button type="button" variant="outline" onClick={() => setIsActivityOpen(false)}>Fechar Janela</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE CRIAÇÃO/EDIÇÃO */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle></DialogHeader>
@@ -253,7 +409,7 @@ export const AdminUsers = () => {
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Criar Usuário'}</Button>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">{editingId ? 'Salvar Alterações' : 'Criar Usuário'}</Button>
             </div>
           </form>
         </DialogContent>
