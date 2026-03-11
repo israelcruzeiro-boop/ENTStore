@@ -40,9 +40,28 @@ export const Viewer = ({ content }: { content: Content }) => {
   // Define a URL base baseada no tipo de documento
   let iframeUrl = content.url;
   
-  if (content.type === 'DOCUMENT') {
-    // Usa o Google Docs Viewer para forçar a renderização de doc, docx, xls, pptx dentro do iframe
-    iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
+  try {
+    // 1. Google Drive Links genéricos (PDFs, imagens no Drive, etc)
+    if (iframeUrl.includes('drive.google.com/file/d/')) {
+      const match = iframeUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        iframeUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+      }
+    }
+    // 2. Google Docs, Sheets, Slides (links diretos do editor)
+    else if (iframeUrl.includes('docs.google.com/') && iframeUrl.includes('/d/')) {
+      const match = iframeUrl.match(/(.*\/d\/[a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        iframeUrl = `${match[1]}/preview`;
+      }
+    }
+    // 3. Documentos externos (.doc, .xls, .ppt) hospedados em outros lugares
+    else if (content.type === 'DOCUMENT' && !iframeUrl.includes('google.com')) {
+      // Usa o Google Docs Viewer para forçar a renderização dentro do iframe
+      iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
+    }
+  } catch (e) {
+    console.error("Erro ao formatar URL do documento", e);
   }
 
   // Renderizador para PDF, Documentos e Links (Formato "Navegador" vertical)
@@ -71,7 +90,7 @@ export const Viewer = ({ content }: { content: Content }) => {
          </a>
       </div>
       
-      {/* Container do Iframe (Fundo branco ajuda a ler PDFs e Docs que tenham fundo transparente) */}
+      {/* Container do Iframe */}
       <div className="flex-1 w-full bg-white relative">
         <iframe 
           src={iframeUrl} 
