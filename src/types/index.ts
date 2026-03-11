@@ -57,6 +57,7 @@ export interface Category {
   id: string;
   repositoryId: string;
   name: string;
+  order?: number;
   createdAt?: string;
   updatedAt?: string;
 }

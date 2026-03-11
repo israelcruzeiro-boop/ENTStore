@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users, Star } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users, Star, Layers, ArrowUp, ArrowDown } from 'lucide-react';
 
 // Configuração Premium de Ícones (Tema Claro - Admin)
 const getPremiumAdminConfig = (type: string) => {
@@ -34,7 +34,7 @@ const getPremiumAdminConfig = (type: string) => {
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
-  const { companies, repositories, contents, simpleLinks, contentViews, contentRatings, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
+  const { companies, repositories, contents, simpleLinks, contentViews, contentRatings, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink, categories, addCategory, deleteCategory, reorderCategories } = useAppStore();
 
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
@@ -45,6 +45,10 @@ export const AdminRepositoryContents = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, title: string} | null>(null);
 
+  // Estado Modal Fases
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   // Estados de Filtro (Repositório Simples)
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -53,7 +57,7 @@ export const AdminRepositoryContents = () => {
 
   // Formulário Conteúdo Completo
   const [formData, setFormData] = useState({
-    title: '', description: '', thumbnailUrl: '', type: 'VIDEO' as Content['type'], url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
+    title: '', description: '', thumbnailUrl: '', type: 'VIDEO' as Content['type'], url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' as 'ACTIVE' | 'DRAFT', categoryId: ''
   });
 
   // Formulário Link Simples (Cadastro em Lote)
@@ -67,6 +71,7 @@ export const AdminRepositoryContents = () => {
   const isSimple = repo.type === 'SIMPLE';
 
   const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  const repoCategories = categories.filter(c => c.repositoryId === repoId).sort((a, b) => (a.order || 0) - (b.order || 0));
   
   // --- Filtros e Ordenação de Links Simples ---
   const availableTypes = useMemo(() => {
@@ -108,6 +113,30 @@ export const AdminRepositoryContents = () => {
     return null;
   };
 
+  // --- Handlers FASES (CATEGORIAS) ---
+  const handleAddCategory = () => {
+     if (!newCategoryName.trim()) return;
+     addCategory({
+        repositoryId: repo.id,
+        name: newCategoryName.trim(),
+        order: repoCategories.length
+     });
+     setNewCategoryName('');
+  };
+
+  const moveCategory = (index: number, direction: number) => {
+     const newCategories = [...repoCategories];
+     const targetIndex = index + direction;
+     if (targetIndex < 0 || targetIndex >= newCategories.length) return;
+     
+     const temp = newCategories[index];
+     newCategories[index] = newCategories[targetIndex];
+     newCategories[targetIndex] = temp;
+     
+     reorderCategories(repo.id, newCategories.map(c => c.id));
+  };
+
+
   // --- Handlers COMPLETO ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -121,24 +150,30 @@ export const AdminRepositoryContents = () => {
 
   const openCreateFull = () => {
     setEditingId(null);
-    setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' });
+    setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE', categoryId: '' });
     setIsFormOpen(true);
   };
 
   const openEditFull = (content: Content) => {
     setEditingId(content.id);
-    setFormData({ title: content.title, description: content.description, thumbnailUrl: content.thumbnailUrl, type: content.type, url: content.url, embedUrl: content.embedUrl || '', featured: content.featured, recent: content.recent, status: content.status || 'ACTIVE' });
+    setFormData({ title: content.title, description: content.description, thumbnailUrl: content.thumbnailUrl, type: content.type, url: content.url, embedUrl: content.embedUrl || '', featured: content.featured, recent: content.recent, status: content.status || 'ACTIVE', categoryId: content.categoryId || '' });
     setIsFormOpen(true);
   };
 
   const handleSaveFull = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.url) return toast.error('Os campos Título e URL são obrigatórios.');
+    
+    const payload = {
+       ...formData,
+       categoryId: formData.categoryId || undefined
+    };
+
     if (editingId) {
-      updateContent(editingId, formData);
+      updateContent(editingId, payload);
       toast.success('Conteúdo atualizado com sucesso!');
     } else {
-      addContent({ companyId: company.id, repositoryId: repo.id, ...formData });
+      addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
       toast.success('Conteúdo adicionado com sucesso!');
     }
     setIsFormOpen(false);
@@ -319,9 +354,16 @@ export const AdminRepositoryContents = () => {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
          <h2 className="text-xl font-bold text-slate-900">{isSimple ? 'Lista de Links' : 'Conteúdos do Repositório'}</h2>
-         <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
-            <Plus size={16} className="mr-2" /> {isSimple ? 'Adicionar Links' : 'Novo Conteúdo'}
-         </Button>
+         <div className="flex gap-2 w-full sm:w-auto">
+            {!isSimple && (
+              <Button variant="outline" onClick={() => setIsCategoryModalOpen(true)} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none">
+                 <Layers size={16} className="mr-2" /> Fases
+              </Button>
+            )}
+            <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md flex-1 sm:flex-none">
+               <Plus size={16} className="mr-2" /> {isSimple ? 'Adicionar Links' : 'Novo Conteúdo'}
+            </Button>
+         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
@@ -468,7 +510,7 @@ export const AdminRepositoryContents = () => {
                   <tr>
                      <th className="p-4 w-16 text-center">Status</th>
                      <th className="p-4">Conteúdo</th>
-                     <th className="p-4 w-32">Tipo</th>
+                     <th className="p-4 w-32">Tipo & Fase</th>
                      <th className="p-4 text-center">Métricas</th>
                      <th className="p-4 text-right">Ações</th>
                   </tr>
@@ -483,6 +525,7 @@ export const AdminRepositoryContents = () => {
                      const avgRating = cRatings.length > 0 ? (cRatings.reduce((acc, curr) => acc + curr.rating, 0) / cRatings.length).toFixed(1) : '-';
 
                      const tUrl = getDisplayThumbnail(content);
+                     const phase = repoCategories.find(c => c.id === content.categoryId);
 
                      return (
                        <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
@@ -503,8 +546,15 @@ export const AdminRepositoryContents = () => {
                             </div>
                           </td>
                           <td className="p-4">
-                             <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs border border-slate-200">
-                                {getTypeIcon(content.type)} {content.type}
+                             <div className="flex flex-col items-start gap-1.5">
+                               <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                                  {getTypeIcon(content.type)} {content.type}
+                               </div>
+                               {phase && (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                    {phase.name}
+                                  </span>
+                               )}
                              </div>
                           </td>
                           <td className="p-4 text-center">
@@ -550,7 +600,7 @@ export const AdminRepositoryContents = () => {
         </div>
       </div>
 
-      {/* MODAL COMPLETO */}
+      {/* MODAL COMPLETO (Formulário) */}
       {!isSimple && (
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -572,6 +622,21 @@ export const AdminRepositoryContents = () => {
                    </select>
                  </div>
                  <div className="space-y-2">
+                   <Label>Fase (Opcional)</Label>
+                   <select value={formData.categoryId || ''} onChange={(e) => setFormData({...formData, categoryId: e.target.value})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                      <option value="">Nenhuma (Fica Solto)</option>
+                      {repoCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                   </select>
+                 </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="space-y-2 sm:col-span-2">
+                   <Label>URL Principal *</Label>
+                   <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
+                 </div>
+                 <div className="space-y-2 sm:col-span-2">
                    <Label>Imagem de Capa (Opcional)</Label>
                    <div className="flex items-center gap-2">
                       <div className="w-16 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
@@ -582,12 +647,8 @@ export const AdminRepositoryContents = () => {
                          <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('thumb-upload')?.click()} className="w-full text-xs h-10">Upload Imagem</Button>
                       </div>
                    </div>
-                   <Input placeholder="Ou cole URL..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs" />
+                   <Input placeholder="Ou cole URL..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs mt-2" />
                  </div>
-              </div>
-              <div className="space-y-2">
-                <Label>URL Principal *</Label>
-                <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
               </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
                 <div className="space-y-0.5"><Label>Conteúdo Ativo</Label><p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível' : 'Rascunho'}</p></div>
@@ -598,6 +659,35 @@ export const AdminRepositoryContents = () => {
                 <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Conteúdo'}</Button>
               </div>
             </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* MODAL GERENCIAR FASES (Somente para FULL) */}
+      {!isSimple && (
+        <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader><DialogTitle>Gerenciar Fases</DialogTitle></DialogHeader>
+            <div className="space-y-4 mt-4">
+               <div className="flex gap-2">
+                  <Input placeholder="Nome da nova fase..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()} />
+                  <Button onClick={handleAddCategory} className="bg-indigo-600 hover:bg-indigo-700">Adicionar</Button>
+               </div>
+               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {repoCategories.map((cat, index) => (
+                     <div key={cat.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg bg-slate-50 shadow-sm">
+                        <span className="text-sm font-semibold text-slate-700">{cat.name}</span>
+                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md p-0.5">
+                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, -1)} disabled={index === 0}><ArrowUp size={14}/></Button>
+                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, 1)} disabled={index === repoCategories.length - 1}><ArrowDown size={14}/></Button>
+                           <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => deleteCategory(cat.id)}><Trash2 size={14}/></Button>
+                        </div>
+                     </div>
+                  ))}
+                  {repoCategories.length === 0 && <p className="text-sm text-slate-500 text-center py-6 border border-dashed border-slate-200 rounded-lg">Nenhuma fase cadastrada.</p>}
+               </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}

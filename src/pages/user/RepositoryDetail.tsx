@@ -43,6 +43,9 @@ export const RepositoryDetail = () => {
   const [filterDate, setFilterDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
+  // Estado para a aba de Categoria (Fase) do Hub
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
   // Estado para o Visualizador Interno de Links Simples
   const [activeLink, setActiveLink] = useState<SimpleLink | null>(null);
 
@@ -99,8 +102,9 @@ export const RepositoryDetail = () => {
   const isSimple = repo.type === 'SIMPLE';
 
   // --- DADOS REPOSITÓRIO COMPLETO ---
-  const categories = allCategories.filter(c => c.repositoryId === id);
+  const categories = allCategories.filter(c => c.repositoryId === id).sort((a, b) => (a.order || 0) - (b.order || 0));
   const contents = allContents.filter(c => c.repositoryId === id && c.status === 'ACTIVE');
+  const displayContents = activeCategory ? contents.filter(c => c.categoryId === activeCategory) : contents;
 
   // --- DADOS REPOSITÓRIO SIMPLES ---
   const rawLinks = simpleLinks.filter(l => l.repositoryId === id && l.status === 'ACTIVE');
@@ -157,23 +161,24 @@ export const RepositoryDetail = () => {
   return (
     <div className="pb-12 min-h-screen relative">
       {/* Banner */}
-      <div className="relative h-[30vh] md:h-[40vh] w-full mb-8 bg-zinc-900 overflow-hidden">
+      <div className="relative h-[30vh] md:h-[40vh] w-full mb-8 bg-zinc-950 overflow-hidden">
          {repo.bannerImage || repo.coverImage ? (
-           <img src={repo.bannerImage || repo.coverImage} alt={repo.name} className="w-full h-full object-cover" />
+           <img src={repo.bannerImage || repo.coverImage} alt={repo.name} className="w-full h-full object-cover opacity-50 mix-blend-overlay" />
          ) : (
            <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-950"></div>
          )}
+         <div className="absolute inset-0 bg-black/40"></div>
          <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"></div>
          <Link to="/" className="absolute top-24 left-4 md:left-12 flex items-center gap-2 text-zinc-300 hover:text-white transition-colors z-10 font-medium">
             <ArrowLeft size={20} /> Voltar
          </Link>
          <div className="absolute bottom-0 left-4 md:left-12 pb-8 pr-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
                 {isSimple ? 'Lista de Links' : 'Repositório'}
               </span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-bold text-white mb-2 leading-tight drop-shadow-lg">{repo.name}</h1>
+            <h1 className="text-2xl md:text-4xl font-extrabold text-white mb-2 leading-tight drop-shadow-xl">{repo.name}</h1>
             <p className="text-zinc-300 max-w-2xl line-clamp-2 md:line-clamp-none text-sm md:text-base drop-shadow-md">{repo.description}</p>
          </div>
       </div>
@@ -289,24 +294,36 @@ export const RepositoryDetail = () => {
           </div>
         ) : (
           <div>
-            <div className="flex gap-4 mb-8 overflow-x-auto hide-scrollbar border-b border-zinc-800 pb-2">
-                <button className="px-4 py-2 text-white border-b-2 border-[var(--c-primary)] font-medium whitespace-nowrap">Todos os Conteúdos</button>
+            {/* ABAS DAS FASES (CATEGORIAS) */}
+            <div className="flex gap-2 mb-8 overflow-x-auto hide-scrollbar pb-4 pt-2">
+                <button 
+                  onClick={() => setActiveCategory(null)}
+                  className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${!activeCategory ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                >
+                  Todos os Conteúdos
+                </button>
                 {categories.map(cat => (
-                    <button key={cat.id} className="px-4 py-2 text-zinc-500 hover:text-zinc-300 font-medium whitespace-nowrap transition-colors">
+                    <button 
+                      key={cat.id} 
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${activeCategory === cat.id ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                    >
                         {cat.name}
                     </button>
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {contents.map(content => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 md:gap-10">
+                {displayContents.map(content => (
                     <div key={content.id} className="w-full">
-                        <ContentCard content={content} />
+                        <ContentCard content={content} fullWidth />
                     </div>
                 ))}
-                {contents.length === 0 && (
-                    <div className="col-span-full py-12 text-center text-zinc-500">
-                        Nenhum conteúdo liberado neste repositório ainda.
+                {displayContents.length === 0 && (
+                    <div className="col-span-full py-20 text-center text-zinc-500">
+                        <Folder size={48} className="opacity-20 mx-auto mb-4" />
+                        <p className="text-xl font-medium text-white mb-2">Nenhum conteúdo encontrado</p>
+                        <p>Ainda não há materiais liberados para a fase selecionada.</p>
                     </div>
                 )}
             </div>

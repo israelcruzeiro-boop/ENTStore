@@ -31,6 +31,12 @@ interface AppState {
   updateRepository: (id: string, data: Partial<Repository>) => void;
   deleteRepository: (id: string) => void;
 
+  // Actions de Fase (Categoria)
+  addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateCategory: (id: string, data: Partial<Category>) => void;
+  deleteCategory: (id: string) => void;
+  reorderCategories: (repositoryId: string, orderedIds: string[]) => void;
+
   // Actions de Conteúdo (Completo)
   addContent: (content: Omit<Content, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateContent: (id: string, data: Partial<Content>) => void;
@@ -52,7 +58,7 @@ export const useAppStore = create<AppState>()(
       companies: MOCK_COMPANIES,
       users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })),
       repositories: MOCK_REPOSITORIES.map(r => ({ ...r, type: r.type || 'FULL', createdAt: new Date().toISOString() })),
-      categories: MOCK_CATEGORIES,
+      categories: MOCK_CATEGORIES.map(c => ({ ...c, order: 0 })),
       contents: MOCK_CONTENTS.map(c => ({ ...c, createdAt: new Date().toISOString() })),
       simpleLinks: [],
       contentViews: [],
@@ -147,6 +153,30 @@ export const useAppStore = create<AppState>()(
         contentViews: state.contentViews.filter(v => v.repositoryId !== id),
         contentRatings: state.contentRatings.filter(r => r.repositoryId !== id),
       })),
+
+      addCategory: (catData) => set((state) => ({
+        categories: [...state.categories, { ...catData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+      })),
+
+      updateCategory: (id, data) => set((state) => ({
+        categories: state.categories.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
+      })),
+
+      deleteCategory: (id) => set((state) => ({
+        categories: state.categories.filter(c => c.id !== id),
+        contents: state.contents.map(c => c.categoryId === id ? { ...c, categoryId: undefined } : c)
+      })),
+
+      reorderCategories: (repositoryId, orderedIds) => set((state) => {
+         const newCategories = state.categories.map(c => {
+            if (c.repositoryId === repositoryId) {
+               const index = orderedIds.indexOf(c.id);
+               return { ...c, order: index >= 0 ? index : c.order };
+            }
+            return c;
+         });
+         return { categories: newCategories };
+      }),
 
       addContent: (contentData) => set((state) => ({
         contents: [...state.contents, { ...contentData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
