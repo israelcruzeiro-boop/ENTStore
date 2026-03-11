@@ -3,16 +3,19 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { Viewer } from '../../components/user/Viewer';
-import { ArrowLeft, Share2, Heart, Lock } from 'lucide-react';
+import { ArrowLeft, Share2, Heart, Lock, Eye } from 'lucide-react';
 
 export const ContentDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { contents, repositories, addContentView } = useAppStore();
+  const { contents, repositories, contentViews, addContentView } = useAppStore();
   const hasTrackedView = useRef(false);
 
   const content = contents.find(c => c.id === id);
   const repo = content ? repositories.find(r => r.id === content.repositoryId) : null;
+
+  // Conta quantas vezes esse conteúdo específico foi visualizado
+  const viewsCount = contentViews.filter(v => v.contentId === content?.id).length;
 
   // Regra de Acesso: O conteúdo herda a restrição do repositório
   const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
@@ -66,7 +69,14 @@ export const ContentDetail = () => {
                </span>
                <h1 className="text-2xl md:text-3xl font-bold text-white">{content.title}</h1>
             </div>
-            <p className="text-zinc-400 text-sm md:text-base">{content.description}</p>
+            
+            <div className="flex items-center gap-4 mb-2">
+              <span className="flex items-center gap-1.5 text-sm text-zinc-400">
+                <Eye size={16} /> {viewsCount} {viewsCount === 1 ? 'visualização' : 'visualizações'}
+              </span>
+            </div>
+
+            <p className="text-zinc-400 text-sm md:text-base mt-2">{content.description}</p>
           </div>
           <div className="flex gap-3 shrink-0">
              <button className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-white hover:bg-[var(--c-primary)] transition-colors group">

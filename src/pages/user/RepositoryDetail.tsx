@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye } from 'lucide-react';
 import { SimpleLink } from '../../types';
 
 // Configuração Premium de Ícones (Modo Escuro)
@@ -31,7 +31,7 @@ const getPremiumLinkConfig = (type: string) => {
 export const RepositoryDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { repositories, categories: allCategories, contents: allContents, simpleLinks, addContentView } = useAppStore();
+  const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView } = useAppStore();
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
@@ -214,6 +214,9 @@ export const RepositoryDetail = () => {
                {filteredLinks.map(link => {
                  const conf = getPremiumLinkConfig(link.type);
                  const Icon = conf.icon;
+                 
+                 // Conta as visualizações deste link
+                 const viewsCount = contentViews.filter(v => v.contentId === link.id).length;
 
                  return (
                    <button 
@@ -243,8 +246,12 @@ export const RepositoryDetail = () => {
                               <span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${conf.bg} ${conf.text} ${conf.border}`}>
                                 {link.type}
                               </span>
-                              <span className="flex items-center gap-1.5 text-zinc-500">
+                              <span className="flex items-center gap-1 text-zinc-500">
                                 <Calendar size={13} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              </span>
+                              <span className="text-zinc-700">•</span>
+                              <span className="flex items-center gap-1 text-zinc-500" title="Visualizações">
+                                <Eye size={13} /> {viewsCount}
                               </span>
                             </div>
                          </div>
