@@ -17,9 +17,9 @@ export interface Company {
   active: boolean;
   theme: Theme;
   logoUrl?: string;
-  heroImage?: string;     // Nova imagem do banner principal
-  heroTitle?: string;     // Novo título do banner
-  heroSubtitle?: string;  // Novo subtítulo do banner
+  heroImage?: string;
+  heroTitle?: string;
+  heroSubtitle?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -45,6 +45,7 @@ export interface Repository {
   coverImage: string;
   bannerImage?: string;
   featured: boolean;
+  type: 'FULL' | 'SIMPLE'; // Novo campo para definir o tipo de repositório
   status: 'ACTIVE' | 'DRAFT';
   accessType?: 'ALL' | 'RESTRICTED';
   allowedUserIds?: string[];
@@ -74,6 +75,20 @@ export interface Content {
   featured: boolean;
   recent: boolean;
   status: 'ACTIVE' | 'DRAFT';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Nova interface para os itens do Repositório Simples
+export interface SimpleLink {
+  id: string;
+  companyId: string;
+  repositoryId: string;
+  name: string;
+  url: string;
+  type: string;
+  date: string;
+  status: 'ACTIVE' | 'INACTIVE';
   createdAt?: string;
   updatedAt?: string;
 }

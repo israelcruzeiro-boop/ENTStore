@@ -7,39 +7,40 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Content } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle } from 'lucide-react';
+import { Content, SimpleLink } from '../../types';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar } from 'lucide-react';
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
-  const { companies, repositories, contents, addContent, updateContent, deleteContent } = useAppStore();
+  const { companies, repositories, contents, simpleLinks, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
 
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
   
-  // Filtra conteúdos apenas deste repositório
-  const repoContents = contents.filter(c => c.repositoryId === repoId)
-                               .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
-
+  // Estado UI
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{id: string, title: string} | null>(null);
+
+  // Formulário Conteúdo Completo
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    thumbnailUrl: '',
-    type: 'VIDEO' as Content['type'],
-    url: '',
-    embedUrl: '',
-    featured: false,
-    recent: true,
-    status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
+    title: '', description: '', thumbnailUrl: '', type: 'VIDEO' as Content['type'], url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
   });
 
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [contentToDelete, setContentToDelete] = useState<{id: string, title: string} | null>(null);
+  // Formulário Link Simples
+  const [linkFormData, setLinkFormData] = useState({
+    name: '', url: '', type: 'Geral', date: new Date().toISOString().split('T')[0], status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
+  });
 
   if (!company || !repo) return <div className="p-8 text-center text-slate-500">Repositório não encontrado.</div>;
 
+  const isSimple = repo.type === 'SIMPLE';
+
+  const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  const repoLinks = simpleLinks.filter(l => l.repositoryId === repoId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // --- Handlers COMPLETO ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -50,62 +51,78 @@ export const AdminRepositoryContents = () => {
     }
   };
 
-  const openCreate = () => {
+  const openCreateFull = () => {
     setEditingId(null);
     setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' });
     setIsFormOpen(true);
   };
 
-  const openEdit = (content: Content) => {
+  const openEditFull = (content: Content) => {
     setEditingId(content.id);
-    setFormData({ 
-      title: content.title, 
-      description: content.description, 
-      thumbnailUrl: content.thumbnailUrl, 
-      type: content.type, 
-      url: content.url, 
-      embedUrl: content.embedUrl || '', 
-      featured: content.featured, 
-      recent: content.recent,
-      status: content.status || 'ACTIVE'
-    });
+    setFormData({ title: content.title, description: content.description, thumbnailUrl: content.thumbnailUrl, type: content.type, url: content.url, embedUrl: content.embedUrl || '', featured: content.featured, recent: content.recent, status: content.status || 'ACTIVE' });
     setIsFormOpen(true);
   };
 
-  const handleSaveContent = (e: React.FormEvent) => {
+  const handleSaveFull = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validação dos campos obrigatórios conforme solicitado
-    if (!formData.title || !formData.url) {
-      return toast.error('Os campos Título e URL são obrigatórios.');
-    }
-
+    if (!formData.title || !formData.url) return toast.error('Os campos Título e URL são obrigatórios.');
     if (editingId) {
       updateContent(editingId, formData);
       toast.success('Conteúdo atualizado com sucesso!');
     } else {
-      // Salva vinculando automaticamente o companyId e o repositoryId da rota atual
-      addContent({
-        companyId: company.id,
-        repositoryId: repo.id,
-        ...formData
-      });
+      addContent({ companyId: company.id, repositoryId: repo.id, ...formData });
       toast.success('Conteúdo adicionado com sucesso!');
     }
     setIsFormOpen(false);
   };
 
-  const handleDeleteContent = () => {
-    if (contentToDelete) {
-      deleteContent(contentToDelete.id);
-      toast.success('Conteúdo excluído permanentemente.');
+  // --- Handlers SIMPLES ---
+  const openCreateSimple = () => {
+    setEditingId(null);
+    setLinkFormData({ name: '', url: '', type: 'Geral', date: new Date().toISOString().split('T')[0], status: 'ACTIVE' });
+    setIsFormOpen(true);
+  };
+
+  const openEditSimple = (link: SimpleLink) => {
+    setEditingId(link.id);
+    setLinkFormData({ name: link.name, url: link.url, type: link.type, date: link.date, status: link.status });
+    setIsFormOpen(true);
+  };
+
+  const handleSaveSimple = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!linkFormData.name || !linkFormData.url) return toast.error('Os campos Nome e URL são obrigatórios.');
+    if (editingId) {
+      updateSimpleLink(editingId, linkFormData);
+      toast.success('Link atualizado!');
+    } else {
+      addSimpleLink({ companyId: company.id, repositoryId: repo.id, ...linkFormData });
+      toast.success('Link adicionado!');
+    }
+    setIsFormOpen(false);
+  };
+
+  // --- DELETE & STATUS ---
+  const confirmDelete = (id: string, title: string) => {
+    setItemToDelete({ id, title });
+    setIsDeleteOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (itemToDelete) {
+      if (isSimple) deleteSimpleLink(itemToDelete.id);
+      else deleteContent(itemToDelete.id);
+      toast.success('Item excluído permanentemente.');
       setIsDeleteOpen(false);
     }
   };
 
-  const toggleStatus = (content: Content) => {
+  const toggleStatusFull = (content: Content) => {
     updateContent(content.id, { status: content.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
-    toast.success(`Conteúdo alterado para ${content.status === 'ACTIVE' ? 'Inativo (Rascunho)' : 'Ativo'}.`);
+  };
+
+  const toggleStatusSimple = (link: SimpleLink) => {
+    updateSimpleLink(link.id, { status: link.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' });
   };
 
   const getTypeIcon = (type: string) => {
@@ -125,187 +142,268 @@ export const AdminRepositoryContents = () => {
 
       {/* Hero do Repositório */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8 relative">
-         <div className="h-40 w-full bg-slate-100 relative">
-            {(repo.bannerImage || repo.coverImage) && (
-              <img src={repo.bannerImage || repo.coverImage} alt={repo.name} className="w-full h-full object-cover" />
+         <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
+            {repo.bannerImage || repo.coverImage ? (
+              <img src={repo.bannerImage || repo.coverImage} alt={repo.name} className="w-full h-full object-cover opacity-60 mix-blend-multiply" />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-r from-slate-200 to-slate-100"></div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
          </div>
-         <div className="p-6 relative -mt-12 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
+         <div className="p-6 relative -mt-16 flex flex-col md:flex-row items-start md:items-end justify-between gap-4">
             <div className="flex gap-4 items-end">
-               <div className="w-24 h-32 rounded-lg shadow-lg border-2 border-white bg-slate-200 overflow-hidden shrink-0">
+               <div className="w-24 h-24 md:h-32 rounded-lg shadow-lg border-4 border-white bg-white flex items-center justify-center shrink-0 overflow-hidden">
                  {repo.coverImage ? (
                    <img src={repo.coverImage} alt="Capa" className="w-full h-full object-cover" />
                  ) : (
-                   <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400"><ImageIcon size={32} /></div>
+                   isSimple ? <List size={40} className="text-slate-300" /> : <ImageIcon size={40} className="text-slate-300" />
                  )}
                </div>
                <div className="mb-2">
-                  <h1 className="text-2xl font-bold text-white drop-shadow-sm">{repo.name}</h1>
-                  <p className="text-sm text-slate-100 mt-1 max-w-xl line-clamp-2">{repo.description || 'Sem descrição'}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/20 text-white backdrop-blur-sm border border-white/30">
+                      {isSimple ? 'Repositório Simples' : 'Repositório Completo'}
+                    </span>
+                  </div>
+                  <h1 className="text-2xl font-bold text-white drop-shadow-sm leading-tight">{repo.name}</h1>
+                  <p className="text-sm text-slate-200 mt-1 max-w-xl line-clamp-2">{repo.description || 'Sem descrição'}</p>
                </div>
             </div>
-            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex flex-col items-center">
-               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total de Conteúdos</span>
-               <span className="text-2xl font-bold text-indigo-600">{repoContents.length}</span>
+            <div className="bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
+               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{isSimple ? 'Total de Links' : 'Total de Conteúdos'}</span>
+               <span className="text-3xl font-black text-indigo-600 leading-none mt-1">{isSimple ? repoLinks.length : repoContents.length}</span>
             </div>
          </div>
       </div>
 
-      {/* Lista de Conteúdos */}
+      {/* Lista de Itens */}
       <div className="flex justify-between items-center mb-6">
-         <h2 className="text-xl font-bold text-slate-900">Conteúdos</h2>
-         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700">
-            <Plus size={16} className="mr-2" /> Novo Conteúdo
+         <h2 className="text-xl font-bold text-slate-900">{isSimple ? 'Lista de Links' : 'Conteúdos do Repositório'}</h2>
+         <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700">
+            <Plus size={16} className="mr-2" /> {isSimple ? 'Novo Link' : 'Novo Conteúdo'}
          </Button>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-             <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
-                <tr>
-                   <th className="p-4 w-16 text-center">Status</th>
-                   <th className="p-4">Conteúdo</th>
-                   <th className="p-4 w-32">Tipo</th>
-                   <th className="p-4 text-right">Ações</th>
-                </tr>
-             </thead>
-             <tbody className="divide-y divide-slate-100">
-                {repoContents.map(content => (
-                   <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
-                      <td className="p-4 text-center">
-                         <div className="flex justify-center">
-                            {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
-                         </div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
-                            {content.thumbnailUrl ? (
-                               <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" />
-                            ) : (
-                               <ImageIcon size={20} className="text-slate-400" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
-                            <p className="text-xs text-slate-500 line-clamp-1 max-w-md">{content.description || 'Sem descrição'}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                         <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs">
-                            {getTypeIcon(content.type)} {content.type}
-                         </div>
-                      </td>
-                      <td className="p-4 text-right">
-                         <div className="flex items-center justify-end gap-1">
-                           <Switch checked={content.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(content)} title="Ativar/Inativar" />
-                           <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" onClick={() => openEdit(content)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => {setContentToDelete({id: content.id, title: content.title}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
-                         </div>
-                      </td>
-                   </tr>
-                ))}
-                {repoContents.length === 0 && (
+          {isSimple ? (
+            /* TABELA SIMPLES */
+            <table className="w-full text-left text-sm text-slate-600">
+               <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
                   <tr>
-                    <td colSpan={4} className="p-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-500">
-                        <Play size={48} className="text-slate-300 mb-4" />
-                        <p className="text-lg font-medium text-slate-900">Nenhum conteúdo adicionado</p>
-                        <p className="text-sm mt-1">Clique em "Novo Conteúdo" para começar a preencher este repositório.</p>
-                      </div>
-                    </td>
+                     <th className="p-4 w-16 text-center">Status</th>
+                     <th className="p-4">Nome do Link</th>
+                     <th className="p-4">Tipo / Categoria</th>
+                     <th className="p-4">Data</th>
+                     <th className="p-4 text-right">Ações</th>
                   </tr>
-                )}
-             </tbody>
-          </table>
+               </thead>
+               <tbody className="divide-y divide-slate-100">
+                  {repoLinks.map(link => (
+                     <tr key={link.id} className={`hover:bg-slate-50 transition-colors ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
+                        <td className="p-4 text-center">
+                           <div className="flex justify-center">
+                              {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                           </div>
+                        </td>
+                        <td className="p-4">
+                           <p className="font-semibold text-slate-900 text-base mb-0.5">{link.name}</p>
+                           <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline line-clamp-1 flex items-center gap-1">
+                             <ExternalLink size={10} /> {link.url}
+                           </a>
+                        </td>
+                        <td className="p-4">
+                           <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200">
+                              {link.type}
+                           </span>
+                        </td>
+                        <td className="p-4 font-medium text-slate-600">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={14} className="text-slate-400" />
+                            {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </div>
+                        </td>
+                        <td className="p-4 text-right">
+                           <div className="flex items-center justify-end gap-1">
+                             <Switch checked={link.status === 'ACTIVE'} onCheckedChange={() => toggleStatusSimple(link)} title="Ativar/Inativar" />
+                             <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                             <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => confirmDelete(link.id, link.name)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                           </div>
+                        </td>
+                     </tr>
+                  ))}
+                  {repoLinks.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-12 text-center text-slate-500">
+                        <LinkIcon size={48} className="text-slate-300 mx-auto mb-4" />
+                        <p className="text-lg font-medium text-slate-900">Nenhum link cadastrado</p>
+                        <p className="text-sm mt-1">Clique em "Novo Link" para adicionar.</p>
+                      </td>
+                    </tr>
+                  )}
+               </tbody>
+            </table>
+          ) : (
+            /* TABELA COMPLETA */
+            <table className="w-full text-left text-sm text-slate-600">
+               <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
+                  <tr>
+                     <th className="p-4 w-16 text-center">Status</th>
+                     <th className="p-4">Conteúdo</th>
+                     <th className="p-4 w-32">Tipo</th>
+                     <th className="p-4 text-right">Ações</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-100">
+                  {repoContents.map(content => (
+                     <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
+                        <td className="p-4 text-center">
+                           <div className="flex justify-center">
+                              {content.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                           </div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
+                              {content.thumbnailUrl ? <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
+                              <p className="text-xs text-slate-500 line-clamp-1 max-w-md">{content.description || 'Sem descrição'}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                           <div className="flex items-center gap-2 font-medium bg-slate-100 w-fit px-2.5 py-1 rounded-md text-xs border border-slate-200">
+                              {getTypeIcon(content.type)} {content.type}
+                           </div>
+                        </td>
+                        <td className="p-4 text-right">
+                           <div className="flex items-center justify-end gap-1">
+                             <Switch checked={content.status === 'ACTIVE'} onCheckedChange={() => toggleStatusFull(content)} title="Ativar/Inativar" />
+                             <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                             <Button variant="ghost" size="icon" onClick={() => openEditFull(content)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                             <Button variant="ghost" size="icon" onClick={() => confirmDelete(content.id, content.title)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                           </div>
+                        </td>
+                     </tr>
+                  ))}
+                  {repoContents.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center text-slate-500">
+                        <Play size={48} className="text-slate-300 mx-auto mb-4" />
+                        <p className="text-lg font-medium text-slate-900">Nenhum conteúdo adicionado</p>
+                        <p className="text-sm mt-1">Clique em "Novo Conteúdo" para adicionar.</p>
+                      </td>
+                    </tr>
+                  )}
+               </tbody>
+            </table>
+          )}
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId ? 'Editar Conteúdo' : 'Novo Conteúdo'}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSaveContent} className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label>Título do Conteúdo *</Label>
-              <Input placeholder="Ex: Planilha de Metas 2024" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} autoFocus />
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Descrição (Opcional)</Label>
-              <textarea 
-                className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 min-h-[80px] resize-y"
-                placeholder="Uma breve descrição sobre este conteúdo..."
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label>Tipo de Conteúdo *</Label>
-                 <select 
-                   value={formData.type} 
-                   onChange={(e) => setFormData({...formData, type: e.target.value as Content['type']})}
-                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950"
-                 >
-                    <option value="VIDEO">Vídeo</option>
-                    <option value="PDF">Arquivo PDF</option>
-                    <option value="DOCUMENT">Documento</option>
-                    <option value="LINK">Link Externo</option>
-                 </select>
-               </div>
-               
-               <div className="space-y-2">
-                 <Label>Imagem de Capa (Opcional)</Label>
-                 <div className="flex items-center gap-2">
-                    <div className="w-16 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
-                       {formData.thumbnailUrl ? <img src={formData.thumbnailUrl} alt="Thumb" className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-400" />}
-                    </div>
-                    <div className="flex-1">
-                       <Input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="thumb-upload" />
-                       <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('thumb-upload')?.click()} className="w-full text-xs h-10">Upload Imagem</Button>
-                    </div>
-                 </div>
-                 <Input placeholder="Ou cole URL da imagem..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs" />
-               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>URL Principal *</Label>
-              <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
-              <p className="text-[10px] text-slate-500">Link de destino (do vídeo, arquivo PDF ou site).</p>
-            </div>
-
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-              <div className="space-y-0.5">
-                <Label>Conteúdo Ativo</Label>
-                <p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível na plataforma' : 'Inativo (Rascunho)'}</p>
+      {/* MODAL COMPLETO */}
+      {!isSimple && (
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>{editingId ? 'Editar Conteúdo' : 'Novo Conteúdo'}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSaveFull} className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Título do Conteúdo *</Label>
+                <Input placeholder="Ex: Planilha de Metas 2024" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} autoFocus />
               </div>
-              <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
-            </div>
+              <div className="space-y-2">
+                <Label>Descrição (Opcional)</Label>
+                <textarea className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 min-h-[80px] resize-y" placeholder="Uma breve descrição..." value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                   <Label>Tipo de Conteúdo *</Label>
+                   <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as Content['type']})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                      <option value="VIDEO">Vídeo</option><option value="PDF">Arquivo PDF</option><option value="DOCUMENT">Documento</option><option value="LINK">Link Externo</option>
+                   </select>
+                 </div>
+                 <div className="space-y-2">
+                   <Label>Imagem de Capa (Opcional)</Label>
+                   <div className="flex items-center gap-2">
+                      <div className="w-16 h-10 rounded border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0">
+                         {formData.thumbnailUrl ? <img src={formData.thumbnailUrl} alt="Thumb" className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-400" />}
+                      </div>
+                      <div className="flex-1">
+                         <Input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" id="thumb-upload" />
+                         <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('thumb-upload')?.click()} className="w-full text-xs h-10">Upload Imagem</Button>
+                      </div>
+                   </div>
+                   <Input placeholder="Ou cole URL..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs" />
+                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>URL Principal *</Label>
+                <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                <div className="space-y-0.5"><Label>Conteúdo Ativo</Label><p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível' : 'Rascunho'}</p></div>
+                <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Conteúdo'}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Conteúdo'}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* MODAL SIMPLES */}
+      {isSimple && (
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader><DialogTitle>{editingId ? 'Editar Link' : 'Novo Link'}</DialogTitle></DialogHeader>
+            <form onSubmit={handleSaveSimple} className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Nome do Link *</Label>
+                <Input placeholder="Ex: Planilha de Custos" value={linkFormData.name} onChange={(e) => setLinkFormData({...linkFormData, name: e.target.value})} autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label>URL de Destino *</Label>
+                <Input placeholder="https://..." value={linkFormData.url} onChange={(e) => setLinkFormData({...linkFormData, url: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Tipo / Categoria</Label>
+                  <Input placeholder="Ex: Planilha, Artigo, Sistema..." value={linkFormData.type} onChange={(e) => setLinkFormData({...linkFormData, type: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Referência</Label>
+                  <Input type="date" value={linkFormData.date} onChange={(e) => setLinkFormData({...linkFormData, date: e.target.value})} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
+                <div className="space-y-0.5"><Label>Link Ativo</Label><p className="text-[10px] text-slate-500">Links inativos não aparecem na lista.</p></div>
+                <Switch checked={linkFormData.status === 'ACTIVE'} onCheckedChange={(checked) => setLinkFormData({...linkFormData, status: checked ? 'ACTIVE' : 'INACTIVE'})} />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Link'}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
+      {/* DELETE MODAL (AMBOS) */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle className="text-red-600">Excluir Conteúdo</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-red-600">Excluir Item</DialogTitle></DialogHeader>
           <div className="py-4">
-             <p className="text-slate-600 text-sm">Tem certeza que deseja excluir <strong>{contentToDelete?.title}</strong>?</p>
+             <p className="text-slate-600 text-sm">Tem certeza que deseja excluir <strong>{itemToDelete?.title}</strong>?</p>
              <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não pode ser desfeita.</p>
           </div>
           <div className="flex justify-end gap-3">
              <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDeleteContent}>Sim, excluir</Button>
+             <Button variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

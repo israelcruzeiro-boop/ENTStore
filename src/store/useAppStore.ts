@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Company, User, Repository, Category, Content } from '../types';
+import { Company, User, Repository, Category, Content, SimpleLink } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
 interface AppState {
@@ -9,6 +9,7 @@ interface AppState {
   repositories: Repository[];
   categories: Category[];
   contents: Content[];
+  simpleLinks: SimpleLink[];
   
   // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
@@ -28,10 +29,15 @@ interface AppState {
   updateRepository: (id: string, data: Partial<Repository>) => void;
   deleteRepository: (id: string) => void;
 
-  // Actions de Conteúdo
+  // Actions de Conteúdo (Completo)
   addContent: (content: Omit<Content, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateContent: (id: string, data: Partial<Content>) => void;
   deleteContent: (id: string) => void;
+
+  // Actions de Links (Simples)
+  addSimpleLink: (link: Omit<SimpleLink, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateSimpleLink: (id: string, data: Partial<SimpleLink>) => void;
+  deleteSimpleLink: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -39,13 +45,11 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       companies: MOCK_COMPANIES,
       users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })),
-      repositories: MOCK_REPOSITORIES.map(r => ({ ...r, createdAt: new Date().toISOString() })),
+      repositories: MOCK_REPOSITORIES.map(r => ({ ...r, type: r.type || 'FULL', createdAt: new Date().toISOString() })),
       categories: MOCK_CATEGORIES,
       contents: MOCK_CONTENTS.map(c => ({ ...c, createdAt: new Date().toISOString() })),
+      simpleLinks: [],
       
-      // ==========================
-      // EMPRESAS (COMPANIES)
-      // ==========================
       addCompany: (companyData) => set((state) => {
         const id = crypto.randomUUID();
         const slug = companyData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
@@ -77,126 +81,79 @@ export const useAppStore = create<AppState>()(
       }),
 
       updateCompany: (id, data) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { 
-          ...c, 
-          ...data, 
-          updatedAt: new Date().toISOString() 
-        } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
       })),
 
       deleteCompany: (id) => set((state) => {
         const reposToDelete = state.repositories.filter(r => r.companyId === id).map(r => r.id);
-        
         return {
           companies: state.companies.filter(c => c.id !== id),
           users: state.users.filter(u => u.companyId !== id),
           repositories: state.repositories.filter(r => r.companyId !== id),
           categories: state.categories.filter(c => !reposToDelete.includes(c.repositoryId)),
           contents: state.contents.filter(c => !reposToDelete.includes(c.repositoryId)),
+          simpleLinks: state.simpleLinks.filter(l => !reposToDelete.includes(l.repositoryId)),
         };
       }),
 
       toggleCompanyStatus: (id) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { 
-          ...c, 
-          active: !c.active,
-          updatedAt: new Date().toISOString()
-        } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, active: !c.active, updatedAt: new Date().toISOString() } : c)
       })),
 
       updateCompanyTheme: (id, theme) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { 
-          ...c, 
-          theme: { ...c.theme, ...theme },
-          updatedAt: new Date().toISOString()
-        } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, theme: { ...c.theme, ...theme }, updatedAt: new Date().toISOString() } : c)
       })),
 
-      // ==========================
-      // USUÁRIOS (USERS)
-      // ==========================
       addUser: (userData) => set((state) => ({
-        users: [...state.users, { 
-          ...userData, 
-          id: crypto.randomUUID(), 
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }]
+        users: [...state.users, { ...userData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateUser: (id, data) => set((state) => ({
-        users: state.users.map(u => u.id === id ? { 
-          ...u, 
-          ...data, 
-          updatedAt: new Date().toISOString() 
-        } : u)
+        users: state.users.map(u => u.id === id ? { ...u, ...data, updatedAt: new Date().toISOString() } : u)
       })),
 
-      deleteUser: (id) => set((state) => ({
-        users: state.users.filter(u => u.id !== id)
-      })),
+      deleteUser: (id) => set((state) => ({ users: state.users.filter(u => u.id !== id) })),
 
       toggleUserStatus: (id) => set((state) => ({
-        users: state.users.map(u => u.id === id ? { 
-          ...u, 
-          active: u.active === false ? true : false,
-          updatedAt: new Date().toISOString()
-        } : u)
+        users: state.users.map(u => u.id === id ? { ...u, active: u.active === false ? true : false, updatedAt: new Date().toISOString() } : u)
       })),
 
-      // ==========================
-      // REPOSITÓRIOS (REPOSITORIES)
-      // ==========================
       addRepository: (repoData) => set((state) => ({
-        repositories: [...state.repositories, {
-          ...repoData,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }]
+        repositories: [...state.repositories, { ...repoData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateRepository: (id, data) => set((state) => ({
-        repositories: state.repositories.map(r => r.id === id ? {
-          ...r,
-          ...data,
-          updatedAt: new Date().toISOString()
-        } : r)
+        repositories: state.repositories.map(r => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r)
       })),
 
       deleteRepository: (id) => set((state) => ({
         repositories: state.repositories.filter(r => r.id !== id),
         categories: state.categories.filter(c => c.repositoryId !== id),
         contents: state.contents.filter(c => c.repositoryId !== id),
+        simpleLinks: state.simpleLinks.filter(l => l.repositoryId !== id),
       })),
 
-      // ==========================
-      // CONTEÚDOS (CONTENTS)
-      // ==========================
       addContent: (contentData) => set((state) => ({
-        contents: [...state.contents, {
-          ...contentData,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }]
+        contents: [...state.contents, { ...contentData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateContent: (id, data) => set((state) => ({
-        contents: state.contents.map(c => c.id === id ? {
-          ...c,
-          ...data,
-          updatedAt: new Date().toISOString()
-        } : c)
+        contents: state.contents.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
       })),
 
-      deleteContent: (id) => set((state) => ({
-        contents: state.contents.filter(c => c.id !== id)
+      deleteContent: (id) => set((state) => ({ contents: state.contents.filter(c => c.id !== id) })),
+
+      addSimpleLink: (linkData) => set((state) => ({
+        simpleLinks: [...state.simpleLinks, { ...linkData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
+
+      updateSimpleLink: (id, data) => set((state) => ({
+        simpleLinks: state.simpleLinks.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l)
+      })),
+
+      deleteSimpleLink: (id) => set((state) => ({ simpleLinks: state.simpleLinks.filter(l => l.id !== id) })),
 
     }),
-    {
-      name: 'entstore-storage',
-    }
+    { name: 'entstore-storage' }
   )
 );
