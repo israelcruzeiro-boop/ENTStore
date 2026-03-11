@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users, Star } from 'lucide-react';
 
 // Configuração Premium de Ícones (Tema Claro - Admin)
 const getPremiumAdminConfig = (type: string) => {
@@ -34,7 +34,7 @@ const getPremiumAdminConfig = (type: string) => {
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
-  const { companies, repositories, contents, simpleLinks, contentViews, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
+  const { companies, repositories, contents, simpleLinks, contentViews, contentRatings, addContent, updateContent, deleteContent, addSimpleLink, updateSimpleLink, deleteSimpleLink } = useAppStore();
 
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
@@ -371,10 +371,12 @@ export const AdminRepositoryContents = () => {
                      const conf = getPremiumAdminConfig(link.type);
                      const Icon = conf.icon;
                      
-                     // Calculando as métricas para o link simples
+                     // Métricas
                      const linkViews = contentViews.filter(v => v.contentId === link.id);
                      const totalViews = linkViews.length;
                      const uniqueUsers = new Set(linkViews.map(v => v.userId)).size;
+                     const linkRatings = contentRatings.filter(r => r.contentId === link.id);
+                     const avgRating = linkRatings.length > 0 ? (linkRatings.reduce((acc, curr) => acc + curr.rating, 0) / linkRatings.length).toFixed(1) : '-';
 
                      return (
                        <tr key={link.id} className={`hover:bg-slate-50/80 transition-colors group ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
@@ -385,7 +387,6 @@ export const AdminRepositoryContents = () => {
                           </td>
                           <td className="p-4">
                              <div className="flex items-center gap-4">
-                                {/* Ícone Premium na Tabela */}
                                 <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-sm group-hover:shadow-md transition-shadow`}>
                                    <div className={`absolute inset-0 bg-gradient-to-br ${conf.gradient} opacity-20`}></div>
                                    <Icon size={22} className={`${conf.text} drop-shadow-sm`} strokeWidth={1.5} />
@@ -409,12 +410,19 @@ export const AdminRepositoryContents = () => {
                           </td>
                           <td className="p-4 text-center">
                              <div className="flex flex-col items-center justify-center gap-1.5">
-                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações (Cliques)">
-                                   <Eye size={13} className="text-slate-400" /> {totalViews}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos que acessaram">
-                                   <Users size={13} className="text-slate-400" /> {uniqueUsers}
-                                </span>
+                                <div className="flex items-center justify-center gap-2 w-full">
+                                  <span className="flex items-center gap-1 text-xs font-medium text-slate-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md" title={`Média de ${linkRatings.length} avaliações`}>
+                                    <Star size={12} className="text-amber-500" fill="currentColor" /> {avgRating}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações">
+                                     <Eye size={12} className="text-slate-400" /> {totalViews}
+                                  </span>
+                                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos">
+                                     <Users size={12} className="text-slate-400" /> {uniqueUsers}
+                                  </span>
+                                </div>
                              </div>
                           </td>
                           <td className="p-4 text-right">
@@ -456,10 +464,12 @@ export const AdminRepositoryContents = () => {
                </thead>
                <tbody className="divide-y divide-slate-100">
                   {repoContents.map(content => {
-                     // Calculando as métricas para o conteúdo
+                     // Métricas
                      const cViews = contentViews.filter(v => v.contentId === content.id);
                      const totalViews = cViews.length;
                      const uniqueUsers = new Set(cViews.map(v => v.userId)).size;
+                     const cRatings = contentRatings.filter(r => r.contentId === content.id);
+                     const avgRating = cRatings.length > 0 ? (cRatings.reduce((acc, curr) => acc + curr.rating, 0) / cRatings.length).toFixed(1) : '-';
 
                      return (
                        <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
@@ -486,12 +496,19 @@ export const AdminRepositoryContents = () => {
                           </td>
                           <td className="p-4 text-center">
                              <div className="flex flex-col items-center justify-center gap-1.5">
-                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações (Cliques)">
-                                   <Eye size={13} className="text-slate-400" /> {totalViews}
-                                </span>
-                                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos que acessaram">
-                                   <Users size={13} className="text-slate-400" /> {uniqueUsers}
-                                </span>
+                                <div className="flex items-center justify-center gap-2 w-full">
+                                  <span className="flex items-center gap-1 text-xs font-medium text-slate-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md" title={`Média de ${cRatings.length} avaliações`}>
+                                    <Star size={12} className="text-amber-500" fill="currentColor" /> {avgRating}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Total de Visualizações">
+                                     <Eye size={12} className="text-slate-400" /> {totalViews}
+                                  </span>
+                                  <span className="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md" title="Usuários Únicos">
+                                     <Users size={12} className="text-slate-400" /> {uniqueUsers}
+                                  </span>
+                                </div>
                              </div>
                           </td>
                           <td className="p-4 text-right">

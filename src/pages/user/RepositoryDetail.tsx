@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star } from 'lucide-react';
 import { SimpleLink } from '../../types';
 
 // Configuração Premium de Ícones (Modo Escuro)
@@ -31,7 +31,7 @@ const getPremiumLinkConfig = (type: string) => {
 export const RepositoryDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView } = useAppStore();
+  const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView, contentRatings, rateContent } = useAppStore();
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
@@ -52,7 +52,6 @@ export const RepositoryDetail = () => {
     return () => { document.body.style.overflow = 'auto'; };
   }, [activeLink]);
 
-  // Função para registrar a métrica e abrir o link
   const handleLinkClick = (link: SimpleLink) => {
     setActiveLink(link);
     if (user && link) {
@@ -64,6 +63,18 @@ export const RepositoryDetail = () => {
           contentType: link.type || 'LINK'
        });
     }
+  };
+
+  const handleRateLink = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const rating = Number(e.target.value);
+    if (!user || !activeLink || isNaN(rating) || rating < 0 || rating > 10) return;
+    rateContent({
+      userId: user.id,
+      contentId: activeLink.id,
+      companyId: activeLink.companyId,
+      repositoryId: activeLink.repositoryId,
+      rating
+    });
   };
 
   if (!repo) {
@@ -138,6 +149,11 @@ export const RepositoryDetail = () => {
     return iframeUrl;
   };
 
+  // Avaliação do Link Ativo (para o select do modal)
+  const activeLinkRatings = activeLink ? contentRatings.filter(r => r.contentId === activeLink.id) : [];
+  const activeLinkAvg = activeLinkRatings.length > 0 ? (activeLinkRatings.reduce((acc, curr) => acc + curr.rating, 0) / activeLinkRatings.length).toFixed(1) : '-';
+  const activeUserRating = activeLink ? contentRatings.find(r => r.contentId === activeLink.id && r.userId === user?.id)?.rating : undefined;
+
   return (
     <div className="pb-12 min-h-screen relative">
       {/* Banner */}
@@ -165,9 +181,6 @@ export const RepositoryDetail = () => {
       <div className="px-4 md:px-12 max-w-7xl mx-auto">
         
         {isSimple ? (
-          /* =========================================
-             LAYOUT: REPOSITÓRIO SIMPLES (LINKS)
-             ========================================= */
           <div className="space-y-6">
              {/* Barra de Busca e Filtros - VERSÃO COMPACTA */}
              <div className="bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-4 flex flex-col gap-3 shadow-xl">
@@ -215,29 +228,25 @@ export const RepositoryDetail = () => {
                  const conf = getPremiumLinkConfig(link.type);
                  const Icon = conf.icon;
                  
-                 // Conta as visualizações deste link
                  const viewsCount = contentViews.filter(v => v.contentId === link.id).length;
+                 const linkRatings = contentRatings.filter(r => r.contentId === link.id);
+                 const avgRating = linkRatings.length > 0 ? (linkRatings.reduce((acc, curr) => acc + curr.rating, 0) / linkRatings.length).toFixed(1) : '-';
 
                  return (
                    <button 
                      key={link.id} 
-                     onClick={() => handleLinkClick(link)} // Chama a função que registra a métrica
+                     onClick={() => handleLinkClick(link)}
                      className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800 hover:border-zinc-700/80 hover:bg-zinc-800/40 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl"
                    >
-                      {/* Linha de Destaque Esquerda */}
                       <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${conf.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
 
                       <div className="flex items-start sm:items-center gap-5 w-full sm:w-auto relative z-10 pl-1">
-                         {/* Ícone Glassmorphism */}
                          <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-0.5 ${conf.glow}`}>
-                            {/* Fundo do Ícone */}
                             <div className={`absolute inset-0 bg-gradient-to-br ${conf.gradient} opacity-20 group-hover:opacity-30 transition-opacity rounded-2xl`}></div>
-                            {/* Borda interna sutil */}
                             <div className="absolute inset-0 rounded-2xl border border-white/10"></div>
                             <Icon size={26} className="text-white drop-shadow-md relative z-10" strokeWidth={1.5} />
                          </div>
                          
-                         {/* Info */}
                          <div className="flex-1 min-w-0">
                             <h3 className="text-white font-semibold text-lg sm:text-xl truncate mb-1 group-hover:text-white/90 transition-colors">
                                {link.name}
@@ -250,6 +259,10 @@ export const RepositoryDetail = () => {
                                 <Calendar size={13} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                               </span>
                               <span className="text-zinc-700">•</span>
+                              <span className="flex items-center gap-1 text-amber-400" title={`${linkRatings.length} avaliações`}>
+                                <Star size={13} fill="currentColor" /> {avgRating}
+                              </span>
+                              <span className="text-zinc-700">•</span>
                               <span className="flex items-center gap-1 text-zinc-500" title="Visualizações">
                                 <Eye size={13} /> {viewsCount}
                               </span>
@@ -257,7 +270,6 @@ export const RepositoryDetail = () => {
                          </div>
                       </div>
 
-                      {/* Botão de Ação Moderno */}
                       <div className="hidden sm:flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl text-zinc-300 bg-zinc-950 border border-zinc-800 group-hover:bg-[var(--c-primary)] group-hover:text-white group-hover:border-[var(--c-primary)] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-[0_0_15px_var(--c-primary)] group-hover:shadow-[var(--c-primary)]/30">
                          Acessar <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                       </div>
@@ -276,9 +288,6 @@ export const RepositoryDetail = () => {
              </div>
           </div>
         ) : (
-          /* =========================================
-             LAYOUT: REPOSITÓRIO COMPLETO (NETFLIX)
-             ========================================= */
           <div>
             <div className="flex gap-4 mb-8 overflow-x-auto hide-scrollbar border-b border-zinc-800 pb-2">
                 <button className="px-4 py-2 text-white border-b-2 border-[var(--c-primary)] font-medium whitespace-nowrap">Todos os Conteúdos</button>
@@ -313,26 +322,46 @@ export const RepositoryDetail = () => {
                <div className="p-1.5 bg-[var(--c-primary)] rounded-md text-white hidden sm:block">
                   <FileText size={18} />
                </div>
-               <h2 className="text-white font-semibold truncate max-w-[200px] md:max-w-md text-sm md:text-base">
+               <h2 className="text-white font-semibold truncate max-w-[150px] md:max-w-xs text-sm md:text-base">
                  {activeLink.name}
                </h2>
              </div>
-             <div className="flex items-center gap-2 md:gap-3">
-                <a 
-                  href={activeLink.url} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs md:text-sm bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-md transition-colors"
-                  title="Caso o link apresente erro ou bloqueie a tela"
-                >
-                    <span className="hidden sm:inline">Abrir no Navegador</span> <ExternalLink size={16} />
-                </a>
-                <button 
-                  onClick={() => setActiveLink(null)}
-                  className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-zinc-700 hover:bg-red-600 px-4 py-2 rounded-md transition-colors font-bold shadow-lg"
-                >
-                    <X size={16} /> Fechar
-                </button>
+             
+             <div className="flex items-center gap-4">
+                {/* Ferramenta de Avaliação Inline */}
+                <div className="hidden sm:flex items-center gap-2 bg-zinc-950/50 px-3 py-1.5 rounded-lg border border-zinc-800">
+                  <span className="text-amber-400 text-xs font-bold flex items-center gap-1 border-r border-zinc-700 pr-2">
+                    <Star size={14} fill="currentColor" /> {activeLinkAvg}
+                  </span>
+                  <select 
+                    value={activeUserRating !== undefined ? activeUserRating : -1} 
+                    onChange={handleRateLink}
+                    className="bg-transparent text-zinc-400 text-xs font-medium focus:outline-none focus:text-white cursor-pointer"
+                  >
+                    <option value="-1" disabled>Dar Nota (0 a 10)</option>
+                    {[0,1,2,3,4,5,6,7,8,9,10].map(val => (
+                      <option key={val} value={val} className="bg-zinc-900 text-white">Nota {val}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 md:gap-3">
+                    <a 
+                      href={activeLink.url} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs md:text-sm bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-md transition-colors"
+                      title="Caso o link apresente erro ou bloqueie a tela"
+                    >
+                        <span className="hidden sm:inline">Abrir no Navegador</span> <ExternalLink size={16} />
+                    </a>
+                    <button 
+                      onClick={() => setActiveLink(null)}
+                      className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-zinc-700 hover:bg-red-600 px-4 py-2 rounded-md transition-colors font-bold shadow-lg"
+                    >
+                        <X size={16} /> Fechar
+                    </button>
+                </div>
              </div>
            </div>
            

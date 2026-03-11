@@ -1,13 +1,15 @@
-import { Play, Eye } from 'lucide-react';
+import { Play, Eye, Star } from 'lucide-react';
 import { Content } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 
 export const ContentCard = ({ content }: { content: Content }) => {
-  const { contentViews } = useAppStore();
+  const { contentViews, contentRatings } = useAppStore();
   
-  // Conta quantas vezes esse conteúdo específico foi visualizado
   const views = contentViews.filter(v => v.contentId === content.id).length;
+  
+  const ratings = contentRatings.filter(r => r.contentId === content.id);
+  const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
 
   return (
     <Link to={`/content/${content.id}`} className="group relative block w-64 md:w-80 flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10">
@@ -30,9 +32,14 @@ export const ContentCard = ({ content }: { content: Content }) => {
         <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800/50 font-medium tracking-wide">
           {content.type}
         </span>
-        <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
-           <Eye size={12} /> {views}
-        </span>
+        <div className="flex items-center gap-2">
+           <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-amber-400" title={`${ratings.length} avaliações`}>
+              <Star size={12} fill="currentColor" /> {avgRating}
+           </span>
+           <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
+              <Eye size={12} /> {views}
+           </span>
+        </div>
       </div>
     </Link>
   );

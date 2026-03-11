@@ -92,7 +92,6 @@ export interface SimpleLink {
   updatedAt?: string;
 }
 
-// Nova interface para métricas de visualização de conteúdo
 export interface ContentViewMetric {
   id: string;
   userId: string;
@@ -101,4 +100,15 @@ export interface ContentViewMetric {
   repositoryId: string;
   contentType: string;
   viewedAt: string;
+}
+
+export interface ContentRating {
+  id: string;
+  userId: string;
+  contentId: string;
+  companyId: string;
+  repositoryId: string;
+  rating: number; // 0 a 10
+  createdAt: string;
+  updatedAt: string;
 }
