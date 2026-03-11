@@ -37,6 +37,9 @@ export const AdminRepositoryContents = () => {
   // Formulário Link Simples (Cadastro em Lote)
   const [batchLinks, setBatchLinks] = useState<{id: string, name: string, url: string, type: string}[]>([]);
 
+  // Tipos pré-definidos para Links Simples
+  const PREDEFINED_TYPES = ['Link', 'Vídeo', 'PDF', 'Planilha', 'Documento', 'Imagem', 'Apresentação', 'Drive/Pasta'];
+
   if (!company || !repo) return <div className="p-8 text-center text-slate-500">Repositório não encontrado.</div>;
 
   const isSimple = repo.type === 'SIMPLE';
@@ -113,9 +116,9 @@ export const AdminRepositoryContents = () => {
     setEditingId(null);
     // Inicia com 3 linhas vazias para facilitar a digitação rápida
     setBatchLinks([
-      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' },
-      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' },
-      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' }
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Link' },
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Link' },
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Link' }
     ]);
     setIsFormOpen(true);
   };
@@ -133,7 +136,7 @@ export const AdminRepositoryContents = () => {
   };
 
   const addBatchRow = () => {
-    setBatchLinks([...batchLinks, { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' }]);
+    setBatchLinks([...batchLinks, { id: crypto.randomUUID(), name: '', url: '', type: 'Link' }]);
   };
 
   const removeBatch = (index: number) => {
@@ -151,11 +154,12 @@ export const AdminRepositoryContents = () => {
       lines.forEach((line, i) => {
         // Tenta separar por Tabulação (caso venha do Excel: Nome \t URL \t Tipo)
         const parts = line.split('\t');
-        let name = '', url = '', type = newLinks[index].type || 'Geral';
+        let name = '', url = '', type = newLinks[index].type || 'Link';
         
         if (parts.length >= 2) {
            name = parts[0].trim();
            url = parts[1].trim();
+           // Se a pessoa colou um tipo, valida se existe ou deixa como o que ela escreveu mesmo
            if (parts[2]) type = parts[2].trim();
         } else {
            // Fallback inteligente: procura por um link HTTP na linha colada
@@ -175,7 +179,7 @@ export const AdminRepositoryContents = () => {
       
       // Adiciona uma linha vazia no final por conveniência
       if (newLinks[newLinks.length - 1].name || newLinks[newLinks.length - 1].url) {
-         newLinks.push({ id: crypto.randomUUID(), name: '', url: '', type: 'Geral' });
+         newLinks.push({ id: crypto.randomUUID(), name: '', url: '', type: 'Link' });
       }
       
       setBatchLinks(newLinks);
@@ -198,7 +202,7 @@ export const AdminRepositoryContents = () => {
     if (editingId) {
       // Edição de link único
       const link = validLinks[0];
-      updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Geral' });
+      updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Link' });
       toast.success('Link atualizado!');
     } else {
       // Criação em lote
@@ -208,7 +212,7 @@ export const AdminRepositoryContents = () => {
           repositoryId: repo.id,
           name: link.name,
           url: link.url,
-          type: link.type || 'Geral',
+          type: link.type || 'Link',
           date: new Date().toISOString().split('T')[0],
           status: 'ACTIVE'
         });
@@ -550,12 +554,19 @@ export const AdminRepositoryContents = () => {
                           onPaste={e => handlePaste(e, index)}
                           className="h-9 text-sm font-mono focus-visible:ring-indigo-500"
                         />
-                        <Input 
-                          placeholder="Ex: Planilha" 
-                          value={link.type} 
-                          onChange={e => updateBatch(index, 'type', e.target.value)} 
-                          className="h-9 text-sm focus-visible:ring-indigo-500"
-                        />
+                        <select
+                          value={link.type}
+                          onChange={e => updateBatch(index, 'type', e.target.value)}
+                          className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          {PREDEFINED_TYPES.map(type => (
+                             <option key={type} value={type}>{type}</option>
+                          ))}
+                          {/* Garante que tipos não listados inseridos via colar (paste) não quebrem e apareçam */}
+                          {!PREDEFINED_TYPES.includes(link.type) && (
+                             <option value={link.type}>{link.type}</option>
+                          )}
+                        </select>
                         <Button 
                           type="button" 
                           variant="ghost" 
