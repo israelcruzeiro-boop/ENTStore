@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp } from 'lucide-react';
 
 export const AdminRepositoryContents = () => {
   const { linkName, repoId } = useParams();
@@ -17,11 +17,17 @@ export const AdminRepositoryContents = () => {
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
   
-  // Estado UI
+  // Estado UI Geral
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, title: string} | null>(null);
+
+  // Estados de Filtro (Repositório Simples)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterDate, setFilterDate] = useState('');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // Formulário Conteúdo Completo
   const [formData, setFormData] = useState({
@@ -38,7 +44,35 @@ export const AdminRepositoryContents = () => {
   const isSimple = repo.type === 'SIMPLE';
 
   const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
-  const repoLinks = simpleLinks.filter(l => l.repositoryId === repoId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  // --- Filtros e Ordenação de Links Simples ---
+  const availableTypes = useMemo(() => {
+    const types = new Set(simpleLinks.filter(l => l.repositoryId === repoId).map(l => l.type).filter(Boolean));
+    return Array.from(types).sort();
+  }, [simpleLinks, repoId]);
+
+  const filteredLinks = useMemo(() => {
+    let result = simpleLinks.filter(l => l.repositoryId === repoId);
+    
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(l => l.name.toLowerCase().includes(q) || l.url.toLowerCase().includes(q));
+    }
+    if (filterType !== 'ALL') {
+      result = result.filter(l => l.type === filterType);
+    }
+    if (filterDate) {
+      result = result.filter(l => l.date === filterDate);
+    }
+    
+    result.sort((a, b) => {
+      const timeA = new Date(a.date).getTime();
+      const timeB = new Date(b.date).getTime();
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+
+    return result;
+  }, [simpleLinks, repoId, searchQuery, filterType, filterDate, sortOrder]);
 
   // --- Handlers COMPLETO ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,23 +205,61 @@ export const AdminRepositoryContents = () => {
             </div>
             <div className="bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{isSimple ? 'Total de Links' : 'Total de Conteúdos'}</span>
-               <span className="text-3xl font-black text-indigo-600 leading-none mt-1">{isSimple ? repoLinks.length : repoContents.length}</span>
+               <span className="text-3xl font-black text-indigo-600 leading-none mt-1">{isSimple ? simpleLinks.filter(l => l.repositoryId === repoId).length : repoContents.length}</span>
             </div>
          </div>
       </div>
 
-      {/* Lista de Itens */}
-      <div className="flex justify-between items-center mb-6">
+      {/* Cabeçalho da Lista */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
          <h2 className="text-xl font-bold text-slate-900">{isSimple ? 'Lista de Links' : 'Conteúdos do Repositório'}</h2>
-         <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700">
+         <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
             <Plus size={16} className="mr-2" /> {isSimple ? 'Novo Link' : 'Novo Conteúdo'}
          </Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+        
+        {isSimple && (
+          /* BARRA DE FILTROS - APENAS REPOSITÓRIO SIMPLES */
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <Input 
+                placeholder="Buscar por nome ou URL..." 
+                value={searchQuery} 
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="pl-9 bg-white" 
+              />
+            </div>
+            <select 
+              value={filterType} 
+              onChange={(e) => setFilterType(e.target.value)} 
+              className="flex h-10 w-full md:w-48 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              <option value="ALL">Todos os Tipos</option>
+              {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <Input 
+              type="date" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)} 
+              className="w-full md:w-auto bg-white text-slate-600" 
+            />
+            <Button 
+              variant="outline" 
+              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} 
+              className="bg-white min-w-[150px] flex items-center gap-2"
+            >
+              <ArrowDownUp size={16} className="text-slate-500" />
+              {sortOrder === 'desc' ? 'Mais recentes' : 'Mais antigos'}
+            </Button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           {isSimple ? (
-            /* TABELA SIMPLES */
+            /* TABELA SIMPLES MELHORADA */
             <table className="w-full text-left text-sm text-slate-600">
                <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
                   <tr>
@@ -199,7 +271,7 @@ export const AdminRepositoryContents = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                  {repoLinks.map(link => (
+                  {filteredLinks.map(link => (
                      <tr key={link.id} className={`hover:bg-slate-50 transition-colors ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
                         <td className="p-4 text-center">
                            <div className="flex justify-center">
@@ -208,9 +280,7 @@ export const AdminRepositoryContents = () => {
                         </td>
                         <td className="p-4">
                            <p className="font-semibold text-slate-900 text-base mb-0.5">{link.name}</p>
-                           <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline line-clamp-1 flex items-center gap-1">
-                             <ExternalLink size={10} /> {link.url}
-                           </a>
+                           <p className="text-xs text-slate-500 line-clamp-1 max-w-sm">{link.url}</p>
                         </td>
                         <td className="p-4">
                            <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200">
@@ -225,6 +295,9 @@ export const AdminRepositoryContents = () => {
                         </td>
                         <td className="p-4 text-right">
                            <div className="flex items-center justify-end gap-1">
+                             <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                                <a href={link.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
+                             </Button>
                              <Switch checked={link.status === 'ACTIVE'} onCheckedChange={() => toggleStatusSimple(link)} title="Ativar/Inativar" />
                              <div className="h-6 w-px bg-slate-200 mx-1"></div>
                              <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
@@ -233,12 +306,12 @@ export const AdminRepositoryContents = () => {
                         </td>
                      </tr>
                   ))}
-                  {repoLinks.length === 0 && (
+                  {filteredLinks.length === 0 && (
                     <tr>
                       <td colSpan={5} className="p-12 text-center text-slate-500">
                         <LinkIcon size={48} className="text-slate-300 mx-auto mb-4" />
-                        <p className="text-lg font-medium text-slate-900">Nenhum link cadastrado</p>
-                        <p className="text-sm mt-1">Clique em "Novo Link" para adicionar.</p>
+                        <p className="text-lg font-medium text-slate-900">Nenhum link encontrado</p>
+                        <p className="text-sm mt-1">Verifique os filtros ou crie um novo link.</p>
                       </td>
                     </tr>
                   )}

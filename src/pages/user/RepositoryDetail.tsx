@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Filter, Calendar, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Lock, Filter, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp } from 'lucide-react';
 
 export const RepositoryDetail = () => {
   const { id } = useParams();
@@ -14,9 +14,11 @@ export const RepositoryDetail = () => {
   
   const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
 
-  // Estados para os filtros (Apenas para Repositório Simples)
+  // Estados para os filtros e busca (Repositório Simples)
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   if (!repo) {
      return <div className="p-12 text-center text-zinc-500 mt-20">Repositório inativo ou não encontrado.</div>;
@@ -52,14 +54,19 @@ export const RepositoryDetail = () => {
     return Array.from(types).sort();
   }, [rawLinks]);
 
-  // Aplica os filtros
+  // Aplica os filtros, busca e ordenação
   const filteredLinks = useMemo(() => {
     return rawLinks.filter(l => {
+      const matchSearch = !searchQuery || l.name.toLowerCase().includes(searchQuery.toLowerCase()) || l.url.toLowerCase().includes(searchQuery.toLowerCase());
       const matchType = filterType === 'ALL' || l.type === filterType;
       const matchDate = !filterDate || l.date === filterDate;
-      return matchType && matchDate;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [rawLinks, filterType, filterDate]);
+      return matchSearch && matchType && matchDate;
+    }).sort((a, b) => {
+      const timeA = new Date(a.date).getTime();
+      const timeB = new Date(b.date).getTime();
+      return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+  }, [rawLinks, searchQuery, filterType, filterDate, sortOrder]);
 
   return (
     <div className="pb-12 min-h-screen">
@@ -76,7 +83,7 @@ export const RepositoryDetail = () => {
          </Link>
          <div className="absolute bottom-0 left-4 md:left-12 pb-8 pr-4">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--c-primary)] text-white">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
                 {isSimple ? 'Lista de Links' : 'Repositório'}
               </span>
             </div>
@@ -92,40 +99,45 @@ export const RepositoryDetail = () => {
              LAYOUT: REPOSITÓRIO SIMPLES (LINKS)
              ========================================= */
           <div className="space-y-6">
-             {/* Barra de Filtros */}
-             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex flex-col sm:flex-row gap-4 items-end sm:items-center">
-                <div className="flex items-center gap-2 text-zinc-400 mr-2 shrink-0">
-                  <Filter size={18} /> <span className="text-sm font-medium">Filtros:</span>
+             {/* Barra de Busca e Filtros */}
+             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center shadow-md">
+                
+                <div className="relative flex-1 w-full">
+                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+                   <input 
+                      type="text"
+                      placeholder="Buscar links..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-700 text-white text-sm rounded-lg pl-10 p-2.5 focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] transition-all outline-none"
+                   />
                 </div>
                 
-                <div className="flex-1 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
                    <select 
                      value={filterType} 
                      onChange={(e) => setFilterType(e.target.value)}
-                     className="w-full bg-zinc-950 border border-zinc-700 text-white text-sm rounded-lg focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] block p-2.5"
+                     className="w-full sm:w-48 bg-zinc-950 border border-zinc-700 text-white text-sm rounded-lg focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] block p-2.5 outline-none"
                    >
                      <option value="ALL">Todos os Tipos</option>
                      {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
                    </select>
-                </div>
 
-                <div className="flex-1 w-full sm:w-auto">
                    <input 
                      type="date" 
                      value={filterDate} 
                      onChange={(e) => setFilterDate(e.target.value)}
-                     className="w-full bg-zinc-950 border border-zinc-700 text-white text-sm rounded-lg focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] block p-2.5 style-date"
+                     className="w-full sm:w-40 bg-zinc-950 border border-zinc-700 text-zinc-400 text-sm rounded-lg focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] block p-2.5 outline-none"
                    />
-                </div>
 
-                {(filterType !== 'ALL' || filterDate) && (
                    <button 
-                     onClick={() => {setFilterType('ALL'); setFilterDate('');}}
-                     className="text-xs text-zinc-400 hover:text-white underline whitespace-nowrap px-2"
+                     onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                     className="flex items-center justify-center gap-2 w-full sm:w-auto bg-zinc-950 border border-zinc-700 text-zinc-300 hover:text-white px-4 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap outline-none"
                    >
-                     Limpar Filtros
+                     <ArrowDownUp size={16} />
+                     {sortOrder === 'desc' ? 'Recentes' : 'Antigos'}
                    </button>
-                )}
+                </div>
              </div>
 
              {/* Lista de Links */}
@@ -136,30 +148,31 @@ export const RepositoryDetail = () => {
                    href={link.url} 
                    target="_blank" 
                    rel="noreferrer"
-                   className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[var(--c-primary)] hover:bg-zinc-800/50 transition-all gap-4"
+                   className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[var(--c-primary)] hover:bg-zinc-800/80 transition-all gap-4 shadow-sm"
                  >
                     <div className="flex items-start sm:items-center gap-4">
-                       <div className="w-10 h-10 rounded-full bg-black/50 border border-zinc-700 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] text-zinc-400">
-                          <LinkIcon size={18} />
+                       <div className="w-12 h-12 rounded-full bg-black/50 border border-zinc-700 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] text-zinc-400">
+                          <LinkIcon size={20} />
                        </div>
                        <div>
                           <h3 className="text-white font-medium text-lg group-hover:text-[var(--c-primary)] transition-colors">{link.name}</h3>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-zinc-500 font-medium">
-                            <span className="bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded text-zinc-300">{link.type}</span>
-                            <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs font-medium">
+                            <span className="bg-zinc-950 border border-zinc-700 px-2 py-0.5 rounded text-zinc-300">{link.type}</span>
+                            <span className="text-zinc-500">•</span>
+                            <span className="flex items-center gap-1 text-zinc-400"><Calendar size={12} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
                           </div>
                        </div>
                     </div>
-                    <div className="hidden sm:flex items-center gap-2 text-sm text-[var(--c-primary)] font-medium bg-[var(--c-primary)]/10 px-4 py-2 rounded-lg group-hover:bg-[var(--c-primary)] group-hover:text-white transition-colors shrink-0">
+                    <div className="flex items-center gap-2 text-sm text-[var(--c-primary)] font-bold bg-[var(--c-primary)]/10 px-5 py-2.5 rounded-lg group-hover:bg-[var(--c-primary)] group-hover:text-white transition-colors shrink-0">
                        Acessar <ExternalLink size={16} />
                     </div>
                  </a>
                ))}
                {filteredLinks.length === 0 && (
-                  <div className="text-center py-16 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800 text-zinc-500">
-                    <LinkIcon size={32} className="mx-auto mb-3 opacity-50" />
-                    <p className="text-lg">Nenhum link encontrado.</p>
-                    <p className="text-sm">Tente limpar os filtros ou verifique mais tarde.</p>
+                  <div className="text-center py-20 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800 text-zinc-500">
+                    <Search size={40} className="mx-auto mb-4 opacity-30" />
+                    <p className="text-lg text-zinc-400">Nenhum link encontrado.</p>
+                    <p className="text-sm mt-1">Limpe os filtros ou tente outra busca.</p>
                   </div>
                )}
              </div>
