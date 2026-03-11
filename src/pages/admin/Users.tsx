@@ -8,19 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store } from 'lucide-react';
 import { User } from '../../types';
 
 export const AdminUsers = () => {
   const { linkName } = useParams();
   const { user: currentUser } = useAuth();
-  const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus, contentViews, contents, simpleLinks, repositories } = useAppStore();
+  const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus, contentViews, contents, simpleLinks, repositories, orgUnits } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
   
   // Filtra apenas usuários dessa empresa
   const companyUsers = users.filter(u => u.companyId === company?.id)
                             .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+
+  // Unidades da empresa atual
+  const companyUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
+  const unitLabel = company?.orgUnitName || 'Unidade';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,7 +33,8 @@ export const AdminUsers = () => {
     email: '',
     password: '',
     role: 'USER' as 'ADMIN' | 'USER',
-    active: true
+    active: true,
+    orgUnitId: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -90,12 +95,11 @@ export const AdminUsers = () => {
     };
   }, [selectedUser, contentViews, contents, simpleLinks, repositories]);
 
-
   if (!company) return null;
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', password: '', role: 'USER', active: true });
+    setFormData({ name: '', email: '', password: '', role: 'USER', active: true, orgUnitId: '' });
     setIsFormOpen(true);
   };
 
@@ -106,7 +110,8 @@ export const AdminUsers = () => {
       email: user.email, 
       password: '', // Não mostramos a senha atual, apenas deixamos em branco para manter
       role: user.role as 'ADMIN' | 'USER', 
-      active: user.active !== false // Por padrão é true se undefined
+      active: user.active !== false,
+      orgUnitId: user.orgUnitId || ''
     });
     setIsFormOpen(true);
   };
@@ -132,23 +137,25 @@ export const AdminUsers = () => {
       return toast.error('Este e-mail já está em uso por outro usuário.');
     }
 
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      role: formData.role,
+      active: formData.active,
+      orgUnitId: formData.orgUnitId || undefined
+    };
+
     if (editingId) {
       updateUser(editingId, {
-        name: formData.name,
-        email: formData.email,
-        role: formData.role,
-        active: formData.active,
+        ...payload,
         ...(formData.password ? { password: formData.password } : {})
       });
       toast.success('Usuário atualizado com sucesso!');
     } else {
       addUser({
         companyId: company.id,
-        name: formData.name,
-        email: formData.email,
         password: formData.password,
-        role: formData.role,
-        active: formData.active
+        ...payload
       });
       toast.success('Usuário criado com sucesso!');
     }
@@ -201,7 +208,9 @@ export const AdminUsers = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
-                {companyUsers.map(user => (
+                {companyUsers.map(user => {
+                   const userUnit = orgUnits.find(u => u.id === user.orgUnitId);
+                   return (
                    <tr key={user.id} className={`hover:bg-slate-50 transition-colors ${user.active === false ? 'opacity-70 bg-slate-50/50' : ''}`}>
                       <td className="p-4 text-center">
                          <div className="flex justify-center">
@@ -225,11 +234,18 @@ export const AdminUsers = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                         <div className="flex items-center gap-1.5">
-                            {user.role === 'ADMIN' ? (
-                               <><Shield size={16} className="text-indigo-600" /><span className="font-medium text-indigo-700">Admin</span></>
-                            ) : (
-                               <><UserIcon size={16} className="text-slate-400" /><span className="text-slate-600">Usuário</span></>
+                         <div className="flex flex-col items-start gap-1.5">
+                            <div className="flex items-center gap-1.5">
+                               {user.role === 'ADMIN' ? (
+                                  <><Shield size={16} className="text-indigo-600" /><span className="font-medium text-indigo-700">Admin</span></>
+                               ) : (
+                                  <><UserIcon size={16} className="text-slate-400" /><span className="text-slate-600">Usuário</span></>
+                               )}
+                            </div>
+                            {userUnit && (
+                               <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md" title={unitLabel}>
+                                  <Store size={10} /> {userUnit.name}
+                               </div>
                             )}
                          </div>
                       </td>
@@ -262,7 +278,7 @@ export const AdminUsers = () => {
                          </div>
                       </td>
                    </tr>
-                ))}
+                )})}
                 {companyUsers.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-12 text-center">
@@ -387,16 +403,31 @@ export const AdminUsers = () => {
               <Input type="text" placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
             </div>
 
-            <div className="space-y-2">
-               <Label>Nível de Acesso *</Label>
-               <select 
-                 value={formData.role} 
-                 onChange={(e) => setFormData({...formData, role: e.target.value as 'ADMIN' | 'USER'})}
-                 className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
-               >
-                  <option value="USER">Usuário Final (Acesso apenas ao app de conteúdos)</option>
-                  <option value="ADMIN">Administrador (Acesso ao painel Admin)</option>
-               </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                 <Label>Nível de Acesso *</Label>
+                 <select 
+                   value={formData.role} 
+                   onChange={(e) => setFormData({...formData, role: e.target.value as 'ADMIN' | 'USER'})}
+                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                 >
+                    <option value="USER">Usuário Final</option>
+                    <option value="ADMIN">Administrador</option>
+                 </select>
+              </div>
+              <div className="space-y-2">
+                 <Label>{unitLabel}</Label>
+                 <select 
+                   value={formData.orgUnitId} 
+                   onChange={(e) => setFormData({...formData, orgUnitId: e.target.value})}
+                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                 >
+                    <option value="">Nenhuma</option>
+                    {companyUnits.map(unit => (
+                      <option key={unit.id} value={unit.id}>{unit.name}</option>
+                    ))}
+                 </select>
+              </div>
             </div>
 
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">

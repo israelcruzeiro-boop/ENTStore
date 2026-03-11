@@ -36,6 +36,7 @@ export interface User {
   role: UserRole;
   password?: string;
   companyId?: string;
+  orgUnitId?: string; // Vínculo com a Unidade
   avatarUrl?: string;
   active?: boolean;
   createdAt?: string;
