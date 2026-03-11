@@ -24,7 +24,7 @@ export const UserHub = () => {
       <p className="text-zinc-400 mb-8 max-w-2xl">Trilhas de aprendizado, cursos e conteúdos estruturados que vão impulsionar seus conhecimentos.</p>
       
       {hubRepos.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
           {hubRepos.map(repo => (
             <div key={repo.id} className="w-full">
               <RepoCard repo={repo} fullWidth />
