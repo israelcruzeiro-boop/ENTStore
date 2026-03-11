@@ -71,7 +71,16 @@ export const AdminRepositories = () => {
 
   const handleSaveRepo = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) return toast.error('Nome é obrigatório.');
+    
+    const repoName = formData.name.trim();
+    if (!repoName) return toast.error('Nome é obrigatório.');
+    
+    // Verificação de duplicidade para evitar duplos cliques
+    const isDuplicate = companyRepos.some(r => r.name.toLowerCase() === repoName.toLowerCase() && r.id !== editingId);
+    if (isDuplicate) {
+      return toast.error('Já existe um repositório com este nome nesta empresa.');
+    }
+
     if (formData.type === 'FULL' && !formData.coverImage) return toast.error('Capa é obrigatória para Repositórios Completos.');
 
     if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0) {
@@ -79,12 +88,18 @@ export const AdminRepositories = () => {
     }
 
     if (editingId) {
-      updateRepository(editingId, formData);
+      updateRepository(editingId, { ...formData, name: repoName });
       toast.success('Repositório atualizado com sucesso!');
     } else {
-      addRepository({ companyId: company.id, ...formData });
+      addRepository({ companyId: company.id, ...formData, name: repoName });
       toast.success('Repositório criado com sucesso!');
     }
+    
+    // Limpa o estado imediatamente para invalidar qualquer clique duplo subsequente
+    setFormData({ 
+       name: '', description: '', type: 'FULL', coverImage: '', bannerImage: '', 
+       featured: false, status: 'ACTIVE', accessType: 'ALL', allowedUserIds: []
+    });
     setIsFormOpen(false);
   };
 
