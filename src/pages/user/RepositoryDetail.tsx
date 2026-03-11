@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, FolderCloud, Link2 } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2 } from 'lucide-react';
 import { SimpleLink } from '../../types';
 
 // Helper para definir Cores e Ícones dinamicamente
@@ -25,7 +25,7 @@ const getLinkTypeConfig = (type: string) => {
       return { icon: Presentation, colorClass: 'text-amber-500 border-zinc-700 group-hover:text-amber-400 group-hover:border-amber-500 group-hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]' };
     case 'drive/pasta':
     case 'pasta':
-      return { icon: FolderCloud, colorClass: 'text-indigo-500 border-zinc-700 group-hover:text-indigo-400 group-hover:border-indigo-500 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.3)]' };
+      return { icon: Folder, colorClass: 'text-indigo-500 border-zinc-700 group-hover:text-indigo-400 group-hover:border-indigo-500 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.3)]' };
     default:
       return { icon: Link2, colorClass: 'text-zinc-400 border-zinc-700 group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] group-hover:shadow-[0_0_15px_var(--c-primary)]' };
   }

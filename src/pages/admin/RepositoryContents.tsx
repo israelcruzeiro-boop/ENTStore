@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
-import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, FolderCloud, Link2 } from 'lucide-react';
+import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2 } from 'lucide-react';
 
 // Helper para definir Cores e Ícones dinamicamente no Admin (Tema Claro)
 const getAdminLinkTypeConfig = (type: string) => {
@@ -22,7 +22,7 @@ const getAdminLinkTypeConfig = (type: string) => {
     case 'apresentação':
     case 'apresentacao': return { icon: Presentation, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
     case 'drive/pasta':
-    case 'pasta': return { icon: FolderCloud, bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' };
+    case 'pasta': return { icon: Folder, bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' };
     default: return { icon: Link2, bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
   }
 };
