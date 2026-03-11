@@ -79,7 +79,6 @@ export interface Content {
   updatedAt?: string;
 }
 
-// Nova interface para os itens do Repositório Simples
 export interface SimpleLink {
   id: string;
   companyId: string;
@@ -91,4 +90,15 @@ export interface SimpleLink {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Nova interface para métricas de visualização de conteúdo
+export interface ContentViewMetric {
+  id: string;
+  userId: string;
+  contentId: string;
+  companyId: string;
+  repositoryId: string;
+  contentType: string;
+  viewedAt: string;
 }

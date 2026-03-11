@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,13 +8,28 @@ import { ArrowLeft, Share2, Heart, Lock } from 'lucide-react';
 export const ContentDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { contents, repositories } = useAppStore();
+  const { contents, repositories, addContentView } = useAppStore();
+  const hasTrackedView = useRef(false);
 
   const content = contents.find(c => c.id === id);
   const repo = content ? repositories.find(r => r.id === content.repositoryId) : null;
 
   // Regra de Acesso: O conteúdo herda a restrição do repositório
   const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
+
+  // Registra a visualização (métrica) apenas uma vez ao montar a página
+  useEffect(() => {
+    if (content && repo && isAuthorized && user && !hasTrackedView.current) {
+      addContentView({
+        userId: user.id,
+        contentId: content.id,
+        companyId: content.companyId,
+        repositoryId: content.repositoryId,
+        contentType: content.type
+      });
+      hasTrackedView.current = true;
+    }
+  }, [content, repo, isAuthorized, user, addContentView]);
 
   if (!content || !repo || content.status !== 'ACTIVE') {
       return <div className="p-12 text-center text-white mt-20">Conteúdo não encontrado ou inativo.</div>;

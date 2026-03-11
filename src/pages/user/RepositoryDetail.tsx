@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight } from 'lucide-react';
 import { SimpleLink } from '../../types';
 
 // Configuração Premium de Ícones (Modo Escuro)
@@ -31,7 +31,7 @@ const getPremiumLinkConfig = (type: string) => {
 export const RepositoryDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { repositories, categories: allCategories, contents: allContents, simpleLinks } = useAppStore();
+  const { repositories, categories: allCategories, contents: allContents, simpleLinks, addContentView } = useAppStore();
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
@@ -51,6 +51,20 @@ export const RepositoryDetail = () => {
     else document.body.style.overflow = 'auto';
     return () => { document.body.style.overflow = 'auto'; };
   }, [activeLink]);
+
+  // Função para registrar a métrica e abrir o link
+  const handleLinkClick = (link: SimpleLink) => {
+    setActiveLink(link);
+    if (user && link) {
+       addContentView({
+          userId: user.id,
+          contentId: link.id,
+          companyId: link.companyId,
+          repositoryId: link.repositoryId,
+          contentType: link.type || 'LINK'
+       });
+    }
+  };
 
   if (!repo) {
      return <div className="p-12 text-center text-zinc-500 mt-20">Repositório inativo ou não encontrado.</div>;
@@ -204,7 +218,7 @@ export const RepositoryDetail = () => {
                  return (
                    <button 
                      key={link.id} 
-                     onClick={() => setActiveLink(link)}
+                     onClick={() => handleLinkClick(link)} // Chama a função que registra a métrica
                      className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800 hover:border-zinc-700/80 hover:bg-zinc-800/40 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl"
                    >
                       {/* Linha de Destaque Esquerda */}

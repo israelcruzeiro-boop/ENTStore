@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Company, User, Repository, Category, Content, SimpleLink } from '../types';
+import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
 interface AppState {
@@ -10,6 +10,7 @@ interface AppState {
   categories: Category[];
   contents: Content[];
   simpleLinks: SimpleLink[];
+  contentViews: ContentViewMetric[]; // Novo estado para métricas
   
   // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
@@ -38,6 +39,9 @@ interface AppState {
   addSimpleLink: (link: Omit<SimpleLink, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateSimpleLink: (id: string, data: Partial<SimpleLink>) => void;
   deleteSimpleLink: (id: string) => void;
+
+  // Actions de Métricas
+  addContentView: (metric: Omit<ContentViewMetric, 'id' | 'viewedAt'>) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -49,6 +53,7 @@ export const useAppStore = create<AppState>()(
       categories: MOCK_CATEGORIES,
       contents: MOCK_CONTENTS.map(c => ({ ...c, createdAt: new Date().toISOString() })),
       simpleLinks: [],
+      contentViews: [],
       
       addCompany: (companyData) => set((state) => {
         const id = crypto.randomUUID();
@@ -93,6 +98,7 @@ export const useAppStore = create<AppState>()(
           categories: state.categories.filter(c => !reposToDelete.includes(c.repositoryId)),
           contents: state.contents.filter(c => !reposToDelete.includes(c.repositoryId)),
           simpleLinks: state.simpleLinks.filter(l => !reposToDelete.includes(l.repositoryId)),
+          contentViews: state.contentViews.filter(v => v.companyId !== id), // Limpa as métricas dessa empresa
         };
       }),
 
@@ -131,6 +137,7 @@ export const useAppStore = create<AppState>()(
         categories: state.categories.filter(c => c.repositoryId !== id),
         contents: state.contents.filter(c => c.repositoryId !== id),
         simpleLinks: state.simpleLinks.filter(l => l.repositoryId !== id),
+        contentViews: state.contentViews.filter(v => v.repositoryId !== id), // Limpa métricas desse repo
       })),
 
       addContent: (contentData) => set((state) => ({
@@ -141,7 +148,10 @@ export const useAppStore = create<AppState>()(
         contents: state.contents.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
       })),
 
-      deleteContent: (id) => set((state) => ({ contents: state.contents.filter(c => c.id !== id) })),
+      deleteContent: (id) => set((state) => ({ 
+        contents: state.contents.filter(c => c.id !== id),
+        contentViews: state.contentViews.filter(v => v.contentId !== id),
+      })),
 
       addSimpleLink: (linkData) => set((state) => ({
         simpleLinks: [...state.simpleLinks, { ...linkData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
@@ -151,7 +161,19 @@ export const useAppStore = create<AppState>()(
         simpleLinks: state.simpleLinks.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l)
       })),
 
-      deleteSimpleLink: (id) => set((state) => ({ simpleLinks: state.simpleLinks.filter(l => l.id !== id) })),
+      deleteSimpleLink: (id) => set((state) => ({ 
+        simpleLinks: state.simpleLinks.filter(l => l.id !== id),
+        contentViews: state.contentViews.filter(v => v.contentId !== id),
+      })),
+
+      // Action para adicionar nova métrica
+      addContentView: (metricData) => set((state) => ({
+        contentViews: [...state.contentViews, {
+          ...metricData,
+          id: crypto.randomUUID(),
+          viewedAt: new Date().toISOString()
+        }]
+      }))
 
     }),
     { name: 'entstore-storage' }
