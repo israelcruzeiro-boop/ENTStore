@@ -29,7 +29,8 @@ export const UserHome = () => {
   const companyLinks = simpleLinks.filter(l => repoIds.includes(l.repositoryId) && l.status === 'ACTIVE');
 
   // Separação entre Hubs (Completos) e Bibliotecas (Simples)
-  const hubRepos = companyRepos.filter(r => r.type === 'FULL');
+  // Repositórios antigos sem 'type' são considerados 'FULL' (Hubs) por padrão
+  const hubRepos = companyRepos.filter(r => r.type === 'FULL' || !r.type);
   const libraryRepos = companyRepos.filter(r => r.type === 'SIMPLE');
 
   // Listas padrão para a Home (quando a busca está vazia)
@@ -110,7 +111,7 @@ export const UserHome = () => {
                         <Library size={20} className="text-[var(--c-primary)]" />
                         <h2 className="text-xl font-bold text-white">Hubs e Bibliotecas</h2>
                       </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
                         {filteredRepos.map(repo => (
                            <RepoCard key={repo.id} repo={repo} fullWidth />
                         ))}

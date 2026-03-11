@@ -8,7 +8,10 @@ export const UserHub = () => {
   const { repositories } = useAppStore();
 
   const hubRepos = repositories.filter(r => {
-     if (r.companyId !== company?.id || r.status !== 'ACTIVE' || r.type !== 'FULL') return false;
+     if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
+     // Fallback: se o type não existir, considera como FULL (Hub)
+     if (r.type !== 'FULL' && r.type !== undefined) return false;
+     
      if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
          if (!r.allowedUserIds?.includes(user.id)) return false;
      }
