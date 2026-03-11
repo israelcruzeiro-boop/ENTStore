@@ -34,10 +34,8 @@ export const AdminRepositoryContents = () => {
     title: '', description: '', thumbnailUrl: '', type: 'VIDEO' as Content['type'], url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' as 'ACTIVE' | 'DRAFT'
   });
 
-  // Formulário Link Simples
-  const [linkFormData, setLinkFormData] = useState({
-    name: '', url: '', type: 'Geral', date: new Date().toISOString().split('T')[0], status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE'
-  });
+  // Formulário Link Simples (Cadastro em Lote)
+  const [batchLinks, setBatchLinks] = useState<{id: string, name: string, url: string, type: string}[]>([]);
 
   if (!company || !repo) return <div className="p-8 text-center text-slate-500">Repositório não encontrado.</div>;
 
@@ -110,28 +108,112 @@ export const AdminRepositoryContents = () => {
     setIsFormOpen(false);
   };
 
-  // --- Handlers SIMPLES ---
+  // --- Handlers SIMPLES (EM LOTE) ---
   const openCreateSimple = () => {
     setEditingId(null);
-    setLinkFormData({ name: '', url: '', type: 'Geral', date: new Date().toISOString().split('T')[0], status: 'ACTIVE' });
+    // Inicia com 3 linhas vazias para facilitar a digitação rápida
+    setBatchLinks([
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' },
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' },
+      { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' }
+    ]);
     setIsFormOpen(true);
   };
 
   const openEditSimple = (link: SimpleLink) => {
     setEditingId(link.id);
-    setLinkFormData({ name: link.name, url: link.url, type: link.type, date: link.date, status: link.status });
+    setBatchLinks([{ id: link.id, name: link.name, url: link.url, type: link.type }]);
     setIsFormOpen(true);
+  };
+
+  const updateBatch = (index: number, field: string, value: string) => {
+    const newBatch = [...batchLinks];
+    newBatch[index] = { ...newBatch[index], [field]: value };
+    setBatchLinks(newBatch);
+  };
+
+  const addBatchRow = () => {
+    setBatchLinks([...batchLinks, { id: crypto.randomUUID(), name: '', url: '', type: 'Geral' }]);
+  };
+
+  const removeBatch = (index: number) => {
+    setBatchLinks(batchLinks.filter((_, i) => i !== index));
+  };
+
+  const handlePaste = (e: React.ClipboardEvent, index: number) => {
+    const paste = e.clipboardData.getData('text');
+    if (paste.includes('\n')) {
+      e.preventDefault(); // Previne colar tudo num único campo
+      
+      const lines = paste.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const newLinks = [...batchLinks];
+      
+      lines.forEach((line, i) => {
+        // Tenta separar por Tabulação (caso venha do Excel: Nome \t URL \t Tipo)
+        const parts = line.split('\t');
+        let name = '', url = '', type = newLinks[index].type || 'Geral';
+        
+        if (parts.length >= 2) {
+           name = parts[0].trim();
+           url = parts[1].trim();
+           if (parts[2]) type = parts[2].trim();
+        } else {
+           // Fallback inteligente: procura por um link HTTP na linha colada
+           const urlMatch = line.match(/(https?:\/\/[^\s]+)/);
+           url = urlMatch ? urlMatch[0] : '';
+           name = line.replace(url, '').trim() || `Link Importado ${i+1}`;
+        }
+
+        if (i === 0) {
+          // Substitui a linha atual onde o paste ocorreu
+          newLinks[index] = { ...newLinks[index], name: name || newLinks[index].name, url: url || newLinks[index].url, type };
+        } else {
+          // Insere novas linhas logo abaixo
+          newLinks.splice(index + i, 0, { id: crypto.randomUUID(), name, url, type });
+        }
+      });
+      
+      // Adiciona uma linha vazia no final por conveniência
+      if (newLinks[newLinks.length - 1].name || newLinks[newLinks.length - 1].url) {
+         newLinks.push({ id: crypto.randomUUID(), name: '', url: '', type: 'Geral' });
+      }
+      
+      setBatchLinks(newLinks);
+      toast.success(`${lines.length} links processados com sucesso!`);
+    }
   };
 
   const handleSaveSimple = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!linkFormData.name || !linkFormData.url) return toast.error('Os campos Nome e URL são obrigatórios.');
+    
+    // Filtra apenas as linhas que foram preenchidas (ignora linhas vazias)
+    const validLinks = batchLinks.filter(l => l.name.trim() || l.url.trim());
+    
+    if (validLinks.length === 0) return toast.error('Nenhum link preenchido para salvar.');
+
+    // Validação de segurança
+    const invalid = validLinks.find(l => !l.name.trim() || !l.url.trim());
+    if (invalid) return toast.error('Por favor, preencha o Nome e a URL em todas as linhas utilizadas.');
+
     if (editingId) {
-      updateSimpleLink(editingId, linkFormData);
+      // Edição de link único
+      const link = validLinks[0];
+      updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Geral' });
       toast.success('Link atualizado!');
     } else {
-      addSimpleLink({ companyId: company.id, repositoryId: repo.id, ...linkFormData });
-      toast.success('Link adicionado!');
+      // Criação em lote
+      validLinks.forEach(link => {
+        addSimpleLink({
+          companyId: company.id,
+          repositoryId: repo.id,
+          name: link.name,
+          url: link.url,
+          type: link.type || 'Geral',
+          date: new Date().toISOString().split('T')[0],
+          status: 'ACTIVE'
+        });
+      });
+      toast.success(`${validLinks.length} link(s) adicionado(s)!`);
     }
     setIsFormOpen(false);
   };
@@ -214,7 +296,7 @@ export const AdminRepositoryContents = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
          <h2 className="text-xl font-bold text-slate-900">{isSimple ? 'Lista de Links' : 'Conteúdos do Repositório'}</h2>
          <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
-            <Plus size={16} className="mr-2" /> {isSimple ? 'Novo Link' : 'Novo Conteúdo'}
+            <Plus size={16} className="mr-2" /> {isSimple ? 'Adicionar Links' : 'Novo Conteúdo'}
          </Button>
       </div>
 
@@ -429,38 +511,81 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      {/* MODAL SIMPLES */}
+      {/* MODAL SIMPLES (CADASTRO EM LOTE) */}
       {isSimple && (
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader><DialogTitle>{editingId ? 'Editar Link' : 'Novo Link'}</DialogTitle></DialogHeader>
-            <form onSubmit={handleSaveSimple} className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label>Nome do Link *</Label>
-                <Input placeholder="Ex: Planilha de Custos" value={linkFormData.name} onChange={(e) => setLinkFormData({...linkFormData, name: e.target.value})} autoFocus />
-              </div>
-              <div className="space-y-2">
-                <Label>URL de Destino *</Label>
-                <Input placeholder="https://..." value={linkFormData.url} onChange={(e) => setLinkFormData({...linkFormData, url: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo / Categoria</Label>
-                  <Input placeholder="Ex: Planilha, Artigo, Sistema..." value={linkFormData.type} onChange={(e) => setLinkFormData({...linkFormData, type: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Data de Referência</Label>
-                  <Input type="date" value={linkFormData.date} onChange={(e) => setLinkFormData({...linkFormData, date: e.target.value})} />
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                <div className="space-y-0.5"><Label>Link Ativo</Label><p className="text-[10px] text-slate-500">Links inativos não aparecem na lista.</p></div>
-                <Switch checked={linkFormData.status === 'ACTIVE'} onCheckedChange={(checked) => setLinkFormData({...linkFormData, status: checked ? 'ACTIVE' : 'INACTIVE'})} />
-              </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
-                <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Link'}</Button>
-              </div>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>{editingId ? 'Editar Link' : 'Cadastro Rápido de Links'}</DialogTitle>
+              {!editingId && (
+                 <p className="text-xs text-slate-500 mt-1">
+                   Digite os links ou cole diretamente uma tabela do Excel (colunas: Nome, URL, Tipo).
+                 </p>
+              )}
+            </DialogHeader>
+            
+            <form onSubmit={handleSaveSimple} className="flex flex-col flex-1 overflow-hidden mt-4">
+               {/* Cabeçalho da Tabela do Form */}
+               <div className="grid grid-cols-[2fr_3fr_1.5fr_auto] gap-3 px-1 mb-2 text-xs font-semibold text-slate-500">
+                 <div>NOME DO LINK</div>
+                 <div>URL DE DESTINO</div>
+                 <div>TIPO / CATEGORIA</div>
+                 <div className="w-8"></div>
+               </div>
+               
+               {/* Linhas Editáveis */}
+               <div className="overflow-y-auto flex-1 space-y-2 px-1 pb-2 min-h-[250px]">
+                  {batchLinks.map((link, index) => (
+                     <div key={link.id} className="grid grid-cols-[2fr_3fr_1.5fr_auto] gap-3 items-center group">
+                        <Input 
+                          placeholder="Ex: Planilha XPTO" 
+                          value={link.name} 
+                          onChange={e => updateBatch(index, 'name', e.target.value)} 
+                          className="h-9 text-sm focus-visible:ring-indigo-500"
+                        />
+                        <Input 
+                          placeholder="https://..." 
+                          value={link.url} 
+                          onChange={e => updateBatch(index, 'url', e.target.value)} 
+                          onPaste={e => handlePaste(e, index)}
+                          className="h-9 text-sm font-mono focus-visible:ring-indigo-500"
+                        />
+                        <Input 
+                          placeholder="Ex: Planilha" 
+                          value={link.type} 
+                          onChange={e => updateBatch(index, 'type', e.target.value)} 
+                          className="h-9 text-sm focus-visible:ring-indigo-500"
+                        />
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => removeBatch(index)}
+                          disabled={batchLinks.length === 1 && !editingId} // Não deixa excluir se for o único, exceto edição
+                          className="h-9 w-9 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-50 group-hover:opacity-100 transition-all"
+                        >
+                           <Trash2 size={16} />
+                        </Button>
+                     </div>
+                  ))}
+               </div>
+
+               {/* Botão de Adicionar Nova Linha */}
+               {!editingId && (
+                  <div className="shrink-0 mt-2 px-1">
+                    <Button type="button" variant="outline" onClick={addBatchRow} className="w-full border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 h-9">
+                       <Plus size={16} className="mr-2" /> Adicionar linha vazia
+                    </Button>
+                  </div>
+               )}
+
+               {/* Rodapé e Salvar */}
+               <div className="shrink-0 flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
+                 <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                 <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                   {editingId ? 'Salvar Alteração' : 'Salvar Links'}
+                 </Button>
+               </div>
             </form>
           </DialogContent>
         </Dialog>
