@@ -28,8 +28,13 @@ export const UserHome = () => {
   const companyContents = contents.filter(c => repoIds.includes(c.repositoryId) && c.status === 'ACTIVE');
   const companyLinks = simpleLinks.filter(l => repoIds.includes(l.repositoryId) && l.status === 'ACTIVE');
 
+  // Separação entre Hubs (Completos) e Bibliotecas (Simples)
+  const hubRepos = companyRepos.filter(r => r.type === 'FULL');
+  const libraryRepos = companyRepos.filter(r => r.type === 'SIMPLE');
+
   // Listas padrão para a Home (quando a busca está vazia)
-  const featuredRepos = companyRepos.filter(r => r.featured);
+  const featuredHubs = hubRepos.filter(r => r.featured);
+  const featuredLibs = libraryRepos.filter(r => r.featured);
   const recentContents = companyContents.filter(c => c.recent);
 
   // Listas para a Busca
@@ -41,7 +46,7 @@ export const UserHome = () => {
   // Define os dados do Hero Banner baseados na configuração da empresa, ou usa Fallbacks (primeiro repositório)
   const heroImage = company?.heroImage || (companyRepos.length > 0 ? (companyRepos[0].bannerImage || companyRepos[0].coverImage) : null);
   const heroTitle = company?.heroTitle || (companyRepos.length > 0 ? companyRepos[0].name : `Bem-vindo à ${company?.name}`);
-  const heroSubtitle = company?.heroSubtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os repositórios e conteúdos exclusivos da sua plataforma corporativa.');
+  const heroSubtitle = company?.heroSubtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os hubs e bibliotecas exclusivas da sua plataforma corporativa.');
 
   return (
     <div className="pb-10 pt-0 min-h-screen">
@@ -157,9 +162,18 @@ export const UserHome = () => {
          ) : (
            /* LISTAS PADRÃO (Sem busca) */
            <div className="animate-in fade-in duration-300">
-             {featuredRepos.length > 0 && (
-               <ContentRow title="Repositórios em Destaque">
-                 {featuredRepos.map(repo => (
+             
+             {featuredHubs.length > 0 && (
+               <ContentRow title="Hubs em Destaque">
+                 {featuredHubs.map(repo => (
+                   <RepoCard key={repo.id} repo={repo} />
+                 ))}
+               </ContentRow>
+             )}
+
+             {featuredLibs.length > 0 && (
+               <ContentRow title="Bibliotecas em Destaque">
+                 {featuredLibs.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
                  ))}
                </ContentRow>
@@ -173,9 +187,17 @@ export const UserHome = () => {
                </ContentRow>
              )}
 
-             {companyRepos.length > 0 && (
-               <ContentRow title="Todos os Repositórios">
-                 {companyRepos.map(repo => (
+             {hubRepos.length > 0 && (
+               <ContentRow title="Hubs">
+                 {hubRepos.map(repo => (
+                   <RepoCard key={repo.id} repo={repo} />
+                 ))}
+               </ContentRow>
+             )}
+
+             {libraryRepos.length > 0 && (
+               <ContentRow title="Biblioteca">
+                 {libraryRepos.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
                  ))}
                </ContentRow>
@@ -184,7 +206,7 @@ export const UserHome = () => {
              {companyRepos.length === 0 && (
                 <div className="py-20 flex items-center justify-center flex-col text-zinc-500">
                   <h2 className="text-2xl font-bold text-white mb-2">Sem conteúdo</h2>
-                  <p>Nenhum repositório disponível para o seu acesso no momento.</p>
+                  <p>Nenhum hub ou biblioteca disponível para o seu acesso no momento.</p>
                 </div>
              )}
            </div>
