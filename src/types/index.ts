@@ -118,3 +118,13 @@ export interface ContentRating {
   createdAt: string;
   updatedAt: string;
 }
+
+// Novos tipos da Estrutura Organizacional
+export interface OrgTopLevel {
+  id: string;
+  companyId: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
