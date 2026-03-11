@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
-import { ArrowLeft, Lock, Filter, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp } from 'lucide-react';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Link as LinkIcon, Search, ArrowDownUp, X, FileText } from 'lucide-react';
+import { SimpleLink } from '../../types';
 
 export const RepositoryDetail = () => {
   const { id } = useParams();
@@ -19,6 +20,21 @@ export const RepositoryDetail = () => {
   const [filterType, setFilterType] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+
+  // Estado para o Visualizador Interno de Links Simples
+  const [activeLink, setActiveLink] = useState<SimpleLink | null>(null);
+
+  // Trava o scroll da página principal enquanto o visualizador estiver aberto
+  useEffect(() => {
+    if (activeLink) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [activeLink]);
 
   if (!repo) {
      return <div className="p-12 text-center text-zinc-500 mt-20">Repositório inativo ou não encontrado.</div>;
@@ -68,8 +84,41 @@ export const RepositoryDetail = () => {
     });
   }, [rawLinks, searchQuery, filterType, filterDate, sortOrder]);
 
+  // Motor Inteligente de URLs para o Iframe
+  const getIframeUrl = (url: string) => {
+    let iframeUrl = url;
+    try {
+      if (iframeUrl.includes('drive.google.com/file/d/')) {
+        const match = iframeUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          iframeUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+        }
+      } else if (iframeUrl.includes('docs.google.com/') && iframeUrl.includes('/d/')) {
+        const match = iframeUrl.match(/(.*\/d\/[a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          iframeUrl = `${match[1]}/preview`;
+        }
+      } else if (iframeUrl.includes('youtube.com/watch?v=')) {
+        const urlObj = new URL(iframeUrl);
+        const videoId = urlObj.searchParams.get('v');
+        if (videoId) iframeUrl = `https://www.youtube.com/embed/${videoId}`;
+      } else if (iframeUrl.includes('youtu.be/')) {
+        const videoId = iframeUrl.split('youtu.be/')[1]?.split('?')[0];
+        if (videoId) iframeUrl = `https://www.youtube.com/embed/${videoId}`;
+      } else if (iframeUrl.includes('vimeo.com/') && !iframeUrl.includes('player.vimeo.com')) {
+        const videoId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
+        if (videoId) iframeUrl = `https://player.vimeo.com/video/${videoId}`;
+      } else if (!iframeUrl.includes('google.com') && iframeUrl.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+        iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+      }
+    } catch (e) {
+      console.error("Erro ao formatar URL do documento", e);
+    }
+    return iframeUrl;
+  };
+
   return (
-    <div className="pb-12 min-h-screen">
+    <div className="pb-12 min-h-screen relative">
       {/* Banner */}
       <div className="relative h-[30vh] md:h-[40vh] w-full mb-8 bg-zinc-900 overflow-hidden">
          {repo.bannerImage || repo.coverImage ? (
@@ -143,12 +192,10 @@ export const RepositoryDetail = () => {
              {/* Lista de Links */}
              <div className="space-y-3">
                {filteredLinks.map(link => (
-                 <a 
+                 <button 
                    key={link.id} 
-                   href={link.url} 
-                   target="_blank" 
-                   rel="noreferrer"
-                   className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[var(--c-primary)] hover:bg-zinc-800/80 transition-all gap-4 shadow-sm"
+                   onClick={() => setActiveLink(link)}
+                   className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-[var(--c-primary)] hover:bg-zinc-800/80 transition-all gap-4 shadow-sm text-left w-full"
                  >
                     <div className="flex items-start sm:items-center gap-4">
                        <div className="w-12 h-12 rounded-full bg-black/50 border border-zinc-700 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform group-hover:text-[var(--c-primary)] group-hover:border-[var(--c-primary)] text-zinc-400">
@@ -164,9 +211,9 @@ export const RepositoryDetail = () => {
                        </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-[var(--c-primary)] font-bold bg-[var(--c-primary)]/10 px-5 py-2.5 rounded-lg group-hover:bg-[var(--c-primary)] group-hover:text-white transition-colors shrink-0">
-                       Acessar <ExternalLink size={16} />
+                       Acessar
                     </div>
-                 </a>
+                 </button>
                ))}
                {filteredLinks.length === 0 && (
                   <div className="text-center py-20 bg-zinc-900/30 rounded-xl border border-dashed border-zinc-800 text-zinc-500">
@@ -206,6 +253,50 @@ export const RepositoryDetail = () => {
           </div>
         )}
       </div>
+
+      {/* MODAL DE VISUALIZAÇÃO DE LINK (FULLSCREEN OVERLAY) */}
+      {activeLink && (
+        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col w-screen h-screen">
+           {/* Header do Visualizador */}
+           <div className="bg-zinc-900 px-4 py-3 border-b border-zinc-800 flex justify-between items-center w-full shrink-0 shadow-md">
+             <div className="flex items-center gap-3">
+               <div className="p-1.5 bg-[var(--c-primary)] rounded-md text-white hidden sm:block">
+                  <FileText size={18} />
+               </div>
+               <h2 className="text-white font-semibold truncate max-w-[200px] md:max-w-md text-sm md:text-base">
+                 {activeLink.name}
+               </h2>
+             </div>
+             <div className="flex items-center gap-2 md:gap-3">
+                <a 
+                  href={activeLink.url} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs md:text-sm bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-md transition-colors"
+                  title="Caso o link apresente erro ou bloqueie a tela"
+                >
+                    <span className="hidden sm:inline">Abrir no Navegador</span> <ExternalLink size={16} />
+                </a>
+                <button 
+                  onClick={() => setActiveLink(null)}
+                  className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-zinc-700 hover:bg-red-600 px-4 py-2 rounded-md transition-colors font-bold shadow-lg"
+                >
+                    <X size={16} /> Fechar
+                </button>
+             </div>
+           </div>
+           
+           {/* Iframe que exibe o documento */}
+           <div className="flex-1 w-full bg-white relative">
+              <iframe 
+                src={getIframeUrl(activeLink.url)} 
+                className="w-full h-full border-0 absolute inset-0"
+                title={activeLink.name}
+                allowFullScreen
+              ></iframe>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
