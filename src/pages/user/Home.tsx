@@ -33,24 +33,25 @@ export const UserHome = () => {
 
   return (
     <div className="pb-10 pt-0">
-      {/* Hero Banner (Sempre vai renderizar para manter a estrutura do layout, usando gradient de fallback se não houver imagem) */}
-      <div className="relative h-[65vh] w-full mb-12 flex items-center">
+      {/* Hero Banner (Ajustado para evitar muito zoom) */}
+      <div className="relative w-full h-[55vh] min-h-[400px] max-h-[550px] mb-12 flex items-center bg-[var(--c-bg)] overflow-hidden">
         {heroImage ? (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-black">
             <img 
               src={heroImage} 
               alt="Hero" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-top opacity-80"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent"></div>
+            {/* Gradientes para mesclar a imagem com o texto e o fundo da tela */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent w-full md:w-3/4"></div>
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-transparent to-transparent"></div>
           </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 to-[var(--c-primary)] opacity-50"></div>
         )}
         
-        <div className="relative z-10 w-full px-4 md:px-12 max-w-3xl mt-20">
-          <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 drop-shadow-lg leading-tight">
+        <div className="relative z-10 w-full px-4 md:px-12 max-w-2xl mt-12">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 drop-shadow-lg leading-tight">
             {heroTitle}
           </h1>
           <p className="text-lg text-zinc-300 mb-8 line-clamp-3 drop-shadow-md">
