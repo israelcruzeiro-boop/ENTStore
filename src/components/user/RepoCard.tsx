@@ -6,8 +6,8 @@ export const RepoCard = ({ repo, fullWidth = false }: { repo: Repository, fullWi
   const isSimple = repo.type === 'SIMPLE';
 
   return (
-    <Link to={`/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : (isSimple ? 'w-32 md:w-36' : 'w-40 md:w-48')}`}>
-      <div className={`${isSimple ? 'aspect-square' : 'aspect-[2/3]'} w-full overflow-hidden rounded-lg shadow-md relative bg-zinc-800 transition-transform duration-300 group-hover:scale-105 group-hover:ring-2 group-hover:ring-[var(--c-primary)]`}>
+    <Link to={`/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : 'w-28 md:w-32'}`}>
+      <div className="aspect-square w-full overflow-hidden rounded-lg shadow-md relative bg-zinc-800 transition-transform duration-300 group-hover:scale-105 group-hover:ring-2 group-hover:ring-[var(--c-primary)]">
         {repo.coverImage ? (
           <img 
             src={repo.coverImage} 
@@ -20,8 +20,8 @@ export const RepoCard = ({ repo, fullWidth = false }: { repo: Repository, fullWi
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-        <div className={`absolute bottom-0 left-0 right-0 ${isSimple ? 'p-2' : 'p-3'}`}>
-          <h3 className={`text-white font-bold leading-tight ${isSimple ? 'text-xs' : 'text-sm md:text-base'}`}>{repo.name}</h3>
+        <div className="absolute bottom-0 left-0 right-0 p-2 md:p-3">
+          <h3 className="text-white font-bold leading-tight text-[11px] sm:text-xs md:text-sm">{repo.name}</h3>
         </div>
       </div>
     </Link>
