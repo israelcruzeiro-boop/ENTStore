@@ -1,4 +1,4 @@
-import { Play, Eye, Star } from 'lucide-react';
+import { Play, Eye, Star, Image as ImageIcon } from 'lucide-react';
 import { Content } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
@@ -11,14 +11,35 @@ export const ContentCard = ({ content, fullWidth = false }: { content: Content, 
   const ratings = contentRatings.filter(r => r.contentId === content.id);
   const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
 
+  // Lógica para extrair Thumbnail do YouTube se não houver imagem personalizada
+  const getDisplayThumbnail = () => {
+    if (content.thumbnailUrl) return content.thumbnailUrl;
+    
+    if (content.type === 'VIDEO') {
+      const url = content.embedUrl || content.url;
+      const ytMatch = url?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+      if (ytMatch && ytMatch[1]) {
+         return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+      }
+    }
+    return null;
+  };
+
+  const displayThumbnail = getDisplayThumbnail();
+
   return (
     <Link to={`/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-80'}`}>
-      <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800 relative shadow-md">
-        <img 
-          src={content.thumbnailUrl} 
-          alt={content.title} 
-          className="w-full h-full object-cover transition-opacity group-hover:opacity-70"
-        />
+      <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800 relative shadow-md flex items-center justify-center">
+        {displayThumbnail ? (
+          <img 
+            src={displayThumbnail} 
+            alt={content.title} 
+            className="w-full h-full object-cover transition-opacity group-hover:opacity-70"
+          />
+        ) : (
+          <ImageIcon size={32} className="text-zinc-600 opacity-50" />
+        )}
+        
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
           <div className="w-full flex items-center justify-between">
             <span className="text-white font-medium truncate pr-2">{content.title}</span>

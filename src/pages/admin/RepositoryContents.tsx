@@ -97,6 +97,17 @@ export const AdminRepositoryContents = () => {
     return result;
   }, [simpleLinks, repoId, searchQuery, filterType, filterDate, sortOrder]);
 
+  // Helper para extrair thumb do Youtube
+  const getDisplayThumbnail = (content: Content) => {
+    if (content.thumbnailUrl) return content.thumbnailUrl;
+    if (content.type === 'VIDEO') {
+      const url = content.embedUrl || content.url;
+      const ytMatch = url?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+      if (ytMatch && ytMatch[1]) return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
+    }
+    return null;
+  };
+
   // --- Handlers COMPLETO ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -382,7 +393,7 @@ export const AdminRepositoryContents = () => {
                        <tr key={link.id} className={`hover:bg-slate-50/80 transition-colors group ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           <td className="p-4 text-center">
                              <div className="flex justify-center">
-                                {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                                {link.status === 'ACTIVE' ? <CheckCircle2 className="textemerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
                              </div>
                           </td>
                           <td className="p-4">
@@ -471,6 +482,8 @@ export const AdminRepositoryContents = () => {
                      const cRatings = contentRatings.filter(r => r.contentId === content.id);
                      const avgRating = cRatings.length > 0 ? (cRatings.reduce((acc, curr) => acc + curr.rating, 0) / cRatings.length).toFixed(1) : '-';
 
+                     const tUrl = getDisplayThumbnail(content);
+
                      return (
                        <tr key={content.id} className={`hover:bg-slate-50 transition-colors ${content.status === 'DRAFT' ? 'opacity-70 bg-slate-50/50' : ''}`}>
                           <td className="p-4 text-center">
@@ -481,7 +494,7 @@ export const AdminRepositoryContents = () => {
                           <td className="p-4">
                             <div className="flex items-center gap-4">
                               <div className="w-24 h-14 rounded overflow-hidden shadow-sm bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center">
-                                {content.thumbnailUrl ? <img src={content.thumbnailUrl} alt={content.title} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
+                                {tUrl ? <img src={tUrl} alt={content.title} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
                               </div>
                               <div>
                                 <p className="font-semibold text-slate-900 text-base mb-0.5">{content.title}</p>
