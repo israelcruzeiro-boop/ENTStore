@@ -52,8 +52,8 @@ export const UserHome = () => {
 
   return (
     <div className="pb-10 pt-0 min-h-screen">
-      {/* Hero Banner */}
-      <div className="relative w-full h-[55vh] min-h-[420px] max-h-[550px] mb-8 flex items-center bg-[var(--c-bg)] overflow-hidden">
+      {/* Hero Banner - Rebaixado e com nova altura */}
+      <div className="relative w-full h-[45vh] min-h-[380px] max-h-[500px] flex flex-col justify-end pb-8 md:pb-12 bg-[var(--c-bg)] overflow-hidden">
         {heroImage ? (
           <div className="absolute inset-0 bg-black">
             <img 
@@ -63,36 +63,37 @@ export const UserHome = () => {
             />
             {/* Gradientes para mesclar a imagem com o texto e o fundo da tela */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent w-full md:w-3/4"></div>
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-[var(--c-bg)]/20 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-[var(--c-bg)]/40 to-transparent"></div>
           </div>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 to-[var(--c-primary)] opacity-50"></div>
         )}
         
-        <div className="relative z-10 w-full px-4 md:px-12 max-w-2xl mt-12">
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 drop-shadow-lg leading-tight">
+        <div className="relative z-10 w-full px-4 md:px-12 max-w-3xl mt-auto">
+          {/* Título reduzido */}
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-3 drop-shadow-lg leading-tight tracking-tight">
             {heroTitle}
           </h1>
-          <p className="text-lg text-zinc-300 mb-6 line-clamp-3 drop-shadow-md">
+          <p className="text-base md:text-lg text-zinc-300 mb-6 line-clamp-3 drop-shadow-md max-w-2xl">
             {heroSubtitle}
           </p>
           
           {/* Barra de Pesquisa Moderna */}
-          <div className="relative max-w-md">
+          <div className="relative max-w-lg">
              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
              <input
                 type="text"
                 placeholder="O que você quer aprender hoje?"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-zinc-900/70 backdrop-blur-md border border-white/10 hover:border-white/20 rounded-full py-3.5 pl-12 pr-6 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] transition-all shadow-lg placeholder:text-zinc-400"
+                className="w-full bg-zinc-900/80 backdrop-blur-md border border-white/10 hover:border-white/20 rounded-full py-3.5 pl-12 pr-6 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] transition-all shadow-lg placeholder:text-zinc-400"
              />
           </div>
         </div>
       </div>
 
-      {/* Área de Conteúdo */}
-      <div className="mt-8">
+      {/* Área de Conteúdo - Margem superior reduzida para encostar na busca */}
+      <div className="mt-6 md:mt-8">
          {query ? (
            /* RESULTADOS DA BUSCA */
            <div className="px-4 md:px-12 max-w-7xl mx-auto space-y-12 animate-in fade-in duration-300">
