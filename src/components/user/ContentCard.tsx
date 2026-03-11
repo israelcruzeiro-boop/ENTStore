@@ -3,7 +3,7 @@ import { Content } from '../../types';
 import { Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 
-export const ContentCard = ({ content }: { content: Content }) => {
+export const ContentCard = ({ content, fullWidth = false }: { content: Content, fullWidth?: boolean }) => {
   const { contentViews, contentRatings } = useAppStore();
   
   const views = contentViews.filter(v => v.contentId === content.id).length;
@@ -12,7 +12,7 @@ export const ContentCard = ({ content }: { content: Content }) => {
   const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
 
   return (
-    <Link to={`/content/${content.id}`} className="group relative block w-64 md:w-80 flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10">
+    <Link to={`/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-80'}`}>
       <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800 relative shadow-md">
         <img 
           src={content.thumbnailUrl} 

@@ -1,9 +1,9 @@
 import { Repository } from '../../types';
 import { Link } from 'react-router-dom';
 
-export const RepoCard = ({ repo }: { repo: Repository }) => {
+export const RepoCard = ({ repo, fullWidth = false }: { repo: Repository, fullWidth?: boolean }) => {
   return (
-    <Link to={`/repo/${repo.id}`} className="group block w-48 md:w-56 flex-shrink-0 snap-start">
+    <Link to={`/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : 'w-48 md:w-56'}`}>
       <div className="aspect-[2/3] w-full overflow-hidden rounded-lg shadow-lg relative bg-zinc-800 transition-transform duration-300 group-hover:scale-105 group-hover:ring-2 group-hover:ring-[var(--c-primary)]">
         <img 
           src={repo.coverImage} 

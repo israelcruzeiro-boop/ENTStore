@@ -12,6 +12,10 @@ import { AdminLayout } from './layouts/AdminLayout';
 // Pages
 import { Login } from './pages/Login';
 import { UserHome } from './pages/user/Home';
+import { UserBiblioteca } from './pages/user/Biblioteca';
+import { UserHub } from './pages/user/Hub';
+import { UserBusca } from './pages/user/Search';
+import { UserProfile } from './pages/user/Profile';
 import { RepositoryDetail } from './pages/user/RepositoryDetail';
 import { ContentDetail } from './pages/user/ContentDetail';
 import { AdminDashboard } from './pages/admin/Dashboard';
@@ -49,6 +53,10 @@ const AppRoutes = () => (
     {/* User Routes (Netflix style) */}
     <Route path="/" element={<RequireAuth role="USER"><UserLayout /></RequireAuth>}>
       <Route index element={<UserHome />} />
+      <Route path="biblioteca" element={<UserBiblioteca />} />
+      <Route path="hub" element={<UserHub />} />
+      <Route path="busca" element={<UserBusca />} />
+      <Route path="perfil" element={<UserProfile />} />
       <Route path="repo/:id" element={<RepositoryDetail />} />
       <Route path="content/:id" element={<ContentDetail />} />
     </Route>
