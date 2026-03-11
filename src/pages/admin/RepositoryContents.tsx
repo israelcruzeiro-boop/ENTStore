@@ -10,20 +10,25 @@ import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
 import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2 } from 'lucide-react';
 
-// Helper para definir Cores e Ícones dinamicamente no Admin (Tema Claro)
-const getAdminLinkTypeConfig = (type: string) => {
-  switch (type?.toLowerCase()) {
-    case 'vídeo':
-    case 'video': return { icon: PlayCircle, bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200' };
-    case 'pdf': return { icon: FileText, bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-200' };
-    case 'planilha': return { icon: FileSpreadsheet, bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200' };
-    case 'documento': return { icon: FileText, bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' };
-    case 'imagem': return { icon: ImageIcon, bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-200' };
-    case 'apresentação':
-    case 'apresentacao': return { icon: Presentation, bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' };
-    case 'drive/pasta':
-    case 'pasta': return { icon: Folder, bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-200' };
-    default: return { icon: Link2, bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' };
+// Configuração Premium de Ícones (Tema Claro - Admin)
+const getPremiumAdminConfig = (type: string) => {
+  const t = type?.toLowerCase();
+  if (t === 'vídeo' || t === 'video') {
+    return { icon: PlayCircle, gradient: 'from-rose-500 to-orange-500', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' };
+  } else if (t === 'pdf') {
+    return { icon: FileText, gradient: 'from-red-500 to-rose-600', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
+  } else if (t === 'planilha') {
+    return { icon: FileSpreadsheet, gradient: 'from-emerald-400 to-emerald-600', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' };
+  } else if (t === 'documento') {
+    return { icon: FileText, gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
+  } else if (t === 'imagem') {
+    return { icon: ImageIcon, gradient: 'from-fuchsia-500 to-purple-600', bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-200' };
+  } else if (t === 'apresentação' || t === 'apresentacao') {
+    return { icon: Presentation, gradient: 'from-amber-400 to-orange-500', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' };
+  } else if (t === 'drive/pasta' || t === 'pasta') {
+    return { icon: Folder, gradient: 'from-indigo-500 to-violet-500', bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' };
+  } else {
+    return { icon: Link2, gradient: 'from-slate-400 to-slate-600', bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' };
   }
 };
 
@@ -131,7 +136,6 @@ export const AdminRepositoryContents = () => {
   // --- Handlers SIMPLES (EM LOTE) ---
   const openCreateSimple = () => {
     setEditingId(null);
-    // Inicia com 3 linhas vazias para facilitar a digitação rápida
     setBatchLinks([
       { id: crypto.randomUUID(), name: '', url: '', type: 'Link' },
       { id: crypto.randomUUID(), name: '', url: '', type: 'Link' },
@@ -163,38 +167,32 @@ export const AdminRepositoryContents = () => {
   const handlePaste = (e: React.ClipboardEvent, index: number) => {
     const paste = e.clipboardData.getData('text');
     if (paste.includes('\n')) {
-      e.preventDefault(); // Previne colar tudo num único campo
+      e.preventDefault();
       
       const lines = paste.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const newLinks = [...batchLinks];
       
       lines.forEach((line, i) => {
-        // Tenta separar por Tabulação (caso venha do Excel: Nome \t URL \t Tipo)
         const parts = line.split('\t');
         let name = '', url = '', type = newLinks[index].type || 'Link';
         
         if (parts.length >= 2) {
            name = parts[0].trim();
            url = parts[1].trim();
-           // Se a pessoa colou um tipo, valida se existe ou deixa como o que ela escreveu mesmo
            if (parts[2]) type = parts[2].trim();
         } else {
-           // Fallback inteligente: procura por um link HTTP na linha colada
            const urlMatch = line.match(/(https?:\/\/[^\s]+)/);
            url = urlMatch ? urlMatch[0] : '';
            name = line.replace(url, '').trim() || `Link Importado ${i+1}`;
         }
 
         if (i === 0) {
-          // Substitui a linha atual onde o paste ocorreu
           newLinks[index] = { ...newLinks[index], name: name || newLinks[index].name, url: url || newLinks[index].url, type };
         } else {
-          // Insere novas linhas logo abaixo
           newLinks.splice(index + i, 0, { id: crypto.randomUUID(), name, url, type });
         }
       });
       
-      // Adiciona uma linha vazia no final por conveniência
       if (newLinks[newLinks.length - 1].name || newLinks[newLinks.length - 1].url) {
          newLinks.push({ id: crypto.randomUUID(), name: '', url: '', type: 'Link' });
       }
@@ -207,22 +205,18 @@ export const AdminRepositoryContents = () => {
   const handleSaveSimple = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Filtra apenas as linhas que foram preenchidas (ignora linhas vazias)
     const validLinks = batchLinks.filter(l => l.name.trim() || l.url.trim());
     
     if (validLinks.length === 0) return toast.error('Nenhum link preenchido para salvar.');
 
-    // Validação de segurança
     const invalid = validLinks.find(l => !l.name.trim() || !l.url.trim());
     if (invalid) return toast.error('Por favor, preencha o Nome e a URL em todas as linhas utilizadas.');
 
     if (editingId) {
-      // Edição de link único
       const link = validLinks[0];
       updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Link' });
       toast.success('Link atualizado!');
     } else {
-      // Criação em lote
       validLinks.forEach(link => {
         addSimpleLink({
           companyId: company.id,
@@ -239,7 +233,6 @@ export const AdminRepositoryContents = () => {
     setIsFormOpen(false);
   };
 
-  // --- DELETE & STATUS ---
   const confirmDelete = (id: string, title: string) => {
     setItemToDelete({ id, title });
     setIsDeleteOpen(true);
@@ -313,7 +306,6 @@ export const AdminRepositoryContents = () => {
          </div>
       </div>
 
-      {/* Cabeçalho da Lista */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
          <h2 className="text-xl font-bold text-slate-900">{isSimple ? 'Lista de Links' : 'Conteúdos do Repositório'}</h2>
          <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
@@ -324,22 +316,21 @@ export const AdminRepositoryContents = () => {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         
         {isSimple && (
-          /* BARRA DE FILTROS - APENAS REPOSITÓRIO SIMPLES (COMPACTA) */
-          <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col gap-2.5 shadow-sm">
+          <div className="p-4 bg-white border-b border-slate-200 flex flex-col gap-3 shadow-sm z-10">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <Input 
                 placeholder="Buscar por nome ou URL..." 
                 value={searchQuery} 
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="pl-9 bg-white" 
+                className="pl-9 bg-slate-50 border-slate-200" 
               />
             </div>
-            <div className="grid grid-cols-2 md:flex md:flex-row gap-2 w-full">
+            <div className="grid grid-cols-2 md:flex md:flex-row gap-3 w-full">
                <select 
                  value={filterType} 
                  onChange={(e) => setFilterType(e.target.value)} 
-                 className="col-span-1 w-full md:w-48 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                 className="col-span-1 w-full md:w-48 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
                >
                  <option value="ALL">Tipos (Todos)</option>
                  {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -348,7 +339,7 @@ export const AdminRepositoryContents = () => {
                  type="date" 
                  value={filterDate} 
                  onChange={(e) => setFilterDate(e.target.value)} 
-                 className="col-span-1 w-full md:w-auto bg-white text-slate-600" 
+                 className="col-span-1 w-full md:w-auto bg-slate-50 border-slate-200 text-slate-600" 
                />
                <Button 
                  variant="outline" 
@@ -364,7 +355,6 @@ export const AdminRepositoryContents = () => {
 
         <div className="overflow-x-auto">
           {isSimple ? (
-            /* TABELA SIMPLES MELHORADA */
             <table className="w-full text-left text-sm text-slate-600">
                <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
                   <tr>
@@ -377,29 +367,31 @@ export const AdminRepositoryContents = () => {
                </thead>
                <tbody className="divide-y divide-slate-100">
                   {filteredLinks.map(link => {
-                     const typeConfig = getAdminLinkTypeConfig(link.type);
-                     const Icon = typeConfig.icon;
+                     const conf = getPremiumAdminConfig(link.type);
+                     const Icon = conf.icon;
 
                      return (
-                       <tr key={link.id} className={`hover:bg-slate-50 transition-colors ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
+                       <tr key={link.id} className={`hover:bg-slate-50/80 transition-colors group ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           <td className="p-4 text-center">
                              <div className="flex justify-center">
                                 {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
                              </div>
                           </td>
                           <td className="p-4">
-                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border} shrink-0`}>
-                                   <Icon size={18} strokeWidth={1.5} />
+                             <div className="flex items-center gap-4">
+                                {/* Ícone Premium na Tabela */}
+                                <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-sm group-hover:shadow-md transition-shadow`}>
+                                   <div className={`absolute inset-0 bg-gradient-to-br ${conf.gradient} opacity-20`}></div>
+                                   <Icon size={22} className={`${conf.text} drop-shadow-sm`} strokeWidth={1.5} />
                                 </div>
                                 <div>
-                                   <p className="font-semibold text-slate-900 text-base mb-0.5">{link.name}</p>
-                                   <p className="text-xs text-slate-500 line-clamp-1 max-w-sm">{link.url}</p>
+                                   <p className="font-bold text-slate-900 text-base mb-0.5 group-hover:text-indigo-700 transition-colors">{link.name}</p>
+                                   <p className="text-xs text-slate-500 line-clamp-1 max-w-[280px] truncate">{link.url}</p>
                                 </div>
                              </div>
                           </td>
                           <td className="p-4">
-                             <span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${typeConfig.bg} ${typeConfig.text} ${typeConfig.border}`}>
+                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${conf.bg} ${conf.text} ${conf.border}`}>
                                 {link.type}
                              </span>
                           </td>
@@ -411,12 +403,12 @@ export const AdminRepositoryContents = () => {
                           </td>
                           <td className="p-4 text-right">
                              <div className="flex items-center justify-end gap-1">
-                               <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
+                               <Button asChild variant="outline" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-sm">
                                   <a href={link.url} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir</a>
                                </Button>
                                <Switch checked={link.status === 'ACTIVE'} onCheckedChange={() => toggleStatusSimple(link)} title="Ativar/Inativar" />
                                <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                               <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                               <Button variant="ghost" size="icon" onClick={() => openEditSimple(link)} className="text-slate-400 hover:text-indigo-600"><Edit2 size={16} /></Button>
                                <Button variant="ghost" size="icon" onClick={() => confirmDelete(link.id, link.name)} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
                              </div>
                           </td>
@@ -560,7 +552,6 @@ export const AdminRepositoryContents = () => {
             </DialogHeader>
             
             <form onSubmit={handleSaveSimple} className="flex flex-col flex-1 overflow-hidden mt-4">
-               {/* Cabeçalho da Tabela do Form */}
                <div className="grid grid-cols-[2fr_3fr_1.5fr_auto] gap-3 px-1 mb-2 text-xs font-semibold text-slate-500">
                  <div>NOME DO LINK</div>
                  <div>URL DE DESTINO</div>
@@ -568,7 +559,6 @@ export const AdminRepositoryContents = () => {
                  <div className="w-8"></div>
                </div>
                
-               {/* Linhas Editáveis */}
                <div className="overflow-y-auto flex-1 space-y-2 px-1 pb-2 min-h-[250px]">
                   {batchLinks.map((link, index) => (
                      <div key={link.id} className="grid grid-cols-[2fr_3fr_1.5fr_auto] gap-3 items-center group">
@@ -593,7 +583,6 @@ export const AdminRepositoryContents = () => {
                           {PREDEFINED_TYPES.map(type => (
                              <option key={type} value={type}>{type}</option>
                           ))}
-                          {/* Garante que tipos não listados inseridos via colar (paste) não quebrem e apareçam */}
                           {!PREDEFINED_TYPES.includes(link.type) && (
                              <option value={link.type}>{link.type}</option>
                           )}
@@ -603,7 +592,7 @@ export const AdminRepositoryContents = () => {
                           variant="ghost" 
                           size="icon" 
                           onClick={() => removeBatch(index)}
-                          disabled={batchLinks.length === 1 && !editingId} // Não deixa excluir se for o único, exceto edição
+                          disabled={batchLinks.length === 1 && !editingId} 
                           className="h-9 w-9 text-slate-400 hover:text-red-500 hover:bg-red-50 opacity-50 group-hover:opacity-100 transition-all"
                         >
                            <Trash2 size={16} />
@@ -612,7 +601,6 @@ export const AdminRepositoryContents = () => {
                   ))}
                </div>
 
-               {/* Botão de Adicionar Nova Linha */}
                {!editingId && (
                   <div className="shrink-0 mt-2 px-1">
                     <Button type="button" variant="outline" onClick={addBatchRow} className="w-full border-dashed border-slate-300 text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 h-9">
@@ -621,7 +609,6 @@ export const AdminRepositoryContents = () => {
                   </div>
                )}
 
-               {/* Rodapé e Salvar */}
                <div className="shrink-0 flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
                  <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
                  <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">
