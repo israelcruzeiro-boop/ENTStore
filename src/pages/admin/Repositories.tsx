@@ -156,6 +156,7 @@ export const AdminRepositories = () => {
       toast.success('Repositório criado com sucesso!');
     }
     
+    // Força o fechamento imediato da modal
     handleCloseForm();
   };
 
