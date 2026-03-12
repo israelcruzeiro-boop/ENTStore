@@ -41,7 +41,7 @@ export const UserLayout = () => {
         <div className="flex items-center gap-4 md:gap-6 text-zinc-400">
           <Link to="/perfil" className={`flex items-center gap-2 cursor-pointer group hover:text-white transition-colors ${isActive('/perfil') ? 'text-white' : ''}`} title="Perfil">
             {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="avatar" className="w-8 h-8 rounded-md" />
+                <img src={user.avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
             ) : (
                 <UserCircle size={26} />
             )}
@@ -68,7 +68,11 @@ export const UserLayout = () => {
             <span className="text-[10px] font-medium">Hub</span>
          </Link>
          <Link to="/perfil" className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/perfil') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            <UserCircle size={22} />
+            {user?.avatarUrl ? (
+               <img src={user.avatarUrl} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
+            ) : (
+               <UserCircle size={22} />
+            )}
             <span className="text-[10px] font-medium">Perfil</span>
          </Link>
       </div>

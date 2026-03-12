@@ -219,9 +219,13 @@ export const AdminUsers = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
-                            {user.name.charAt(0).toUpperCase()}
-                          </div>
+                          {user.avatarUrl ? (
+                             <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                          ) : (
+                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
+                               {user.name.charAt(0).toUpperCase()}
+                             </div>
+                          )}
                           <div>
                             <div className="flex items-center gap-2">
                                <p className="font-semibold text-slate-900 text-base">{user.name}</p>

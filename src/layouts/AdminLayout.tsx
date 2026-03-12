@@ -121,9 +121,13 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
 
         <div className="p-4 border-t border-slate-100">
            <div className="flex items-center gap-3 mb-4 px-3">
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
-                 {user?.name.charAt(0)}
-              </div>
+              {user?.avatarUrl ? (
+                 <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+              ) : (
+                 <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
+                    {user?.name.charAt(0)}
+                 </div>
+              )}
               <div className="overflow-hidden">
                  <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
                  <p className="text-xs text-slate-500 truncate">{user?.email}</p>
