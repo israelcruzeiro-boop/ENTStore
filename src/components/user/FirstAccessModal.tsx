@@ -17,10 +17,14 @@ export const FirstAccessModal = () => {
   });
 
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
-  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
-  const lowestLevel = orgLevels[orgLevels.length - 1];
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
-  const lowestLevelGroups = activeTopLevels.filter(t => t.levelId === lowestLevel.id || (!t.levelId && orgLevels.length === 1));
+  
+  // Agrupamento robusto: encontra qualquer nível superior que seja pai de alguma unidade ativa
+  const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
+  
+  // Lojas/Unidades que por algum motivo perderam o vínculo
+  const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
+
   const unitLabel = company?.orgUnitName || 'Unidade';
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -39,7 +43,6 @@ export const FirstAccessModal = () => {
 
     if (!formData.email.trim()) return toast.error('O preenchimento do E-mail é obrigatório.');
     
-    // Validar e-mail único
     const emailExists = users.some(u => u.email?.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== user.id);
     if (emailExists) return toast.error('Este e-mail já está em uso.');
 
@@ -73,7 +76,6 @@ export const FirstAccessModal = () => {
           </div>
 
           <form onSubmit={handleCompleteSetup} className="flex flex-col items-center">
-            {/* Foto */}
             <div className="relative mb-6 group cursor-pointer" onClick={() => document.getElementById('avatar-upload-setup')?.click()} title="Adicionar foto de perfil">
               {formData.avatarUrl ? (
                  <img src={formData.avatarUrl} alt="avatar" className="w-24 h-24 rounded-full border-4 border-zinc-800 shadow-xl object-cover" />
@@ -137,11 +139,10 @@ export const FirstAccessModal = () => {
                       required
                    >
                       <option value="">Selecione...</option>
-                      {lowestLevelGroups.map(parentGroup => {
+                      {parentGroups.map(parentGroup => {
                          const unitsInThisGroup = activeUnits.filter(u => u.parentId === parentGroup.id);
-                         if (unitsInThisGroup.length === 0) return null;
                          return (
-                           <optgroup key={parentGroup.id} label={`${lowestLevel.name}: ${parentGroup.name}`} className="bg-zinc-800 text-zinc-300 font-bold">
+                           <optgroup key={parentGroup.id} label={parentGroup.name} className="bg-zinc-800 text-zinc-300 font-bold">
                              {unitsInThisGroup.map(unit => (
                                <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-950">
                                  {unit.name}
@@ -150,6 +151,15 @@ export const FirstAccessModal = () => {
                            </optgroup>
                          )
                       })}
+                      {orphanUnits.length > 0 && (
+                         <optgroup label="Outras" className="bg-zinc-800 text-zinc-300 font-bold">
+                            {orphanUnits.map(unit => (
+                               <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-950">
+                                 {unit.name}
+                               </option>
+                            ))}
+                         </optgroup>
+                      )}
                    </select>
                 </div>
               )}

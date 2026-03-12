@@ -10,21 +10,16 @@ export const UserProfile = () => {
   const navigate = useNavigate();
   const { orgUnits, orgTopLevels, updateUser } = useAppStore();
 
-  // Nomenclaturas personalizadas da empresa
   const unitLabel = company?.orgUnitName || 'Unidade';
-
-  // Array de Níveis Intermediários Configurados
   const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
-  const lowestLevel = orgLevels[orgLevels.length - 1];
 
-  // Lista de unidades e níveis ativos da empresa atual
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
-  // O "Select" de unidades vai exibir as unidades agrupadas pelo nível imediatamente acima (lowestLevel)
-  const lowestLevelGroups = activeTopLevels.filter(t => t.levelId === lowestLevel.id || (!t.levelId && orgLevels.length === 1));
+  // Agrupamento robusto de lojas
+  const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
+  const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
 
-  // Estado do formulário
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -32,7 +27,6 @@ export const UserProfile = () => {
     orgUnitId: ''
   });
 
-  // Carrega os dados do usuário logado ao iniciar
   useEffect(() => {
     if (user) {
       setFormData({
@@ -49,7 +43,6 @@ export const UserProfile = () => {
     navigate('/login');
   };
 
-  // Upload e preview da foto de perfil
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -65,7 +58,6 @@ export const UserProfile = () => {
     }
   };
 
-  // Salvar alterações na store persistente
   const handleSaveChanges = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -84,7 +76,6 @@ export const UserProfile = () => {
     toast.success('Perfil atualizado com sucesso!');
   };
 
-  // Resolve dinamicamente a cadeia de níveis (Hierarchy Path) a partir da unidade final
   const getHierarchyPath = () => {
     if (!formData.orgUnitId) return [];
     const unit = activeUnits.find(u => u.id === formData.orgUnitId);
@@ -99,7 +90,6 @@ export const UserProfile = () => {
       currentParent = activeTopLevels.find(t => t.id === currentParent?.parentId);
     }
     
-    // Adiciona a unidade base no final da visualização
     path.push({ label: unitLabel, name: unit.name });
     
     return path;
@@ -194,14 +184,12 @@ export const UserProfile = () => {
                  </h3>
                </div>
 
-               {/* Exibição da Estrutura Atual (Hierarquia Dinâmica Completa) */}
                <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
                   {hierarchyPath.length > 0 ? (
                     hierarchyPath.map((pathItem, idx) => {
                       const isLast = idx === hierarchyPath.length - 1;
                       return (
                         <div key={idx} className="flex items-center gap-3 relative">
-                           {/* Linha vertical conectando a estrutura */}
                            {idx > 0 && <div className="absolute -top-4 left-5 w-px h-4 bg-zinc-800"></div>}
                            
                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isLast ? 'bg-zinc-950 border border-zinc-800 shadow-inner text-[var(--c-primary)]' : 'bg-zinc-950 border border-zinc-800 text-zinc-400'}`}>
@@ -227,11 +215,10 @@ export const UserProfile = () => {
                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all cursor-pointer"
                   >
                      <option value="">Nenhuma {unitLabel.toLowerCase()} selecionada</option>
-                     {lowestLevelGroups.map(parentGroup => {
+                     {parentGroups.map(parentGroup => {
                         const unitsInThisGroup = activeUnits.filter(u => u.parentId === parentGroup.id);
-                        if (unitsInThisGroup.length === 0) return null;
                         return (
-                          <optgroup key={parentGroup.id} label={`${lowestLevel.name}: ${parentGroup.name}`} className="bg-zinc-800 text-zinc-300 font-bold">
+                          <optgroup key={parentGroup.id} label={parentGroup.name} className="bg-zinc-800 text-zinc-300 font-bold">
                             {unitsInThisGroup.map(unit => (
                               <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-900">
                                 {unit.name}
@@ -240,11 +227,19 @@ export const UserProfile = () => {
                           </optgroup>
                         )
                      })}
+                     {orphanUnits.length > 0 && (
+                        <optgroup label="Outras" className="bg-zinc-800 text-zinc-300 font-bold">
+                           {orphanUnits.map(unit => (
+                              <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-900">
+                                {unit.name}
+                              </option>
+                           ))}
+                        </optgroup>
+                     )}
                   </select>
                </div>
             </div>
 
-            {/* Ações / Botões */}
             <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-zinc-800/50">
                <button 
                  type="button"
