@@ -232,7 +232,7 @@ export const AdminUsers = () => {
         companyId: company.id,
         name: row.nome,
         cpf: row.cpf,
-        password: row.cpf, // Senha inicial é o CPF
+        password: '123456', // Senha inicial padrão
         role: 'USER',
         status: 'PENDING_SETUP',
         firstAccess: true,
@@ -438,7 +438,7 @@ export const AdminUsers = () => {
                      <Shield className="shrink-0 mt-0.5" size={18} />
                      <div>
                         <p className="font-bold mb-1">Como funcionará o acesso?</p>
-                        <p className="leading-relaxed">Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como senha temporária</strong> no primeiro login e serão solicitados a preencher os dados restantes do perfil antes de acessar a plataforma.</p>
+                        <p className="leading-relaxed">Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como login e a senha temporária 123456</strong> no primeiro login e serão solicitados a preencher os dados restantes do perfil antes de acessar a plataforma.</p>
                      </div>
                   </div>
                </div>
