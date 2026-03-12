@@ -203,9 +203,11 @@ export const AdminUsers = () => {
         const wb = XLSX.read(data, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rows = XLSX.utils.sheet_to_json(ws);
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }); // defval garante que colunas vazias não quebrem as keys
 
         const cpfSet = new Set<string>();
+        // Pega os usuários no exato momento para evitar stale state caso usuários tenham acabado de ser criados
+        const allUsers = useAppStore.getState().users;
 
         const processed = rows.map((row: any, index: number) => {
           const keys = Object.keys(row);
@@ -214,6 +216,8 @@ export const AdminUsers = () => {
           
           const nome = nomeKey ? String(row[nomeKey]).trim() : '';
           let cpfRaw = cpfKey ? row[cpfKey] : '';
+          
+          // Previne formato numérico tirando zeros a esquerda do excel
           if (typeof cpfRaw === 'number') cpfRaw = cpfRaw.toString().padStart(11, '0');
           const cpf = String(cpfRaw).replace(/\D/g, '');
 
@@ -221,16 +225,25 @@ export const AdminUsers = () => {
           let isDuplicate = false;
 
           if (!nome) errors.push('Nome vazio');
-          if (!cpf) errors.push('CPF vazio');
-          else if (!isValidCPF(cpf)) errors.push('CPF inválido');
-          else {
-             if (users.some(u => u.cpf === cpf)) {
+          if (!cpf) {
+             errors.push('CPF vazio');
+          } else {
+             // 1. Checa se já existe no banco (Mais importante!)
+             if (allUsers.some(u => u.cpf === cpf)) {
                errors.push('CPF já cadastrado no sistema');
                isDuplicate = true;
-             } else if (cpfSet.has(cpf)) {
+             } 
+             // 2. Checa se tá duplicado dentro do próprio arquivo excel
+             else if (cpfSet.has(cpf)) {
                errors.push('CPF duplicado nesta planilha');
                isDuplicate = true;
-             } else {
+             } 
+             // 3. Valida matemática do CPF apenas se for novo
+             else if (!isValidCPF(cpf)) {
+               errors.push('CPF inválido');
+             } 
+             // Se passou, adiciona no set de validação atual
+             else {
                cpfSet.add(cpf);
              }
           }
