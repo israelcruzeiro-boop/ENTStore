@@ -12,7 +12,7 @@ import { Repository } from '../../types';
 
 export const AdminRepositories = () => {
   const { linkName } = useParams();
-  const { companies, users, repositories, contents, simpleLinks, addRepository, updateRepository, deleteRepository } = useAppStore();
+  const { companies, users, repositories, contents, simpleLinks, orgTopLevels, orgUnits, addRepository, updateRepository, deleteRepository } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
   
@@ -20,6 +20,11 @@ export const AdminRepositories = () => {
                                    .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
 
   const companyUsers = users.filter(u => u.companyId === company?.id && u.role === 'USER');
+  const companyTopLevels = orgTopLevels.filter(o => o.companyId === company?.id && o.active);
+  const companyUnitsLocal = orgUnits.filter(u => u.companyId === company?.id && u.active);
+
+  const topLevelLabel = company?.orgTopLevelName || 'Regional';
+  const unitLabel = company?.orgUnitName || 'Unidade';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,7 +37,10 @@ export const AdminRepositories = () => {
     featured: false,
     status: 'ACTIVE' as 'ACTIVE' | 'DRAFT',
     accessType: 'ALL' as 'ALL' | 'RESTRICTED',
-    allowedUserIds: [] as string[]
+    allowedUserIds: [] as string[],
+    allowedRegionIds: [] as string[],
+    allowedStoreIds: [] as string[],
+    excludedUserIds: [] as string[]
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -54,7 +62,8 @@ export const AdminRepositories = () => {
     setEditingId(null);
     setFormData({ 
        name: '', description: '', type: 'FULL', coverImage: '', bannerImage: '', 
-       featured: false, status: 'ACTIVE', accessType: 'ALL', allowedUserIds: []
+       featured: false, status: 'ACTIVE', accessType: 'ALL', 
+       allowedUserIds: [], allowedRegionIds: [], allowedStoreIds: [], excludedUserIds: []
     });
     setIsFormOpen(true);
   };
@@ -64,9 +73,22 @@ export const AdminRepositories = () => {
     setFormData({ 
       name: repo.name, description: repo.description, type: repo.type || 'FULL', 
       coverImage: repo.coverImage, bannerImage: repo.bannerImage || '', 
-      featured: repo.featured, status: repo.status, accessType: repo.accessType || 'ALL', allowedUserIds: repo.allowedUserIds || []
+      featured: repo.featured, status: repo.status, accessType: repo.accessType || 'ALL', 
+      allowedUserIds: repo.allowedUserIds || [],
+      allowedRegionIds: repo.allowedRegionIds || [],
+      allowedStoreIds: repo.allowedStoreIds || [],
+      excludedUserIds: repo.excludedUserIds || []
     });
     setIsFormOpen(true);
+  };
+
+  const toggleArrayItem = (arrayName: 'allowedUserIds' | 'allowedRegionIds' | 'allowedStoreIds' | 'excludedUserIds', id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [arrayName]: prev[arrayName].includes(id)
+        ? prev[arrayName].filter(item => item !== id)
+        : [...prev[arrayName], id]
+    }));
   };
 
   const handleSaveRepo = (e: React.FormEvent) => {
@@ -75,7 +97,6 @@ export const AdminRepositories = () => {
     const repoName = formData.name.trim();
     if (!repoName) return toast.error('Nome é obrigatório.');
     
-    // Verificação de duplicidade para evitar duplos cliques
     const isDuplicate = companyRepos.some(r => r.name.toLowerCase() === repoName.toLowerCase() && r.id !== editingId);
     if (isDuplicate) {
       return toast.error('Já existe um repositório com este nome nesta empresa.');
@@ -83,8 +104,8 @@ export const AdminRepositories = () => {
 
     if (formData.type === 'FULL' && !formData.coverImage) return toast.error('Capa é obrigatória para Repositórios Completos.');
 
-    if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0) {
-      return toast.error('Selecione ao menos um usuário para o acesso restrito.');
+    if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0 && formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) {
+      return toast.error('Selecione ao menos um usuário, regional ou loja para o acesso restrito.');
     }
 
     if (editingId) {
@@ -95,10 +116,10 @@ export const AdminRepositories = () => {
       toast.success('Repositório criado com sucesso!');
     }
     
-    // Limpa o estado imediatamente para invalidar qualquer clique duplo subsequente
     setFormData({ 
        name: '', description: '', type: 'FULL', coverImage: '', bannerImage: '', 
-       featured: false, status: 'ACTIVE', accessType: 'ALL', allowedUserIds: []
+       featured: false, status: 'ACTIVE', accessType: 'ALL', 
+       allowedUserIds: [], allowedRegionIds: [], allowedStoreIds: [], excludedUserIds: []
     });
     setIsFormOpen(false);
   };
@@ -114,15 +135,6 @@ export const AdminRepositories = () => {
   const toggleStatus = (repo: Repository) => {
     updateRepository(repo.id, { status: repo.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
     toast.success(`Status alterado para ${repo.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
-  };
-
-  const toggleUserAccess = (userId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      allowedUserIds: prev.allowedUserIds.includes(userId)
-        ? prev.allowedUserIds.filter(id => id !== userId)
-        : [...prev.allowedUserIds, userId]
-    }));
   };
 
   return (
@@ -192,7 +204,7 @@ export const AdminRepositories = () => {
                         <td className="p-4 text-center">
                            <div className="flex justify-center">
                              {isRestricted ? (
-                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100" title={`${repo.allowedUserIds?.length || 0} usuários permitidos`}>
+                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
                                  <Lock size={12} /> Restrito
                                </span>
                              ) : (
@@ -242,7 +254,7 @@ export const AdminRepositories = () => {
       </div>
 
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Repositório' : 'Novo Repositório'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveRepo} className="space-y-6 mt-4">
             
@@ -334,22 +346,73 @@ export const AdminRepositories = () => {
                     <span className="text-sm font-medium text-slate-700">Todos os Usuários</span>
                  </label>
                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="accessType" checked={formData.accessType === 'RESTRICTED'} onChange={() => setFormData({...formData, accessType: 'RESTRICTED', allowedUserIds: formData.allowedUserIds.length ? formData.allowedUserIds : []})} className="accent-indigo-600 w-4 h-4" />
+                    <input type="radio" name="accessType" checked={formData.accessType === 'RESTRICTED'} onChange={() => setFormData({...formData, accessType: 'RESTRICTED'})} className="accent-indigo-600 w-4 h-4" />
                     <span className="text-sm font-medium text-slate-700">Acesso Restrito</span>
                  </label>
               </div>
 
               {formData.accessType === 'RESTRICTED' && (
-                 <div className="mt-3 border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
-                   <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Selecione quem pode acessar:</p>
-                   <div className="space-y-1">
-                     {companyUsers.map(u => (
-                        <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
-                          <input type="checkbox" checked={formData.allowedUserIds.includes(u.id)} onChange={() => toggleUserAccess(u.id)} className="accent-indigo-600 rounded w-4 h-4" />
-                          <div className="flex flex-col"><span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span><span className="text-xs text-slate-500">{u.email}</span></div>
-                        </label>
-                     ))}
-                   </div>
+                 <div className="mt-4 border-t border-slate-100 pt-4">
+                    <p className="text-sm font-semibold text-slate-900 mb-3">Definir Permissões (quem pode acessar)</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       
+                       {/* Níveis Superiores */}
+                       <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{topLevelLabel}s:</p>
+                          <div className="space-y-1">
+                            {companyTopLevels.map(t => (
+                               <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                 <input type="checkbox" checked={formData.allowedRegionIds.includes(t.id)} onChange={() => toggleArrayItem('allowedRegionIds', t.id)} className="accent-indigo-600 rounded w-4 h-4" />
+                                 <span className="text-sm font-semibold text-slate-900 leading-tight">{t.name}</span>
+                               </label>
+                            ))}
+                            {companyTopLevels.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
+                          </div>
+                       </div>
+
+                       {/* Unidades */}
+                       <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{unitLabel}s:</p>
+                          <div className="space-y-1">
+                            {companyUnitsLocal.map(u => (
+                               <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                 <input type="checkbox" checked={formData.allowedStoreIds.includes(u.id)} onChange={() => toggleArrayItem('allowedStoreIds', u.id)} className="accent-indigo-600 rounded w-4 h-4" />
+                                 <span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span>
+                               </label>
+                            ))}
+                            {companyUnitsLocal.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
+                          </div>
+                       </div>
+
+                       {/* Usuários Específicos */}
+                       <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
+                          <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Usuários Específicos:</p>
+                          <div className="space-y-1">
+                            {companyUsers.map(u => (
+                               <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                 <input type="checkbox" checked={formData.allowedUserIds.includes(u.id)} onChange={() => toggleArrayItem('allowedUserIds', u.id)} className="accent-indigo-600 rounded w-4 h-4" />
+                                 <div className="flex flex-col"><span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span><span className="text-[10px] text-slate-500">{u.email}</span></div>
+                               </label>
+                            ))}
+                            {companyUsers.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
+                          </div>
+                       </div>
+
+                       {/* Exceções */}
+                       <div className="border border-red-100 rounded-md p-3 max-h-48 overflow-y-auto bg-red-50/30">
+                          <p className="text-xs font-semibold text-red-500 mb-2 uppercase tracking-wider">Exceções (Bloqueados):</p>
+                          <div className="space-y-1">
+                            {companyUsers.map(u => (
+                               <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-red-50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-red-200">
+                                 <input type="checkbox" checked={formData.excludedUserIds.includes(u.id)} onChange={() => toggleArrayItem('excludedUserIds', u.id)} className="accent-red-600 rounded w-4 h-4" />
+                                 <div className="flex flex-col"><span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span><span className="text-[10px] text-slate-500">{u.email}</span></div>
+                               </label>
+                            ))}
+                            {companyUsers.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
+                          </div>
+                       </div>
+
+                    </div>
                  </div>
               )}
             </div>

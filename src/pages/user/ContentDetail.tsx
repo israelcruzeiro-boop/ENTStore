@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
@@ -20,8 +20,8 @@ export const ContentDetail = () => {
   const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
   const userRating = contentRatings.find(r => r.contentId === content?.id && r.userId === user?.id)?.rating;
 
-  // Regra de Acesso
-  const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
+  // Regra de Acesso Centralizada
+  const isAuthorized = checkRepoAccess(repo as any, user);
 
   useEffect(() => {
     if (content && repo && isAuthorized && user && !hasTrackedView.current) {
@@ -58,7 +58,7 @@ export const ContentDetail = () => {
             <Lock size={24} className="text-[var(--c-primary)]" />
          </div>
          <h1 className="text-2xl font-bold text-white mb-2">Acesso Negado</h1>
-         <p className="max-w-md mb-6">Este conteúdo pertence a um repositório restrito.</p>
+         <p className="max-w-md mb-6">Você não tem permissão para acessar este conteúdo.</p>
          <Link to="/" className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
             Voltar ao Início
          </Link>

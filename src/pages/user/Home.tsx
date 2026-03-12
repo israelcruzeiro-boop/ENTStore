@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
@@ -12,16 +12,10 @@ export const UserHome = () => {
   const { repositories, contents, simpleLinks } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filtra dados da Store local pela empresa logada, status ATIVO e Regras de Acesso
+  // Filtra dados da Store local usando a função global de validação
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     
-     // Regra de Acesso: Se for restrito, apenas os IDs permitidos (ou Admins) podem ver
-     if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
-         if (!r.allowedUserIds?.includes(user.id)) return false;
-     }
-     
-     return true;
+     return checkRepoAccess(r, user);
   });
   
   const repoIds = companyRepos.map(r => r.id);
@@ -29,7 +23,6 @@ export const UserHome = () => {
   const companyLinks = simpleLinks.filter(l => repoIds.includes(l.repositoryId) && l.status === 'ACTIVE');
 
   // Separação entre Hubs (Completos) e Bibliotecas (Simples)
-  // Repositórios antigos sem 'type' são considerados 'FULL' (Hubs) por padrão
   const hubRepos = companyRepos.filter(r => r.type === 'FULL' || !r.type);
   const libraryRepos = companyRepos.filter(r => r.type === 'SIMPLE');
 
@@ -45,14 +38,12 @@ export const UserHome = () => {
   const filteredContents = query ? companyContents.filter(c => c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query)) : [];
   const filteredLinks = query ? companyLinks.filter(l => l.name.toLowerCase().includes(query) || l.url.toLowerCase().includes(query)) : [];
 
-  // Define os dados do Hero Banner baseados na configuração da empresa, ou usa Fallbacks (primeiro repositório)
   const heroImage = company?.heroImage || (companyRepos.length > 0 ? (companyRepos[0].bannerImage || companyRepos[0].coverImage) : null);
   const heroTitle = company?.heroTitle || (companyRepos.length > 0 ? companyRepos[0].name : `Bem-vindo à ${company?.name}`);
   const heroSubtitle = company?.heroSubtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os hubs e bibliotecas exclusivas da sua plataforma corporativa.');
 
   return (
     <div className="pb-10 pt-0 min-h-screen">
-      {/* Hero Banner - Rebaixado e com nova altura */}
       <div className="relative w-full h-[45vh] min-h-[380px] max-h-[500px] flex flex-col justify-end pb-8 md:pb-12 bg-[var(--c-bg)] overflow-hidden">
         {heroImage ? (
           <div className="absolute inset-0 bg-black">
@@ -61,7 +52,6 @@ export const UserHome = () => {
               alt="Hero" 
               className="w-full h-full object-cover object-top opacity-80"
             />
-            {/* Gradientes para mesclar a imagem com o texto e o fundo da tela */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent w-full md:w-3/4"></div>
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-[var(--c-bg)]/40 to-transparent"></div>
           </div>
@@ -70,7 +60,6 @@ export const UserHome = () => {
         )}
         
         <div className="relative z-10 w-full px-4 md:px-12 max-w-3xl mt-auto">
-          {/* Título reduzido */}
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-3 drop-shadow-lg leading-tight tracking-tight">
             {heroTitle}
           </h1>
@@ -78,7 +67,6 @@ export const UserHome = () => {
             {heroSubtitle}
           </p>
           
-          {/* Barra de Pesquisa Moderna */}
           <div className="relative max-w-lg">
              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
              <input
@@ -92,10 +80,8 @@ export const UserHome = () => {
         </div>
       </div>
 
-      {/* Área de Conteúdo - Margem superior reduzida para encostar na busca */}
       <div className="mt-6 md:mt-8">
          {query ? (
-           /* RESULTADOS DA BUSCA */
            <div className="px-4 md:px-12 max-w-7xl mx-auto space-y-12 animate-in fade-in duration-300">
              {filteredHubs.length === 0 && filteredLibs.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 ? (
                 <div className="text-center text-zinc-500 py-12">
@@ -177,9 +163,7 @@ export const UserHome = () => {
              )}
            </div>
          ) : (
-           /* LISTAS PADRÃO (Sem busca) */
            <div className="animate-in fade-in duration-300">
-             
              {featuredHubs.length > 0 && (
                <ContentRow title="Hubs em Destaque">
                  {featuredHubs.map(repo => (

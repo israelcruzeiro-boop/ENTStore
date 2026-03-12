@@ -56,6 +56,9 @@ export interface Repository {
   status: 'ACTIVE' | 'DRAFT';
   accessType?: 'ALL' | 'RESTRICTED';
   allowedUserIds?: string[];
+  allowedRegionIds?: string[]; // Níveis superiores (Regional) permitidos
+  allowedStoreIds?: string[]; // Unidades (Loja) permitidas
+  excludedUserIds?: string[]; // Exceções explícitas (usuários bloqueados)
   createdAt?: string;
   updatedAt?: string;
 }

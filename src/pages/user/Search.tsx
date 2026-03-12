@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library } from 'lucide-react';
@@ -13,10 +13,7 @@ export const UserBusca = () => {
 
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
-         if (!r.allowedUserIds?.includes(user.id)) return false;
-     }
-     return true;
+     return checkRepoAccess(r, user);
   });
   
   const repoIds = companyRepos.map(r => r.id);

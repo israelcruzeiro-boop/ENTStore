@@ -1,5 +1,5 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Library } from 'lucide-react';
 
@@ -9,10 +9,7 @@ export const UserBiblioteca = () => {
 
   const libraryRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE' || r.type !== 'SIMPLE') return false;
-     if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
-         if (!r.allowedUserIds?.includes(user.id)) return false;
-     }
-     return true;
+     return checkRepoAccess(r, user);
   });
 
   return (

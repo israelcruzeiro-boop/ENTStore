@@ -3,6 +3,23 @@ import { persist } from 'zustand/middleware';
 import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric, ContentRating, OrgTopLevel, OrgUnit } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
+// Helper Global para Validar Regras de Acesso do Repositório
+export const checkRepoAccess = (repo: Repository, user: User | null | undefined): boolean => {
+  if (!user) return false;
+  if (user.role !== 'USER') return true; // Admins e Super Admins veem tudo
+  if (repo.accessType !== 'RESTRICTED') return true; // Repositório aberto para todos
+  
+  // 1. Verifica se está nas exceções (bloqueado explicitamente)
+  if (repo.excludedUserIds?.includes(user.id)) return false; 
+  
+  // 2. Verifica se tem permissão por algum dos vínculos
+  const hasUserPerm = repo.allowedUserIds?.includes(user.id);
+  const hasUnitPerm = user.orgUnitId && repo.allowedStoreIds?.includes(user.orgUnitId);
+  const hasTopLevelPerm = user.orgTopLevelId && repo.allowedRegionIds?.includes(user.orgTopLevelId);
+  
+  return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
+};
+
 interface AppState {
   companies: Company[];
   users: User[];
@@ -258,7 +275,6 @@ export const useAppStore = create<AppState>()(
       })),
 
       addContentView: (metricData) => set((state) => {
-        // Carimba os dados organizacionais do usuário na hora da view
         const user = state.users.find(u => u.id === metricData.userId);
         
         return {
@@ -310,7 +326,7 @@ export const useAppStore = create<AppState>()(
 
       deleteOrgTopLevel: (id) => set((state) => ({
         orgTopLevels: state.orgTopLevels.filter(o => o.id !== id),
-        orgUnits: state.orgUnits.filter(u => u.parentId !== id) // Exclui em cascata
+        orgUnits: state.orgUnits.filter(u => u.parentId !== id) 
       })),
 
       toggleOrgTopLevelStatus: (id) => set((state) => ({

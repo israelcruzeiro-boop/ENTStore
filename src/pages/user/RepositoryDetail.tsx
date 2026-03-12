@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star } from 'lucide-react';
@@ -35,7 +35,7 @@ export const RepositoryDetail = () => {
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
-  const isAuthorized = user?.role !== 'USER' || repo?.accessType !== 'RESTRICTED' || repo?.allowedUserIds?.includes(user?.id || '');
+  const isAuthorized = checkRepoAccess(repo as any, user);
 
   // Estados para os filtros e busca (Repositório Simples)
   const [searchQuery, setSearchQuery] = useState('');
@@ -187,7 +187,6 @@ export const RepositoryDetail = () => {
         
         {isSimple ? (
           <div className="space-y-6">
-             {/* Barra de Busca e Filtros - VERSÃO COMPACTA */}
              <div className="bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-4 flex flex-col gap-3 shadow-xl">
                 <div className="relative w-full">
                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
@@ -227,7 +226,6 @@ export const RepositoryDetail = () => {
                 </div>
              </div>
 
-             {/* Lista de Links Dinâmica (Modernizada) */}
              <div className="grid gap-3">
                {filteredLinks.map(link => {
                  const conf = getPremiumLinkConfig(link.type);
@@ -294,7 +292,6 @@ export const RepositoryDetail = () => {
           </div>
         ) : (
           <div>
-            {/* ABAS DAS FASES (CATEGORIAS) */}
             <div className="flex gap-2 mb-8 overflow-x-auto hide-scrollbar pb-4 pt-2">
                 <button 
                   onClick={() => setActiveCategory(null)}
@@ -331,7 +328,6 @@ export const RepositoryDetail = () => {
         )}
       </div>
 
-      {/* MODAL DE VISUALIZAÇÃO DE LINK (FULLSCREEN OVERLAY) */}
       {activeLink && (
         <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col w-screen h-screen">
            <div className="bg-zinc-900 px-4 py-3 border-b border-zinc-800 flex justify-between items-center w-full shrink-0 shadow-md">
@@ -345,7 +341,6 @@ export const RepositoryDetail = () => {
              </div>
              
              <div className="flex items-center gap-4">
-                {/* Ferramenta de Avaliação Inline */}
                 <div className="hidden sm:flex items-center gap-2 bg-zinc-950/50 px-3 py-1.5 rounded-lg border border-zinc-800">
                   <span className="text-amber-400 text-xs font-bold flex items-center gap-1 border-r border-zinc-700 pr-2">
                     <Star size={14} fill="currentColor" /> {activeLinkAvg}

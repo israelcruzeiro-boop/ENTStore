@@ -1,5 +1,5 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { MonitorPlay } from 'lucide-react';
 
@@ -9,13 +9,9 @@ export const UserHub = () => {
 
   const hubRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     // Fallback: se o type não existir, considera como FULL (Hub)
      if (r.type !== 'FULL' && r.type !== undefined) return false;
      
-     if (r.accessType === 'RESTRICTED' && user?.role === 'USER') {
-         if (!r.allowedUserIds?.includes(user.id)) return false;
-     }
-     return true;
+     return checkRepoAccess(r, user);
   });
 
   return (
