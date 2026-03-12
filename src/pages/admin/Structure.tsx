@@ -126,8 +126,9 @@ export const AdminStructure = () => {
     if (!name) return toast.error('O Nome é obrigatório.');
     if (!unitFormData.parentId) return toast.error(`Selecione um(a) ${topLevelLabel} a qual esta unidade pertence.`);
 
-    const isDuplicate = companyUnits.some(o => o.name.toLowerCase() === name.toLowerCase() && o.parentId === unitFormData.parentId && o.id !== editingUnitId);
-    if (isDuplicate) return toast.error(`Já existe uma unidade com este nome sob este(a) ${topLevelLabel}.`);
+    // Validação de duplicidade na empresa toda
+    const isDuplicate = companyUnits.some(o => o.name.toLowerCase() === name.toLowerCase() && o.id !== editingUnitId);
+    if (isDuplicate) return toast.error(`Já existe uma ${unitLabel.toLowerCase()} com este nome nesta empresa.`);
 
     if (editingUnitId) {
       updateOrgUnit(editingUnitId, { name, parentId: unitFormData.parentId, active: unitFormData.active });
