@@ -63,7 +63,7 @@ export const AdminRepositoryContents = () => {
 
   const isSimple = repo.type === 'SIMPLE';
 
-  const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   const repoCategories = categories.filter(c => c.repositoryId === repoId).sort((a, b) => (a.order || 0) - (b.order || 0));
   
   const availableTypes = useMemo(() => {
@@ -144,11 +144,11 @@ export const AdminRepositoryContents = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 300 * 1024) {
-         toast.error('A imagem é muito pesada (máx: 300KB). Para imagens maiores, use uma URL.');
+         toast.error('A imagem é muito pesada (máx: 300KB). Para imagens maiores, use uma URL externa.');
          return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({ ...formData, thumbnailUrl: reader.result as string });
+      reader.onloadend = () => setFormData(prev => ({ ...prev, thumbnailUrl: reader.result as string }));
       reader.readAsDataURL(file);
     }
   };
@@ -167,8 +167,17 @@ export const AdminRepositoryContents = () => {
 
   const handleSaveFull = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.url) return toast.error('Os campos Título e URL são obrigatórios.');
     
+    // 1. Validação de obrigatoriedade
+    if (!formData.title.trim() || !formData.url.trim()) {
+      return toast.error('Os campos Título e URL são obrigatórios.');
+    }
+
+    // 2. Proteção contra estouro do LocalStorage via colagem de imagem Base64 gigante na URL
+    if (formData.thumbnailUrl && formData.thumbnailUrl.length > 500000) {
+      return toast.error('A imagem de capa inserida é muito pesada para a memória do navegador. Use uma URL mais curta.');
+    }
+
     const payload = {
        ...formData,
        categoryId: formData.categoryId || undefined
@@ -182,14 +191,13 @@ export const AdminRepositoryContents = () => {
         addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
         toast.success('Conteúdo adicionado com sucesso!');
       }
-      handleCloseForm();
+      
+      // Fecha o form de forma assíncrona para não quebrar a árvore do React (bug do overlay travado)
+      setTimeout(() => handleCloseForm(), 0);
+      
     } catch (err: any) {
-      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
-         toast.error('Limite de armazenamento local atingido! Remova as imagens muito pesadas.');
-      } else {
-         toast.error('Erro inesperado ao salvar o conteúdo.');
-      }
       console.error(err);
+      toast.error('Erro de memória ao salvar. Se estiver usando imagens, tente usar versões mais leves.');
     }
   };
 
@@ -271,6 +279,10 @@ export const AdminRepositoryContents = () => {
     const invalid = validLinks.find(l => !l.name.trim() || !l.url.trim());
     if (invalid) return toast.error('Por favor, preencha o Nome e a URL em todas as linhas utilizadas.');
 
+    for (const link of validLinks) {
+       if (link.url.length > 5000) return toast.error('Uma das URLs é longa demais para ser salva.');
+    }
+
     try {
       if (editingId) {
         const link = validLinks[0];
@@ -290,14 +302,12 @@ export const AdminRepositoryContents = () => {
         });
         toast.success(`${validLinks.length} link(s) adicionado(s)!`);
       }
-      handleCloseForm();
+      
+      setTimeout(() => handleCloseForm(), 0);
+      
     } catch (err: any) {
-      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
-         toast.error('Limite de armazenamento local atingido!');
-      } else {
-         toast.error('Erro inesperado ao salvar os links.');
-      }
       console.error(err);
+      toast.error('Erro de memória ao salvar os links.');
     }
   };
 
@@ -633,13 +643,13 @@ export const AdminRepositoryContents = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div className="space-y-2">
                    <Label>Tipo de Conteúdo *</Label>
-                   <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as Content['type']})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                   <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value as Content['type']})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm cursor-pointer">
                       <option value="VIDEO">Vídeo</option><option value="PDF">Arquivo PDF</option><option value="DOCUMENT">Documento</option><option value="LINK">Link Externo</option>
                    </select>
                  </div>
                  <div className="space-y-2">
                    <Label>Fase (Opcional)</Label>
-                   <select value={formData.categoryId || ''} onChange={(e) => setFormData({...formData, categoryId: e.target.value})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+                   <select value={formData.categoryId || ''} onChange={(e) => setFormData({...formData, categoryId: e.target.value})} className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm cursor-pointer">
                       <option value="">Nenhuma (Fica Solto)</option>
                       {repoCategories.map(cat => (
                         <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -663,11 +673,11 @@ export const AdminRepositoryContents = () => {
                          <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('thumb-upload')?.click()} className="w-full text-xs h-10">Upload Imagem</Button>
                       </div>
                    </div>
-                   <Input placeholder="Ou cole URL..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs mt-2" />
+                   <Input placeholder="Ou cole a URL..." value={formData.thumbnailUrl} onChange={(e) => setFormData({...formData, thumbnailUrl: e.target.value})} className="h-8 text-xs mt-2" />
                  </div>
               </div>
               <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                <div className="space-y-0.5"><Label>Conteúdo Ativo</Label><p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível' : 'Rascunho'}</p></div>
+                <div className="space-y-0.5"><Label>Conteúdo Ativo</Label><p className="text-[10px] text-slate-500">{formData.status === 'ACTIVE' ? 'Conteúdo visível na plataforma' : 'Rascunho'}</p></div>
                 <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -749,7 +759,7 @@ export const AdminRepositoryContents = () => {
                         <select
                           value={link.type}
                           onChange={e => updateBatch(index, 'type', e.target.value)}
-                          className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          className="flex h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                         >
                           {PREDEFINED_TYPES.map(type => (
                              <option key={type} value={type}>{type}</option>
