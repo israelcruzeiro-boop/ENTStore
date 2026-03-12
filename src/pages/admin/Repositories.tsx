@@ -16,8 +16,16 @@ export const AdminRepositories = () => {
   
   const company = companies.find(c => c.linkName === linkName);
   
-  const companyRepos = repositories.filter(r => r.companyId === company?.id)
-                                   .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  // Ordenação segura (evita o bug de NaN que esconde os itens na tela)
+  const companyRepos = useMemo(() => {
+    return repositories
+      .filter(r => r.companyId === company?.id)
+      .sort((a, b) => {
+         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+         const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+         return timeB - timeA;
+      });
+  }, [repositories, company?.id]);
 
   const companyUsers = users.filter(u => u.companyId === company?.id && u.role === 'USER');
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company?.id && o.active);
@@ -148,16 +156,19 @@ export const AdminRepositories = () => {
       return toast.error('Selecione ao menos um usuário ou nível na estrutura para o acesso restrito.');
     }
 
-    if (editingId) {
-      updateRepository(editingId, { ...formData, name: repoName });
-      toast.success('Repositório atualizado com sucesso!');
-    } else {
-      addRepository({ companyId: company.id, ...formData, name: repoName });
-      toast.success('Repositório criado com sucesso!');
+    try {
+      if (editingId) {
+        updateRepository(editingId, { ...formData, name: repoName });
+        toast.success('Repositório atualizado com sucesso!');
+      } else {
+        addRepository({ companyId: company.id, ...formData, name: repoName });
+        toast.success('Repositório criado com sucesso!');
+      }
+      handleCloseForm();
+    } catch (err) {
+      toast.error('Erro ao salvar o repositório.');
+      console.error(err);
     }
-    
-    // Força o fechamento imediato da modal
-    handleCloseForm();
   };
 
   const handleDeleteRepo = () => {

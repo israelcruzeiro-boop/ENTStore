@@ -3,6 +3,14 @@ import { persist } from 'zustand/middleware';
 import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric, ContentRating, OrgTopLevel, OrgUnit } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
+// Safe UUID generator
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+};
+
 // Helper Global para Validar Regras de Acesso do Repositório varrendo os múltiplos níveis hierárquicos
 export const checkRepoAccess = (repo: Repository, user: User | null | undefined, orgUnits: OrgUnit[], orgTopLevels: OrgTopLevel[]): boolean => {
   if (!user) return false;
@@ -109,7 +117,7 @@ export const useAppStore = create<AppState>()(
       orgUnits: [],
       
       addCompany: (companyData) => set((state) => {
-        const id = crypto.randomUUID();
+        const id = generateId();
         const slug = companyData.name.toLowerCase().trim().replace(/[\s\W-]+/g, '-');
         
         const newCompany: Company = {
@@ -121,7 +129,7 @@ export const useAppStore = create<AppState>()(
         };
 
         const adminUser: User = {
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: `Admin ${companyData.name}`,
           email: `admin@${companyData.linkName}.com`,
           password: '123456',
@@ -177,7 +185,7 @@ export const useAppStore = create<AppState>()(
           users: [...state.users, { 
             ...userData, 
             orgTopLevelId, 
-            id: crypto.randomUUID(), 
+            id: generateId(), 
             createdAt: new Date().toISOString(), 
             updatedAt: new Date().toISOString() 
           }]
@@ -213,7 +221,7 @@ export const useAppStore = create<AppState>()(
       })),
 
       addRepository: (repoData) => set((state) => ({
-        repositories: [...state.repositories, { ...repoData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        repositories: [...state.repositories, { ...repoData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateRepository: (id, data) => set((state) => ({
@@ -230,7 +238,7 @@ export const useAppStore = create<AppState>()(
       })),
 
       addCategory: (catData) => set((state) => ({
-        categories: [...state.categories, { ...catData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        categories: [...state.categories, { ...catData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateCategory: (id, data) => set((state) => ({
@@ -254,7 +262,7 @@ export const useAppStore = create<AppState>()(
       }),
 
       addContent: (contentData) => set((state) => ({
-        contents: [...state.contents, { ...contentData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        contents: [...state.contents, { ...contentData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateContent: (id, data) => set((state) => ({
@@ -268,7 +276,7 @@ export const useAppStore = create<AppState>()(
       })),
 
       addSimpleLink: (linkData) => set((state) => ({
-        simpleLinks: [...state.simpleLinks, { ...linkData, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        simpleLinks: [...state.simpleLinks, { ...linkData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateSimpleLink: (id, data) => set((state) => ({
@@ -288,7 +296,7 @@ export const useAppStore = create<AppState>()(
             ...metricData,
             orgUnitId: user?.orgUnitId,
             orgTopLevelId: user?.orgTopLevelId,
-            id: crypto.randomUUID(),
+            id: generateId(),
             viewedAt: new Date().toISOString()
           }]
         };
@@ -314,7 +322,7 @@ export const useAppStore = create<AppState>()(
               ...ratingData,
               orgUnitId: user?.orgUnitId,
               orgTopLevelId: user?.orgTopLevelId,
-              id: crypto.randomUUID(),
+              id: generateId(),
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }]
@@ -323,7 +331,7 @@ export const useAppStore = create<AppState>()(
       }),
 
       addOrgTopLevel: (data) => set((state) => ({
-        orgTopLevels: [...state.orgTopLevels, { ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        orgTopLevels: [...state.orgTopLevels, { ...data, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateOrgTopLevel: (id, data) => set((state) => ({
@@ -340,7 +348,7 @@ export const useAppStore = create<AppState>()(
       })),
 
       addOrgUnit: (data) => set((state) => ({
-        orgUnits: [...state.orgUnits, { ...data, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        orgUnits: [...state.orgUnits, { ...data, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
       })),
 
       updateOrgUnit: (id, data) => set((state) => ({
