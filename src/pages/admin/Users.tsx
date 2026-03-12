@@ -139,7 +139,7 @@ export const AdminUsers = () => {
       addUser({ companyId: company.id, password: formData.password, ...payload });
       toast.success('Usuário criado com sucesso!');
     }
-    setIsFormOpen(false);
+    setIsFormOpen(false); // Garante fechamento do modal
   };
 
   const handleDeleteUser = () => {
@@ -147,7 +147,7 @@ export const AdminUsers = () => {
       if (userToDelete.id === currentUser?.id) return toast.error('Você não pode excluir a sua própria conta.');
       deleteUser(userToDelete.id);
       toast.success('Usuário excluído.');
-      setIsDeleteOpen(false);
+      setIsDeleteOpen(false); // Garante fechamento
     }
   };
 
@@ -232,7 +232,7 @@ export const AdminUsers = () => {
         companyId: company.id,
         name: row.nome,
         cpf: row.cpf,
-        password: '123456', // Senha inicial padrão
+        password: '123456',
         role: 'USER',
         status: 'PENDING_SETUP',
         firstAccess: true,
@@ -241,13 +241,13 @@ export const AdminUsers = () => {
     });
 
     toast.success(`${validRows.length} usuários importados com sucesso!`);
-    setIsImportModalOpen(false);
+    setIsImportModalOpen(false); // Garante fechamento
   };
 
   const totalRows = parsedData.length;
   const validRows = parsedData.filter(r => r.valid);
   const duplicateRows = parsedData.filter(r => !r.valid && r.isDuplicate);
-  const errorRows = parsedData.filter(r => !r.valid && !r.isDuplicate); // Erros não relacionados à duplicação
+  const errorRows = parsedData.filter(r => !r.valid && !r.isDuplicate);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -346,7 +346,6 @@ export const AdminUsers = () => {
         </div>
       </div>
 
-      {/* MODAL DE IMPORTAÇÃO (XLSX/CSV) */}
       <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
@@ -376,7 +375,6 @@ export const AdminUsers = () => {
                </div>
             ) : (
                <div className="space-y-4">
-                  {/* Métricas Detalhadas */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total</p>
@@ -396,7 +394,6 @@ export const AdminUsers = () => {
                      </div>
                   </div>
 
-                  {/* Tabela de Preview */}
                   <div className="border border-slate-200 rounded-lg overflow-hidden">
                      <div className="max-h-[280px] overflow-y-auto">
                         <table className="w-full text-left text-sm text-slate-600 relative">
@@ -457,7 +454,6 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* OUTROS MODAIS (ATIVIDADE, CRIAÇÃO, EXCLUSÃO) */}
       <Dialog open={isActivityOpen} onOpenChange={setIsActivityOpen}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
@@ -467,7 +463,6 @@ export const AdminUsers = () => {
 
           {userMetrics && (
             <div className="flex-1 overflow-y-auto mt-4 space-y-6 px-1 pb-2">
-               {/* Resumo de Métricas */}
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1 flex items-center gap-1.5"><Eye size={14} className="text-indigo-500"/> Visitas</p>
@@ -492,7 +487,6 @@ export const AdminUsers = () => {
                   </div>
                </div>
 
-               {/* Tabela de Histórico */}
                <div>
                   <h3 className="text-sm font-bold text-slate-900 mb-3 border-b border-slate-200 pb-2">Conteúdos Acessados (Linha do Tempo)</h3>
                   {userMetrics.history.length > 0 ? (

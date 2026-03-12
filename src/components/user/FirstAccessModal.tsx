@@ -26,6 +26,8 @@ export const FirstAccessModal = () => {
   const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
   const navigate = useNavigate();
 
+  const [isVisible, setIsVisible] = useState(true);
+  
   const [formData, setFormData] = useState({
     email: user?.email || '',
     cpf: user?.cpf || '',
@@ -76,6 +78,9 @@ export const FirstAccessModal = () => {
       return toast.error(`Selecione sua ${unitLabel} para continuar.`);
     }
 
+    // Força o fechamento visual imediato
+    setIsVisible(false);
+
     updateUser(user.id, {
       email: formData.email.trim(),
       cpf: cleanCpf || undefined,
@@ -89,6 +94,8 @@ export const FirstAccessModal = () => {
     toast.success('Perfil configurado! Bem-vindo(a).');
     navigate('/');
   };
+
+  if (!isVisible) return null;
 
   return (
     <div className="fixed inset-0 z-[99999] bg-zinc-950 flex flex-col items-center justify-center p-4">

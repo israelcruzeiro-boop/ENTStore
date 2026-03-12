@@ -14,20 +14,16 @@ import { Company, User } from '../../types';
 export const SuperAdminDashboard = () => {
   const { companies, users, addCompany, updateCompany, deleteCompany, toggleCompanyStatus, addUser, updateUser, deleteUser, toggleUserStatus } = useAppStore();
   
-  // Controle do Modal Unificado
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'admins'>('details');
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
-  // Estado: Form de Empresa
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', linkName: '', logoUrl: '', active: true });
 
-  // Estado: Exclusão de Empresa
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
 
-  // Estado: Form de Admins
   const [adminFormView, setAdminFormView] = useState(false);
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [adminFormData, setAdminFormData] = useState({ name: '', email: '', password: '', active: true });
@@ -39,7 +35,6 @@ export const SuperAdminDashboard = () => {
 
   const sortedCompanies = [...companies].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Tratamento da digitação do Nome para gerar o linkName automaticamente
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newName = e.target.value;
      const newLinkName = newName.toLowerCase().trim().replace(/[\s\W-]+/g, '');
@@ -106,14 +101,14 @@ export const SuperAdminDashboard = () => {
       addCompany({ name, linkName, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
       toast.success('Empresa criada! Admin padrão gerado.');
     }
-    setIsFormOpen(false);
+    setIsFormOpen(false); // Garante fechamento
   };
 
   const handleDeleteCompany = () => {
     if (companyToDelete) {
       deleteCompany(companyToDelete.id);
       toast.success('Empresa e usuários excluídos com sucesso.');
-      setIsDeleteOpen(false);
+      setIsDeleteOpen(false); // Garante fechamento
     }
   };
 
@@ -159,7 +154,10 @@ export const SuperAdminDashboard = () => {
       });
       toast.success('Admin criado!');
     }
+    
+    // Além de voltar a visão, fechamos o modal para a ação ser 100% visível para o admin
     setAdminFormView(false);
+    setIsFormOpen(false);
   };
 
   const handleDeleteAdmin = (id: string) => {
@@ -178,7 +176,7 @@ export const SuperAdminDashboard = () => {
            <h1 className="text-2xl font-bold text-slate-900">Dashboard do Super Admin</h1>
            <p className="text-sm text-slate-500 mt-1">Visão geral e gestão de Tenants (Empresas)</p>
          </div>
-         <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800">
+         <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800 text-white">
             + Nova Company
          </Button>
       </div>
@@ -355,7 +353,7 @@ export const SuperAdminDashboard = () => {
                   <div className="space-y-4">
                      <div className="flex justify-between items-center">
                         <p className="text-sm text-slate-500">Gestão de acesso ao painel da {activeCompany?.name}</p>
-                        <Button onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700">+ Novo Admin</Button>
+                        <Button onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">+ Novo Admin</Button>
                      </div>
                      {activeAdmins.length === 0 ? (
                         <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">Nenhum administrador cadastrado.</div>

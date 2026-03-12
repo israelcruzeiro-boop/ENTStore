@@ -102,7 +102,6 @@ export const AdminRepositoryContents = () => {
     return result;
   }, [simpleLinks, repoId, searchQuery, filterType, filterDate, sortOrder]);
 
-  // Helper para extrair thumb do Youtube
   const getDisplayThumbnail = (content: Content) => {
     if (content.thumbnailUrl) return content.thumbnailUrl;
     if (content.type === 'VIDEO') {
@@ -113,7 +112,6 @@ export const AdminRepositoryContents = () => {
     return null;
   };
 
-  // --- Handlers FASES (CATEGORIAS) ---
   const handleAddCategory = () => {
      if (!newCategoryName.trim()) return;
      addCategory({
@@ -136,8 +134,6 @@ export const AdminRepositoryContents = () => {
      reorderCategories(repo.id, newCategories.map(c => c.id));
   };
 
-
-  // --- Handlers COMPLETO ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -176,10 +172,9 @@ export const AdminRepositoryContents = () => {
       addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
       toast.success('Conteúdo adicionado com sucesso!');
     }
-    setIsFormOpen(false);
+    setIsFormOpen(false); // Garante fechamento
   };
 
-  // --- Handlers SIMPLES (EM LOTE) ---
   const openCreateSimple = () => {
     setEditingId(null);
     setBatchLinks([
@@ -276,7 +271,7 @@ export const AdminRepositoryContents = () => {
       });
       toast.success(`${validLinks.length} link(s) adicionado(s)!`);
     }
-    setIsFormOpen(false);
+    setIsFormOpen(false); // Garante fechamento
   };
 
   const confirmDelete = (id: string, title: string) => {
@@ -289,7 +284,7 @@ export const AdminRepositoryContents = () => {
       if (isSimple) deleteSimpleLink(itemToDelete.id);
       else deleteContent(itemToDelete.id);
       toast.success('Item excluído permanentemente.');
-      setIsDeleteOpen(false);
+      setIsDeleteOpen(false); // Garante fechamento
     }
   };
 
@@ -316,7 +311,6 @@ export const AdminRepositoryContents = () => {
          <ArrowLeft size={16} /> Voltar para Repositórios
       </Link>
 
-      {/* Hero do Repositório */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8 relative">
          <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
             {repo.bannerImage || repo.coverImage ? (
@@ -367,7 +361,6 @@ export const AdminRepositoryContents = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        
         {isSimple && (
           <div className="p-4 bg-white border-b border-slate-200 flex flex-col gap-3 shadow-sm z-10">
             <div className="relative w-full">
@@ -424,7 +417,6 @@ export const AdminRepositoryContents = () => {
                      const conf = getPremiumAdminConfig(link.type);
                      const Icon = conf.icon;
                      
-                     // Métricas
                      const linkViews = contentViews.filter(v => v.contentId === link.id);
                      const totalViews = linkViews.length;
                      const uniqueUsers = new Set(linkViews.map(v => v.userId)).size;
@@ -435,7 +427,7 @@ export const AdminRepositoryContents = () => {
                        <tr key={link.id} className={`hover:bg-slate-50/80 transition-colors group ${link.status === 'INACTIVE' ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           <td className="p-4 text-center">
                              <div className="flex justify-center">
-                                {link.status === 'ACTIVE' ? <CheckCircle2 className="textemerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                                {link.status === 'ACTIVE' ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
                              </div>
                           </td>
                           <td className="p-4">
@@ -504,7 +496,6 @@ export const AdminRepositoryContents = () => {
                </tbody>
             </table>
           ) : (
-            /* TABELA COMPLETA */
             <table className="w-full text-left text-sm text-slate-600">
                <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
                   <tr>
@@ -517,7 +508,6 @@ export const AdminRepositoryContents = () => {
                </thead>
                <tbody className="divide-y divide-slate-100">
                   {repoContents.map(content => {
-                     // Métricas
                      const cViews = contentViews.filter(v => v.contentId === content.id);
                      const totalViews = cViews.length;
                      const uniqueUsers = new Set(cViews.map(v => v.userId)).size;
@@ -600,7 +590,6 @@ export const AdminRepositoryContents = () => {
         </div>
       </div>
 
-      {/* MODAL COMPLETO (Formulário) */}
       {!isSimple && (
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -663,7 +652,7 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      {/* MODAL GERENCIAR FASES (Somente para FULL) */}
+      {/* MODAL GERENCIAR FASES */}
       {!isSimple && (
         <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -671,7 +660,7 @@ export const AdminRepositoryContents = () => {
             <div className="space-y-4 mt-4">
                <div className="flex gap-2">
                   <Input placeholder="Nome da nova fase..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()} />
-                  <Button onClick={handleAddCategory} className="bg-indigo-600 hover:bg-indigo-700">Adicionar</Button>
+                  <Button onClick={handleAddCategory} className="bg-indigo-600 hover:bg-indigo-700 text-white">Adicionar</Button>
                </div>
                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {repoCategories.map((cat, index) => (
@@ -688,11 +677,14 @@ export const AdminRepositoryContents = () => {
                   {repoCategories.length === 0 && <p className="text-sm text-slate-500 text-center py-6 border border-dashed border-slate-200 rounded-lg">Nenhuma fase cadastrada.</p>}
                </div>
             </div>
+            {/* Adicionado botão Fechar para melhor UX de navegação no modal listador */}
+            <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
+               <Button type="button" variant="outline" onClick={() => setIsCategoryModalOpen(false)}>Fechar Gerenciador</Button>
+            </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* MODAL SIMPLES (CADASTRO EM LOTE) */}
       {isSimple && (
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
@@ -774,7 +766,6 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      {/* DELETE MODAL (AMBOS) */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Item</DialogTitle></DialogHeader>
