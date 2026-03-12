@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store/useAppStore';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Camera, Save, UserCircle, KeyRound } from 'lucide-react';
 
 export const FirstAccessModal = () => {
   const { user, company } = useAuth();
   const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -63,6 +65,7 @@ export const FirstAccessModal = () => {
     });
 
     toast.success('Perfil configurado! Bem-vindo(a).');
+    navigate('/'); // Redireciona para a home
   };
 
   return (

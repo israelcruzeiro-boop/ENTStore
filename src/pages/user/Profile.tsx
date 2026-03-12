@@ -74,6 +74,7 @@ export const UserProfile = () => {
     });
 
     toast.success('Perfil atualizado com sucesso!');
+    navigate('/'); // Redireciona para a home
   };
 
   const getHierarchyPath = () => {
