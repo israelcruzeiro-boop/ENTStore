@@ -143,7 +143,10 @@ export const AdminRepositoryContents = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) return toast.error('A imagem deve ter no máximo 2MB.');
+      if (file.size > 300 * 1024) {
+         toast.error('A imagem é muito pesada (máx: 300KB). Para imagens maiores, use uma URL.');
+         return;
+      }
       const reader = new FileReader();
       reader.onloadend = () => setFormData({ ...formData, thumbnailUrl: reader.result as string });
       reader.readAsDataURL(file);
@@ -171,14 +174,23 @@ export const AdminRepositoryContents = () => {
        categoryId: formData.categoryId || undefined
     };
 
-    if (editingId) {
-      updateContent(editingId, payload);
-      toast.success('Conteúdo atualizado com sucesso!');
-    } else {
-      addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
-      toast.success('Conteúdo adicionado com sucesso!');
+    try {
+      if (editingId) {
+        updateContent(editingId, payload);
+        toast.success('Conteúdo atualizado com sucesso!');
+      } else {
+        addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
+        toast.success('Conteúdo adicionado com sucesso!');
+      }
+      handleCloseForm();
+    } catch (err: any) {
+      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
+         toast.error('Limite de armazenamento local atingido! Remova as imagens muito pesadas.');
+      } else {
+         toast.error('Erro inesperado ao salvar o conteúdo.');
+      }
+      console.error(err);
     }
-    handleCloseForm();
   };
 
   const openCreateSimple = () => {
@@ -259,25 +271,34 @@ export const AdminRepositoryContents = () => {
     const invalid = validLinks.find(l => !l.name.trim() || !l.url.trim());
     if (invalid) return toast.error('Por favor, preencha o Nome e a URL em todas as linhas utilizadas.');
 
-    if (editingId) {
-      const link = validLinks[0];
-      updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Link' });
-      toast.success('Link atualizado!');
-    } else {
-      validLinks.forEach(link => {
-        addSimpleLink({
-          companyId: company.id,
-          repositoryId: repo.id,
-          name: link.name,
-          url: link.url,
-          type: link.type || 'Link',
-          date: new Date().toISOString().split('T')[0],
-          status: 'ACTIVE'
+    try {
+      if (editingId) {
+        const link = validLinks[0];
+        updateSimpleLink(editingId, { name: link.name, url: link.url, type: link.type || 'Link' });
+        toast.success('Link atualizado!');
+      } else {
+        validLinks.forEach(link => {
+          addSimpleLink({
+            companyId: company.id,
+            repositoryId: repo.id,
+            name: link.name,
+            url: link.url,
+            type: link.type || 'Link',
+            date: new Date().toISOString().split('T')[0],
+            status: 'ACTIVE'
+          });
         });
-      });
-      toast.success(`${validLinks.length} link(s) adicionado(s)!`);
+        toast.success(`${validLinks.length} link(s) adicionado(s)!`);
+      }
+      handleCloseForm();
+    } catch (err: any) {
+      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
+         toast.error('Limite de armazenamento local atingido!');
+      } else {
+         toast.error('Erro inesperado ao salvar os links.');
+      }
+      console.error(err);
     }
-    handleCloseForm();
   };
 
   const confirmDelete = (id: string, title: string) => {
