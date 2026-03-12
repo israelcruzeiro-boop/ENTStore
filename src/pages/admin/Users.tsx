@@ -52,7 +52,6 @@ export const AdminUsers = () => {
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Estados de Importação
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importStep, setImportStep] = useState<'upload' | 'preview'>('upload');
   const [parsedData, setParsedData] = useState<any[]>([]);
@@ -139,16 +138,22 @@ export const AdminUsers = () => {
       addUser({ companyId: company.id, password: formData.password, ...payload });
       toast.success('Usuário criado com sucesso!');
     }
-    setIsFormOpen(false); // Garante fechamento do modal
+    
+    setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const handleDeleteUser = () => {
     if (userToDelete) {
-      if (userToDelete.id === currentUser?.id) return toast.error('Você não pode excluir a sua própria conta.');
-      deleteUser(userToDelete.id);
-      toast.success('Usuário excluído.');
-      setIsDeleteOpen(false); // Garante fechamento
+      if (userToDelete.id === currentUser?.id) {
+         toast.error('Você não pode excluir a sua própria conta.');
+      } else {
+         deleteUser(userToDelete.id);
+         toast.success('Usuário excluído.');
+      }
     }
+    setIsDeleteOpen(false);
+    setUserToDelete(null);
   };
 
   const toggleStatus = (user: User) => {
@@ -157,7 +162,6 @@ export const AdminUsers = () => {
     toast.success(`Status alterado para ${user.active === false ? 'Ativo' : 'Inativo'}.`);
   };
 
-  // --- Importação de Planilha ---
   const handleDownloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
       { Nome: 'João da Silva', CPF: '12345678901' },
@@ -241,7 +245,7 @@ export const AdminUsers = () => {
     });
 
     toast.success(`${validRows.length} usuários importados com sucesso!`);
-    setIsImportModalOpen(false); // Garante fechamento
+    setIsImportModalOpen(false);
   };
 
   const totalRows = parsedData.length;

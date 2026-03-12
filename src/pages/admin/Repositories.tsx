@@ -24,7 +24,6 @@ export const AdminRepositories = () => {
   const companyUnitsLocal = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
   const unitLabel = company?.orgUnitName || 'Unidade';
-  // Array de níveis (garantia de legado)
   const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -49,49 +48,28 @@ export const AdminRepositories = () => {
 
   if (!company) return null;
 
-  // Deriva dinamicamente quais usuários pertencem aos grupos/níveis/lojas que foram marcados
   const usersInScope = useMemo(() => {
-    if (formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) {
-      return [];
-    }
-    
+    if (formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) return [];
     return companyUsers.filter(u => {
-      // 1. Checa correspondência exata de Loja/Unidade
-      if (u.orgUnitId && formData.allowedStoreIds.includes(u.orgUnitId)) {
-        return true;
-      }
-      
-      // 2. Checa correspondência de Nível Superior (varre a hierarquia para cima)
+      if (u.orgUnitId && formData.allowedStoreIds.includes(u.orgUnitId)) return true;
       if (u.orgUnitId && formData.allowedRegionIds.length > 0) {
         const unit = companyUnitsLocal.find(unit => unit.id === u.orgUnitId);
         let currentParent = companyTopLevels.find(t => t.id === unit?.parentId);
-        
         while (currentParent) {
-          if (formData.allowedRegionIds.includes(currentParent.id)) {
-            return true;
-          }
+          if (formData.allowedRegionIds.includes(currentParent.id)) return true;
           currentParent = companyTopLevels.find(t => t.id === currentParent?.parentId);
         }
       }
-
-      // 3. Fallback legado
-      if (u.orgTopLevelId && formData.allowedRegionIds.includes(u.orgTopLevelId)) {
-        return true;
-      }
-
+      if (u.orgTopLevelId && formData.allowedRegionIds.includes(u.orgTopLevelId)) return true;
       return false;
     });
   }, [formData.allowedRegionIds, formData.allowedStoreIds, companyUsers, companyUnitsLocal, companyTopLevels]);
 
-  // EFEITO: Remove automaticamente das exceções os usuários que não fazem mais parte do escopo
   useEffect(() => {
     setFormData(prev => {
       const inScopeIds = new Set(usersInScope.map(u => u.id));
       const filteredExclusions = prev.excludedUserIds.filter(id => inScopeIds.has(id));
-      
-      if (filteredExclusions.length !== prev.excludedUserIds.length) {
-        return { ...prev, excludedUserIds: filteredExclusions };
-      }
+      if (filteredExclusions.length !== prev.excludedUserIds.length) return { ...prev, excludedUserIds: filteredExclusions };
       return prev;
     });
   }, [usersInScope]);
@@ -141,15 +119,12 @@ export const AdminRepositories = () => {
 
   const handleSaveRepo = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const repoName = formData.name.trim();
+    
     if (!repoName) return toast.error('Nome é obrigatório.');
     
     const isDuplicate = companyRepos.some(r => r.name.toLowerCase() === repoName.toLowerCase() && r.id !== editingId);
-    if (isDuplicate) {
-      return toast.error('Já existe um repositório com este nome nesta empresa.');
-    }
-
+    if (isDuplicate) return toast.error('Já existe um repositório com este nome nesta empresa.');
     if (formData.type === 'FULL' && !formData.coverImage) return toast.error('Capa é obrigatória para Repositórios Completos.');
 
     if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0 && formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) {
@@ -165,14 +140,16 @@ export const AdminRepositories = () => {
     }
     
     setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const handleDeleteRepo = () => {
     if (repoToDelete) {
       deleteRepository(repoToDelete.id);
       toast.success('Repositório excluído.');
-      setIsDeleteOpen(false);
     }
+    setIsDeleteOpen(false);
+    setRepoToDelete(null);
   };
 
   const toggleStatus = (repo: Repository) => {
@@ -301,7 +278,6 @@ export const AdminRepositories = () => {
           <DialogHeader><DialogTitle>{editingId ? 'Editar Repositório' : 'Novo Repositório'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveRepo} className="space-y-6 mt-4">
             
-            {/* Escolha do Tipo */}
             <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                <Label className="text-sm font-semibold text-slate-900">Tipo de Repositório</Label>
                <div className="grid grid-cols-2 gap-4">
@@ -326,7 +302,6 @@ export const AdminRepositories = () => {
                  <Label>Nome do Repositório *</Label>
                  <Input placeholder="Ex: Treinamento de Vendas 2024" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
                </div>
-               
                <div className="space-y-2">
                  <Label>Descrição</Label>
                  <textarea 
@@ -336,7 +311,6 @@ export const AdminRepositories = () => {
                    onChange={(e) => setFormData({...formData, description: e.target.value})}
                  />
                </div>
-
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Capa (Retrato) {formData.type === 'FULL' && '*'}</Label>
@@ -356,7 +330,6 @@ export const AdminRepositories = () => {
                     <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'coverImage')} className="hidden" id="cover-upload" />
                     <Input placeholder="URL da imagem..." value={formData.coverImage} onChange={(e) => setFormData({...formData, coverImage: e.target.value})} className="h-8 text-xs mt-2" />
                   </div>
-
                   <div className="space-y-2">
                     <Label>Banner (Paisagem)</Label>
                     <div className="border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center relative bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group h-48 overflow-hidden" onClick={() => document.getElementById('banner-upload')?.click()}>
@@ -380,7 +353,6 @@ export const AdminRepositories = () => {
 
             <div className="border-t border-slate-100 my-4"></div>
 
-            {/* Controle de Acesso */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-slate-900">Privacidade e Acesso</h3>
               <div className="flex gap-6">
@@ -399,7 +371,6 @@ export const AdminRepositories = () => {
                     <p className="text-sm font-semibold text-slate-900 mb-3">Definir Permissões (quem pode acessar)</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        
-                       {/* Renderiza dinamicamente as listas de níveis organizacionais configurados */}
                        {orgLevels.map((lvl, index) => {
                           const groupsInThisLevel = companyTopLevels.filter(t => t.levelId === lvl.id || (!t.levelId && index === 0));
                           if (groupsInThisLevel.length === 0) return null;
@@ -418,7 +389,6 @@ export const AdminRepositories = () => {
                           );
                        })}
 
-                       {/* Unidades Base */}
                        <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
                           <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{unitLabel}s:</p>
                           <div className="space-y-1">
@@ -432,7 +402,6 @@ export const AdminRepositories = () => {
                           </div>
                        </div>
 
-                       {/* Usuários Específicos */}
                        <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
                           <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Usuários Específicos:</p>
                           <div className="space-y-1">
@@ -446,7 +415,6 @@ export const AdminRepositories = () => {
                           </div>
                        </div>
 
-                       {/* Exceções Condicionais */}
                        {(formData.allowedRegionIds.length > 0 || formData.allowedStoreIds.length > 0) && (
                          <div className="border border-red-100 rounded-md p-3 max-h-48 overflow-y-auto bg-red-50/30">
                             <p className="text-xs font-semibold text-red-500 mb-2 uppercase tracking-wider">Exceções (Bloqueados):</p>
@@ -469,7 +437,6 @@ export const AdminRepositories = () => {
 
             <div className="border-t border-slate-100 my-4"></div>
 
-            {/* Destaque e Status */}
             <div className="grid grid-cols-2 gap-4">
                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                  <div className="space-y-0.5"><Label>Destacar</Label><p className="text-[10px] text-slate-500">Topo da home.</p></div>

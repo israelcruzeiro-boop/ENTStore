@@ -10,7 +10,6 @@ import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
 import { ArrowLeft, Plus, Image as ImageIcon, Edit2, Trash2, Play, FileText, Link as LinkIcon, File, CheckCircle2, XCircle, List, ExternalLink, Calendar, Search, ArrowDownUp, PlayCircle, FileSpreadsheet, Presentation, Folder, Link2, Eye, Users, Star, Layers, ArrowUp, ArrowDown } from 'lucide-react';
 
-// Configuração Premium de Ícones (Tema Claro - Admin)
 const getPremiumAdminConfig = (type: string) => {
   const t = type?.toLowerCase();
   if (t === 'vídeo' || t === 'video') {
@@ -39,31 +38,25 @@ export const AdminRepositoryContents = () => {
   const company = companies.find(c => c.linkName === linkName);
   const repo = repositories.find(r => r.id === repoId && r.companyId === company?.id);
   
-  // Estado UI Geral
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, title: string} | null>(null);
 
-  // Estado Modal Fases
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
-  // Estados de Filtro (Repositório Simples)
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
-  // Formulário Conteúdo Completo
   const [formData, setFormData] = useState({
     title: '', description: '', thumbnailUrl: '', type: 'VIDEO' as Content['type'], url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE' as 'ACTIVE' | 'DRAFT', categoryId: ''
   });
 
-  // Formulário Link Simples (Cadastro em Lote)
   const [batchLinks, setBatchLinks] = useState<{id: string, name: string, url: string, type: string}[]>([]);
 
-  // Tipos pré-definidos para Links Simples
   const PREDEFINED_TYPES = ['Link', 'Vídeo', 'PDF', 'Planilha', 'Documento', 'Imagem', 'Apresentação', 'Drive/Pasta'];
 
   if (!company || !repo) return <div className="p-8 text-center text-slate-500">Repositório não encontrado.</div>;
@@ -73,7 +66,6 @@ export const AdminRepositoryContents = () => {
   const repoContents = contents.filter(c => c.repositoryId === repoId).sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
   const repoCategories = categories.filter(c => c.repositoryId === repoId).sort((a, b) => (a.order || 0) - (b.order || 0));
   
-  // --- Filtros e Ordenação de Links Simples ---
   const availableTypes = useMemo(() => {
     const types = new Set(simpleLinks.filter(l => l.repositoryId === repoId).map(l => l.type).filter(Boolean));
     return Array.from(types).sort();
@@ -81,17 +73,12 @@ export const AdminRepositoryContents = () => {
 
   const filteredLinks = useMemo(() => {
     let result = simpleLinks.filter(l => l.repositoryId === repoId);
-    
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(l => l.name.toLowerCase().includes(q) || l.url.toLowerCase().includes(q));
     }
-    if (filterType !== 'ALL') {
-      result = result.filter(l => l.type === filterType);
-    }
-    if (filterDate) {
-      result = result.filter(l => l.date === filterDate);
-    }
+    if (filterType !== 'ALL') result = result.filter(l => l.type === filterType);
+    if (filterDate) result = result.filter(l => l.date === filterDate);
     
     result.sort((a, b) => {
       const timeA = new Date(a.date).getTime();
@@ -172,7 +159,8 @@ export const AdminRepositoryContents = () => {
       addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
       toast.success('Conteúdo adicionado com sucesso!');
     }
-    setIsFormOpen(false); // Garante fechamento
+    setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const openCreateSimple = () => {
@@ -271,7 +259,8 @@ export const AdminRepositoryContents = () => {
       });
       toast.success(`${validLinks.length} link(s) adicionado(s)!`);
     }
-    setIsFormOpen(false); // Garante fechamento
+    setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const confirmDelete = (id: string, title: string) => {
@@ -284,8 +273,9 @@ export const AdminRepositoryContents = () => {
       if (isSimple) deleteSimpleLink(itemToDelete.id);
       else deleteContent(itemToDelete.id);
       toast.success('Item excluído permanentemente.');
-      setIsDeleteOpen(false); // Garante fechamento
     }
+    setIsDeleteOpen(false);
+    setItemToDelete(null);
   };
 
   const toggleStatusFull = (content: Content) => {
@@ -652,7 +642,6 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      {/* MODAL GERENCIAR FASES */}
       {!isSimple && (
         <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
           <DialogContent className="sm:max-w-[500px]">
@@ -677,7 +666,6 @@ export const AdminRepositoryContents = () => {
                   {repoCategories.length === 0 && <p className="text-sm text-slate-500 text-center py-6 border border-dashed border-slate-200 rounded-lg">Nenhuma fase cadastrada.</p>}
                </div>
             </div>
-            {/* Adicionado botão Fechar para melhor UX de navegação no modal listador */}
             <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
                <Button type="button" variant="outline" onClick={() => setIsCategoryModalOpen(false)}>Fechar Gerenciador</Button>
             </div>

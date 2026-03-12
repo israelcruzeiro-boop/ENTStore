@@ -20,35 +20,27 @@ export const AdminStructure = () => {
   
   const company = companies.find(c => c.linkName === linkName);
 
-  // Estados: Configuração de Múltiplos Níveis
   const [levelsConfig, setLevelsConfig] = useState<OrgLevelConfig[]>([]);
   const [unitNameConfig, setUnitNameConfig] = useState('');
-
-  // Estados: Gestão da Tabela/Abas
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
-  // Estados: Modal Entidade Intermediária
   const [isTopLevelFormOpen, setIsTopLevelFormOpen] = useState(false);
   const [editingTopLevelId, setEditingTopLevelId] = useState<string | null>(null);
   const [topLevelFormData, setTopLevelFormData] = useState({ name: '', parentId: '', active: true });
 
-  // Estados: Modal Unidade
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
   const [unitFormData, setUnitFormData] = useState({ name: '', parentId: '', active: true });
 
-  // Estados: Exclusão Genérica
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, name: string, type: 'TOP_LEVEL' | 'UNIT'} | null>(null);
 
-  // Inicialização
   useEffect(() => {
     if (company) {
       setUnitNameConfig(company.orgUnitName || 'Unidade');
       if (company.orgLevels && company.orgLevels.length > 0) {
         setLevelsConfig(company.orgLevels);
       } else if (company.orgTopLevelName) {
-        // Migração do legado (tinha apenas 1 nível superior)
         setLevelsConfig([{ id: crypto.randomUUID(), name: company.orgTopLevelName }]);
       } else {
         setLevelsConfig([{ id: crypto.randomUUID(), name: 'Regional' }]);
@@ -58,7 +50,6 @@ export const AdminStructure = () => {
 
   if (!company || levelsConfig.length === 0) return null;
 
-  // Helpers da Configuração
   const addLevel = () => setLevelsConfig([...levelsConfig, { id: crypto.randomUUID(), name: '' }]);
   const updateLevelName = (index: number, val: string) => {
     const arr = [...levelsConfig];
@@ -86,20 +77,16 @@ export const AdminStructure = () => {
     toast.success('Estrutura configurada com sucesso!');
   };
 
-  // Listas Reais para Rendering (Dados Locais da Company)
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const companyUnits = orgUnits.filter(u => u.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Controle de Abas Dinâmicas (Para Blocos 2)
   if (activeTabIndex >= levelsConfig.length) setActiveTabIndex(Math.max(0, levelsConfig.length - 1));
   const activeLevelConfig = levelsConfig[activeTabIndex];
   const activePreviousLevelConfig = activeTabIndex > 0 ? levelsConfig[activeTabIndex - 1] : null;
   const lowestLevelConfig = levelsConfig[levelsConfig.length - 1];
 
-  // Filtra as entidades cadastradas relativas à aba atual
   const currentGroups = companyTopLevels.filter(t => t.levelId === activeLevelConfig.id || (!t.levelId && activeTabIndex === 0));
 
-  // --- Handlers: Modal Níveis Intermediários ---
   const openCreateTopLevel = () => {
     setEditingTopLevelId(null);
     setTopLevelFormData({ name: '', parentId: '', active: true });
@@ -127,10 +114,9 @@ export const AdminStructure = () => {
       toast.success(`${activeLevelConfig.name} cadastrado(a) com sucesso!`);
     }
     setIsTopLevelFormOpen(false);
+    setEditingTopLevelId(null);
   };
 
-
-  // --- Handlers: Modal Unidades ---
   const openCreateUnit = () => {
     setEditingUnitId(null);
     setUnitFormData({ name: '', parentId: '', active: true });
@@ -161,24 +147,26 @@ export const AdminStructure = () => {
       toast.success(`${unitNameConfig} cadastrada!`);
     }
     setIsUnitFormOpen(false);
+    setEditingUnitId(null);
   };
 
-  // --- Handlers: Exclusão ---
   const confirmDelete = (id: string, name: string, type: 'TOP_LEVEL' | 'UNIT') => {
     setItemToDelete({ id, name, type });
     setIsDeleteOpen(true);
   };
 
   const handleDelete = () => {
-    if (!itemToDelete) return;
-    if (itemToDelete.type === 'TOP_LEVEL') {
-      deleteOrgTopLevel(itemToDelete.id);
-      toast.success(`Nível e seus dependentes foram excluídos.`);
-    } else {
-      deleteOrgUnit(itemToDelete.id);
-      toast.success(`Unidade excluída.`);
+    if (itemToDelete) {
+      if (itemToDelete.type === 'TOP_LEVEL') {
+        deleteOrgTopLevel(itemToDelete.id);
+        toast.success(`Nível e seus dependentes foram excluídos.`);
+      } else {
+        deleteOrgUnit(itemToDelete.id);
+        toast.success(`Unidade excluída.`);
+      }
     }
     setIsDeleteOpen(false);
+    setItemToDelete(null);
   };
 
   return (
@@ -193,7 +181,6 @@ export const AdminStructure = () => {
         </p>
       </div>
 
-      {/* BLOCO 1: Construtor de Níveis */}
       <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 border-b border-slate-100 pb-2">Passo 1: Definir as Nomenclaturas da Hierarquia</h2>
@@ -235,15 +222,10 @@ export const AdminStructure = () => {
         </div>
       </form>
 
-      {/* BLOCO 2 & 3: Gestão de Instâncias */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Gestão Níveis Intermediários */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 2: Cadastrar Agrupamentos</h2>
-             
-             {/* Abas para escolher o Nível */}
              <div className="flex gap-2 overflow-x-auto pb-1">
                 {levelsConfig.map((lvl, index) => (
                    <button 
@@ -308,12 +290,9 @@ export const AdminStructure = () => {
           </div>
         </div>
 
-        {/* Gestão Unidade Final */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 3: Cadastrar {unitNameConfig}s</h2>
-             
-             {/* Badge Visual */}
              <div className="flex gap-2 overflow-x-auto pb-1">
                  <div className="px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1.5">
                    <Store size={14} /> {unitNameConfig} (Unidade Final)
@@ -374,12 +353,10 @@ export const AdminStructure = () => {
         </div>
       </div>
 
-      {/* MODAL CRIAR/EDITAR NÍVEIS INTERMEDIÁRIOS */}
       <Dialog open={isTopLevelFormOpen} onOpenChange={setIsTopLevelFormOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingTopLevelId ? `Editar ${activeLevelConfig.name}` : `Novo(a) ${activeLevelConfig.name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveTopLevel} className="space-y-4 mt-4">
-            
             {activePreviousLevelConfig && (
                <div className="space-y-2">
                  <Label>Pertence a qual {activePreviousLevelConfig.name}? *</Label>
@@ -395,12 +372,10 @@ export const AdminStructure = () => {
                  </select>
                </div>
             )}
-
             <div className="space-y-2">
               <Label>Nome do(a) {activeLevelConfig.name} *</Label>
               <Input placeholder="Ex: Sudeste" value={topLevelFormData.name} onChange={(e) => setTopLevelFormData({...topLevelFormData, name: e.target.value})} autoFocus />
             </div>
-            
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
               <div className="space-y-0.5"><Label>Status</Label><p className="text-xs text-slate-500">Ativo no sistema</p></div>
               <Switch checked={topLevelFormData.active} onCheckedChange={(checked) => setTopLevelFormData({...topLevelFormData, active: checked})} />
@@ -413,7 +388,6 @@ export const AdminStructure = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL CRIAR/EDITAR UNIDADE BASE */}
       <Dialog open={isUnitFormOpen} onOpenChange={setIsUnitFormOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingUnitId ? `Editar ${unitNameConfig}` : `Nova ${unitNameConfig}`}</DialogTitle></DialogHeader>
@@ -447,7 +421,6 @@ export const AdminStructure = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL CONFIRMAR EXCLUSÃO */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Registro</DialogTitle></DialogHeader>

@@ -101,15 +101,17 @@ export const SuperAdminDashboard = () => {
       addCompany({ name, linkName, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
       toast.success('Empresa criada! Admin padrão gerado.');
     }
-    setIsFormOpen(false); // Garante fechamento
+    setIsFormOpen(false);
+    setEditingId(null);
   };
 
   const handleDeleteCompany = () => {
     if (companyToDelete) {
       deleteCompany(companyToDelete.id);
       toast.success('Empresa e usuários excluídos com sucesso.');
-      setIsDeleteOpen(false); // Garante fechamento
     }
+    setIsDeleteOpen(false);
+    setCompanyToDelete(null);
   };
 
   const openAdminCreate = () => {
@@ -155,9 +157,9 @@ export const SuperAdminDashboard = () => {
       toast.success('Admin criado!');
     }
     
-    // Além de voltar a visão, fechamos o modal para a ação ser 100% visível para o admin
     setAdminFormView(false);
     setIsFormOpen(false);
+    setEditingAdminId(null);
   };
 
   const handleDeleteAdmin = (id: string) => {
