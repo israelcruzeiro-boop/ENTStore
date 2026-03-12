@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
@@ -23,9 +23,8 @@ export const AdminRepositories = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company?.id && o.active);
   const companyUnitsLocal = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
+  const topLevelLabel = company?.orgTopLevelName || 'Regional';
   const unitLabel = company?.orgUnitName || 'Unidade';
-  // Array de níveis (garantia de legado)
-  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,6 +45,40 @@ export const AdminRepositories = () => {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [repoToDelete, setRepoToDelete] = useState<{id: string, name: string} | null>(null);
+
+  // Deriva dinamicamente quais usuários pertencem aos grupos/níveis/lojas que foram marcados
+  const usersInScope = useMemo(() => {
+    if (formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) {
+      return [];
+    }
+    
+    return companyUsers.filter(u => {
+      // 1. Checa correspondência exata de Loja/Unidade
+      if (u.orgUnitId && formData.allowedStoreIds.includes(u.orgUnitId)) {
+        return true;
+      }
+      
+      // 2. Checa correspondência de Nível Superior (varre a hierarquia para cima)
+      if (u.orgUnitId && formData.allowedRegionIds.length > 0) {
+        const unit = companyUnitsLocal.find(unit => unit.id === u.orgUnitId);
+        let currentParent = companyTopLevels.find(t => t.id === unit?.parentId);
+        
+        while (currentParent) {
+          if (formData.allowedRegionIds.includes(currentParent.id)) {
+            return true;
+          }
+          currentParent = companyTopLevels.find(t => t.id === currentParent?.parentId);
+        }
+      }
+
+      // 3. Fallback legado
+      if (u.orgTopLevelId && formData.allowedRegionIds.includes(u.orgTopLevelId)) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [formData.allowedRegionIds, formData.allowedStoreIds, companyUsers, companyUnitsLocal, companyTopLevels]);
 
   if (!company) return null;
 
@@ -132,6 +165,9 @@ export const AdminRepositories = () => {
     updateRepository(repo.id, { status: repo.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
     toast.success(`Status alterado para ${repo.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
   };
+
+  // Array de níveis (garantia de legado)
+  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
@@ -399,19 +435,21 @@ export const AdminRepositories = () => {
                           </div>
                        </div>
 
-                       {/* Exceções */}
-                       <div className="border border-red-100 rounded-md p-3 max-h-48 overflow-y-auto bg-red-50/30">
-                          <p className="text-xs font-semibold text-red-500 mb-2 uppercase tracking-wider">Exceções (Bloqueados):</p>
-                          <div className="space-y-1">
-                            {companyUsers.map(u => (
-                               <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-red-50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-red-200">
-                                 <input type="checkbox" checked={formData.excludedUserIds.includes(u.id)} onChange={() => toggleArrayItem('excludedUserIds', u.id)} className="accent-red-600 rounded w-4 h-4" />
-                                 <div className="flex flex-col"><span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span><span className="text-[10px] text-slate-500">{u.email}</span></div>
-                               </label>
-                            ))}
-                            {companyUsers.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
-                          </div>
-                       </div>
+                       {/* Exceções Condicionais */}
+                       {(formData.allowedRegionIds.length > 0 || formData.allowedStoreIds.length > 0) && (
+                         <div className="border border-red-100 rounded-md p-3 max-h-48 overflow-y-auto bg-red-50/30">
+                            <p className="text-xs font-semibold text-red-500 mb-2 uppercase tracking-wider">Exceções (Bloqueados):</p>
+                            <div className="space-y-1">
+                              {usersInScope.map(u => (
+                                 <label key={u.id} className="flex items-center gap-3 p-2 hover:bg-red-50 rounded-md cursor-pointer transition-colors border border-transparent hover:border-red-200">
+                                   <input type="checkbox" checked={formData.excludedUserIds.includes(u.id)} onChange={() => toggleArrayItem('excludedUserIds', u.id)} className="accent-red-600 rounded w-4 h-4" />
+                                   <div className="flex flex-col"><span className="text-sm font-semibold text-slate-900 leading-tight">{u.name}</span><span className="text-[10px] text-slate-500">{u.email}</span></div>
+                                 </label>
+                              ))}
+                              {usersInScope.length === 0 && <span className="text-xs text-slate-400">Nenhum usuário no escopo selecionado.</span>}
+                            </div>
+                         </div>
+                       )}
 
                     </div>
                  </div>
