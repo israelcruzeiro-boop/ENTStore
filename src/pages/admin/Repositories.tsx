@@ -84,6 +84,16 @@ export const AdminRepositories = () => {
     }
   };
 
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setTimeout(() => setEditingId(null), 200);
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteOpen(false);
+    setTimeout(() => setRepoToDelete(null), 200);
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setFormData({ 
@@ -139,8 +149,7 @@ export const AdminRepositories = () => {
       toast.success('Repositório criado com sucesso!');
     }
     
-    setIsFormOpen(false);
-    setEditingId(null);
+    handleCloseForm();
   };
 
   const handleDeleteRepo = () => {
@@ -148,8 +157,7 @@ export const AdminRepositories = () => {
       deleteRepository(repoToDelete.id);
       toast.success('Repositório excluído.');
     }
-    setIsDeleteOpen(false);
-    setRepoToDelete(null);
+    handleCloseDelete();
   };
 
   const toggleStatus = (repo: Repository) => {
@@ -273,7 +281,7 @@ export const AdminRepositories = () => {
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Repositório' : 'Novo Repositório'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveRepo} className="space-y-6 mt-4">
@@ -449,14 +457,14 @@ export const AdminRepositories = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Criar Repositório'}</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Repositório</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -464,8 +472,8 @@ export const AdminRepositories = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Os conteúdos dentro dele também ficarão inacessíveis (ou excluídos).</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDeleteRepo}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteRepo}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -99,6 +99,21 @@ export const AdminRepositoryContents = () => {
     return null;
   };
 
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setTimeout(() => setEditingId(null), 200);
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteOpen(false);
+    setTimeout(() => setItemToDelete(null), 200);
+  };
+
+  const handleCloseCategory = () => {
+    setIsCategoryModalOpen(false);
+    setTimeout(() => setNewCategoryName(''), 200);
+  };
+
   const handleAddCategory = () => {
      if (!newCategoryName.trim()) return;
      addCategory({
@@ -159,8 +174,7 @@ export const AdminRepositoryContents = () => {
       addContent({ companyId: company.id, repositoryId: repo.id, ...payload });
       toast.success('Conteúdo adicionado com sucesso!');
     }
-    setIsFormOpen(false);
-    setEditingId(null);
+    handleCloseForm();
   };
 
   const openCreateSimple = () => {
@@ -259,8 +273,7 @@ export const AdminRepositoryContents = () => {
       });
       toast.success(`${validLinks.length} link(s) adicionado(s)!`);
     }
-    setIsFormOpen(false);
-    setEditingId(null);
+    handleCloseForm();
   };
 
   const confirmDelete = (id: string, title: string) => {
@@ -274,8 +287,7 @@ export const AdminRepositoryContents = () => {
       else deleteContent(itemToDelete.id);
       toast.success('Item excluído permanentemente.');
     }
-    setIsDeleteOpen(false);
-    setItemToDelete(null);
+    handleCloseDelete();
   };
 
   const toggleStatusFull = (content: Content) => {
@@ -581,7 +593,7 @@ export const AdminRepositoryContents = () => {
       </div>
 
       {!isSimple && (
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingId ? 'Editar Conteúdo' : 'Novo Conteúdo'}</DialogTitle></DialogHeader>
             <form onSubmit={handleSaveFull} className="space-y-4 mt-4">
@@ -634,7 +646,7 @@ export const AdminRepositoryContents = () => {
                 <Switch checked={formData.status === 'ACTIVE'} onCheckedChange={(checked) => setFormData({...formData, status: checked ? 'ACTIVE' : 'DRAFT'})} />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
                 <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Adicionar Conteúdo'}</Button>
               </div>
             </form>
@@ -643,23 +655,23 @@ export const AdminRepositoryContents = () => {
       )}
 
       {!isSimple && (
-        <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <Dialog open={isCategoryModalOpen} onOpenChange={(open) => !open ? handleCloseCategory() : setIsCategoryModalOpen(true)}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader><DialogTitle>Gerenciar Fases</DialogTitle></DialogHeader>
             <div className="space-y-4 mt-4">
                <div className="flex gap-2">
                   <Input placeholder="Nome da nova fase..." value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()} />
-                  <Button onClick={handleAddCategory} className="bg-indigo-600 hover:bg-indigo-700 text-white">Adicionar</Button>
+                  <Button type="button" onClick={handleAddCategory} className="bg-indigo-600 hover:bg-indigo-700 text-white">Adicionar</Button>
                </div>
                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {repoCategories.map((cat, index) => (
                      <div key={cat.id} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg bg-slate-50 shadow-sm">
                         <span className="text-sm font-semibold text-slate-700">{cat.name}</span>
                         <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md p-0.5">
-                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, -1)} disabled={index === 0}><ArrowUp size={14}/></Button>
-                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, 1)} disabled={index === repoCategories.length - 1}><ArrowDown size={14}/></Button>
+                           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, -1)} disabled={index === 0}><ArrowUp size={14}/></Button>
+                           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-indigo-600" onClick={() => moveCategory(index, 1)} disabled={index === repoCategories.length - 1}><ArrowDown size={14}/></Button>
                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => deleteCategory(cat.id)}><Trash2 size={14}/></Button>
+                           <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => deleteCategory(cat.id)}><Trash2 size={14}/></Button>
                         </div>
                      </div>
                   ))}
@@ -667,14 +679,14 @@ export const AdminRepositoryContents = () => {
                </div>
             </div>
             <div className="flex justify-end pt-4 border-t border-slate-100 mt-2">
-               <Button type="button" variant="outline" onClick={() => setIsCategoryModalOpen(false)}>Fechar Gerenciador</Button>
+               <Button type="button" variant="outline" onClick={handleCloseCategory}>Fechar Gerenciador</Button>
             </div>
           </DialogContent>
         </Dialog>
       )}
 
       {isSimple && (
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
             <DialogHeader className="shrink-0">
               <DialogTitle>{editingId ? 'Editar Link' : 'Cadastro Rápido de Links'}</DialogTitle>
@@ -744,7 +756,7 @@ export const AdminRepositoryContents = () => {
                )}
 
                <div className="shrink-0 flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
-                 <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                 <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
                  <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">
                    {editingId ? 'Salvar Alteração' : 'Salvar Links'}
                  </Button>
@@ -754,7 +766,7 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Item</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -762,8 +774,8 @@ export const AdminRepositoryContents = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não pode ser desfeita.</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -90,6 +90,29 @@ export const AdminUsers = () => {
 
   if (!company) return null;
 
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setTimeout(() => setEditingId(null), 200);
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteOpen(false);
+    setTimeout(() => setUserToDelete(null), 200);
+  };
+
+  const handleCloseActivity = () => {
+    setIsActivityOpen(false);
+    setTimeout(() => setSelectedUser(null), 200);
+  };
+
+  const handleCloseImport = () => {
+    setIsImportModalOpen(false);
+    setTimeout(() => {
+      setImportStep('upload');
+      setParsedData([]);
+    }, 200);
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, orgUnitId: '' });
@@ -139,8 +162,7 @@ export const AdminUsers = () => {
       toast.success('Usuário criado com sucesso!');
     }
     
-    setIsFormOpen(false);
-    setEditingId(null);
+    handleCloseForm();
   };
 
   const handleDeleteUser = () => {
@@ -152,8 +174,7 @@ export const AdminUsers = () => {
          toast.success('Usuário excluído.');
       }
     }
-    setIsDeleteOpen(false);
-    setUserToDelete(null);
+    handleCloseDelete();
   };
 
   const toggleStatus = (user: User) => {
@@ -245,7 +266,7 @@ export const AdminUsers = () => {
     });
 
     toast.success(`${validRows.length} usuários importados com sucesso!`);
-    setIsImportModalOpen(false);
+    handleCloseImport();
   };
 
   const totalRows = parsedData.length;
@@ -350,7 +371,7 @@ export const AdminUsers = () => {
         </div>
       </div>
 
-      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+      <Dialog open={isImportModalOpen} onOpenChange={(open) => !open ? handleCloseImport() : setIsImportModalOpen(true)}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
              <DialogTitle>Importar Usuários em Lote</DialogTitle>
@@ -448,7 +469,7 @@ export const AdminUsers = () => {
 
           <div className="shrink-0 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
              {importStep === 'preview' && <Button type="button" variant="outline" onClick={() => setImportStep('upload')}>Nova Planilha</Button>}
-             <Button type="button" variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancelar</Button>
+             <Button type="button" variant="outline" onClick={handleCloseImport}>Cancelar</Button>
              {importStep === 'preview' && validRows.length > 0 && (
                 <Button type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleConfirmImport}>
                    Importar {validRows.length} Usuários
@@ -458,7 +479,7 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isActivityOpen} onOpenChange={setIsActivityOpen}>
+      <Dialog open={isActivityOpen} onOpenChange={(open) => !open ? handleCloseActivity() : setIsActivityOpen(true)}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
              <DialogTitle className="text-xl">Atividade do Usuário</DialogTitle>
@@ -537,12 +558,12 @@ export const AdminUsers = () => {
           )}
           
           <div className="shrink-0 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
-             <Button type="button" variant="outline" onClick={() => setIsActivityOpen(false)}>Fechar Janela</Button>
+             <Button type="button" variant="outline" onClick={handleCloseActivity}>Fechar Janela</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveUser} className="space-y-4 mt-4">
@@ -603,14 +624,14 @@ export const AdminUsers = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">{editingId ? 'Salvar Alterações' : 'Criar Usuário'}</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Usuário</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -618,8 +639,8 @@ export const AdminUsers = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não poderá ser desfeita e revogará o acesso imediatamente.</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDeleteUser}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteUser}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

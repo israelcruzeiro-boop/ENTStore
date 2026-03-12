@@ -35,6 +35,21 @@ export const SuperAdminDashboard = () => {
 
   const sortedCompanies = [...companies].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    setTimeout(() => {
+      setEditingId(null);
+      setActiveCompany(null);
+      setAdminFormView(false);
+      setEditingAdminId(null);
+    }, 200);
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteOpen(false);
+    setTimeout(() => setCompanyToDelete(null), 200);
+  };
+
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newName = e.target.value;
      const newLinkName = newName.toLowerCase().trim().replace(/[\s\W-]+/g, '');
@@ -101,8 +116,8 @@ export const SuperAdminDashboard = () => {
       addCompany({ name, linkName, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
       toast.success('Empresa criada! Admin padrão gerado.');
     }
-    setIsFormOpen(false);
-    setEditingId(null);
+    
+    handleCloseForm();
   };
 
   const handleDeleteCompany = () => {
@@ -110,8 +125,7 @@ export const SuperAdminDashboard = () => {
       deleteCompany(companyToDelete.id);
       toast.success('Empresa e usuários excluídos com sucesso.');
     }
-    setIsDeleteOpen(false);
-    setCompanyToDelete(null);
+    handleCloseDelete();
   };
 
   const openAdminCreate = () => {
@@ -122,7 +136,7 @@ export const SuperAdminDashboard = () => {
 
   const openAdminEdit = (admin: User) => {
     setEditingAdminId(admin.id);
-    setAdminFormData({ name: admin.name, email: admin.email, password: admin.password || '', active: admin.active !== false });
+    setAdminFormData({ name: admin.name, email: admin.email || '', password: admin.password || '', active: admin.active !== false });
     setAdminFormView(true);
   };
 
@@ -158,7 +172,6 @@ export const SuperAdminDashboard = () => {
     }
     
     setAdminFormView(false);
-    setIsFormOpen(false);
     setEditingAdminId(null);
   };
 
@@ -261,7 +274,7 @@ export const SuperAdminDashboard = () => {
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
              <DialogTitle className="text-xl">
@@ -355,7 +368,7 @@ export const SuperAdminDashboard = () => {
                   <div className="space-y-4">
                      <div className="flex justify-between items-center">
                         <p className="text-sm text-slate-500">Gestão de acesso ao painel da {activeCompany?.name}</p>
-                        <Button onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">+ Novo Admin</Button>
+                        <Button type="button" onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">+ Novo Admin</Button>
                      </div>
                      {activeAdmins.length === 0 ? (
                         <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">Nenhum administrador cadastrado.</div>
@@ -372,8 +385,8 @@ export const SuperAdminDashboard = () => {
                                  </div>
                                  <div className="flex items-center gap-2">
                                     <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id)} title="Ativar/Desativar" className="mr-2" />
-                                    <Button variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8"><Edit2 size={16} /></Button>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteAdmin(admin.id)} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8"><Edit2 size={16} /></Button>
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteAdmin(admin.id)} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
                                  </div>
                               </div>
                            ))}
@@ -383,7 +396,7 @@ export const SuperAdminDashboard = () => {
                 ) : (
                   <div className="space-y-4">
                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-100">
-                       <Button variant="ghost" size="icon" onClick={() => setAdminFormView(false)} className="h-8 w-8 text-slate-500 -ml-2"><ArrowLeft size={18} /></Button>
+                       <Button type="button" variant="ghost" size="icon" onClick={() => setAdminFormView(false)} className="h-8 w-8 text-slate-500 -ml-2"><ArrowLeft size={18} /></Button>
                        <h3 className="text-lg font-semibold text-slate-900">{editingAdminId ? 'Editar Admin' : 'Novo Admin'}</h3>
                      </div>
                      <form id="admin-form" onSubmit={handleSaveAdmin} className="space-y-4">
@@ -404,7 +417,7 @@ export const SuperAdminDashboard = () => {
           <div className="flex-shrink-0 pt-4 border-t border-slate-100 flex justify-end gap-3 mt-2">
             {activeTab === 'details' ? (
               <>
-                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Cancelar</Button>
+                <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
                 <Button type="submit" form="company-form" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
               </>
             ) : (
@@ -414,14 +427,14 @@ export const SuperAdminDashboard = () => {
                   <Button type="submit" form="admin-form" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar Admin</Button>
                 </>
               ) : (
-                <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>Fechar</Button>
+                <Button type="button" variant="outline" onClick={handleCloseForm}>Fechar</Button>
               )
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Empresa</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -429,8 +442,8 @@ export const SuperAdminDashboard = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Isso apagará também todos os usuários e dados vinculados localmente.</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDeleteCompany}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteCompany}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -50,6 +50,21 @@ export const AdminStructure = () => {
 
   if (!company) return null;
 
+  const handleCloseTopLevelForm = () => {
+    setIsTopLevelFormOpen(false);
+    setTimeout(() => setEditingTopLevelId(null), 200);
+  };
+
+  const handleCloseUnitForm = () => {
+    setIsUnitFormOpen(false);
+    setTimeout(() => setEditingUnitId(null), 200);
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteOpen(false);
+    setTimeout(() => setItemToDelete(null), 200);
+  };
+
   const addLevel = () => setLevelsConfig([...levelsConfig, { id: crypto.randomUUID(), name: '' }]);
   const updateLevelName = (index: number, val: string) => {
     const arr = [...levelsConfig];
@@ -81,12 +96,10 @@ export const AdminStructure = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const companyUnits = orgUnits.filter(u => u.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Ajusta o tab ativo se apagar o último nível
   if (activeTabIndex >= levelsConfig.length && levelsConfig.length > 0) {
      setActiveTabIndex(Math.max(0, levelsConfig.length - 1));
   }
 
-  // Fallbacks para caso array seja esvaziado, evitar a quebra da tela
   const activeLevelConfig = levelsConfig[activeTabIndex] || { id: 'fallback', name: 'Nível' };
   const activePreviousLevelConfig = activeTabIndex > 0 ? levelsConfig[activeTabIndex - 1] : null;
   const lowestLevelConfig = levelsConfig.length > 0 ? levelsConfig[levelsConfig.length - 1] : { id: 'fallback', name: 'Nível' };
@@ -119,8 +132,7 @@ export const AdminStructure = () => {
       addOrgTopLevel({ companyId: company.id, levelId: activeLevelConfig.id, name, parentId: topLevelFormData.parentId, active: topLevelFormData.active });
       toast.success(`${activeLevelConfig.name} cadastrado(a) com sucesso!`);
     }
-    setIsTopLevelFormOpen(false);
-    setEditingTopLevelId(null);
+    handleCloseTopLevelForm();
   };
 
   const openCreateUnit = () => {
@@ -152,8 +164,7 @@ export const AdminStructure = () => {
       addOrgUnit({ companyId: company.id, name, parentId: unitFormData.parentId, active: unitFormData.active });
       toast.success(`${unitNameConfig} cadastrada!`);
     }
-    setIsUnitFormOpen(false);
-    setEditingUnitId(null);
+    handleCloseUnitForm();
   };
 
   const confirmDelete = (id: string, name: string, type: 'TOP_LEVEL' | 'UNIT') => {
@@ -171,8 +182,7 @@ export const AdminStructure = () => {
         toast.success(`Unidade excluída.`);
       }
     }
-    setIsDeleteOpen(false);
-    setItemToDelete(null);
+    handleCloseDelete();
   };
 
   return (
@@ -238,6 +248,7 @@ export const AdminStructure = () => {
              <div className="flex gap-2 overflow-x-auto pb-1">
                 {levelsConfig.map((lvl, index) => (
                    <button 
+                     type="button"
                      key={lvl.id} 
                      onClick={() => setActiveTabIndex(index)}
                      className={`px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-colors ${activeTabIndex === index ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
@@ -250,7 +261,7 @@ export const AdminStructure = () => {
           
           <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-white">
              <p className="text-xs font-medium text-slate-500">Exibindo registros de: <strong>{activeLevelConfig.name}</strong></p>
-             <Button onClick={openCreateTopLevel} size="sm" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 h-8">
+             <Button type="button" onClick={openCreateTopLevel} size="sm" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 h-8">
                <Plus size={14} className="mr-1" /> Nova(o) {activeLevelConfig.name}
              </Button>
           </div>
@@ -280,8 +291,8 @@ export const AdminStructure = () => {
                            <div className="flex items-center justify-end gap-1">
                              <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id)} title="Ativar/Inativar" />
                              <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                             <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={14} /></Button>
-                             <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={14} /></Button>
+                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={14} /></Button>
+                             <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={14} /></Button>
                            </div>
                         </td>
                      </tr>
@@ -311,7 +322,7 @@ export const AdminStructure = () => {
 
           <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-white">
              <p className="text-xs font-medium text-slate-500">As unidades vinculam-se aos registros de <strong>{lowestLevelConfig.name}</strong></p>
-             <Button onClick={openCreateUnit} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8">
+             <Button type="button" onClick={openCreateUnit} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8">
                <Plus size={14} className="mr-1" /> Nova {unitNameConfig}
              </Button>
           </div>
@@ -341,8 +352,8 @@ export const AdminStructure = () => {
                              <div className="flex items-center justify-end gap-1">
                                <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id)} title="Ativar/Inativar" />
                                <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={14} /></Button>
-                               <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={14} /></Button>
+                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={14} /></Button>
+                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={14} /></Button>
                              </div>
                           </td>
                        </tr>
@@ -362,7 +373,7 @@ export const AdminStructure = () => {
         </div>
       </div>
 
-      <Dialog open={isTopLevelFormOpen} onOpenChange={setIsTopLevelFormOpen}>
+      <Dialog open={isTopLevelFormOpen} onOpenChange={(open) => !open ? handleCloseTopLevelForm() : setIsTopLevelFormOpen(true)}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingTopLevelId ? `Editar ${activeLevelConfig.name}` : `Novo(a) ${activeLevelConfig.name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveTopLevel} className="space-y-4 mt-4">
@@ -390,14 +401,14 @@ export const AdminStructure = () => {
               <Switch checked={topLevelFormData.active} onCheckedChange={(checked) => setTopLevelFormData({...topLevelFormData, active: checked})} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsTopLevelFormOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseTopLevelForm}>Cancelar</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isUnitFormOpen} onOpenChange={setIsUnitFormOpen}>
+      <Dialog open={isUnitFormOpen} onOpenChange={(open) => !open ? handleCloseUnitForm() : setIsUnitFormOpen(true)}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingUnitId ? `Editar ${unitNameConfig}` : `Nova ${unitNameConfig}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveUnit} className="space-y-4 mt-4">
@@ -423,14 +434,14 @@ export const AdminStructure = () => {
               <Switch checked={unitFormData.active} onCheckedChange={(checked) => setUnitFormData({...unitFormData, active: checked})} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-              <Button type="button" variant="outline" onClick={() => setIsUnitFormOpen(false)}>Cancelar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseUnitForm}>Cancelar</Button>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Registro</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -440,8 +451,8 @@ export const AdminStructure = () => {
              )}
           </div>
           <div className="flex justify-end gap-3">
-             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-             <Button variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
           </div>
         </DialogContent>
       </Dialog>
