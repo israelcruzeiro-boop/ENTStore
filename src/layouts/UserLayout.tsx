@@ -2,6 +2,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Home, Library, MonitorPlay, UserCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { FirstAccessModal } from '../components/user/FirstAccessModal';
 
 export const UserLayout = () => {
   const { user } = useAuth();
@@ -20,6 +21,8 @@ export const UserLayout = () => {
 
   return (
     <div className="min-h-screen text-[var(--c-text)] pb-20 md:pb-0" style={{ backgroundColor: 'var(--c-bg)' }}>
+      {user?.firstAccess && <FirstAccessModal />}
+      
       <style>{`
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -9,7 +9,7 @@ export const Login = () => {
   const { companies } = useAppStore();
   const navigate = useNavigate();
   
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -17,7 +17,7 @@ export const Login = () => {
     e.preventDefault();
     setError('');
     
-    const loggedUser = login(email, password);
+    const loggedUser = login(identifier, password);
     
     if (loggedUser) {
       if (loggedUser.role === 'SUPER_ADMIN') {
@@ -33,12 +33,12 @@ export const Login = () => {
         navigate('/');
       }
     } else {
-      setError('E-mail ou senha incorretos, ou conta inativa.');
+      setError('E-mail/CPF ou senha incorretos, ou conta inativa.');
     }
   };
 
-  const fillCredentials = (testEmail: string, testPass: string) => {
-    setEmail(testEmail);
+  const fillCredentials = (testId: string, testPass: string) => {
+    setIdentifier(testId);
     setPassword(testPass);
     setError('');
   };
@@ -66,12 +66,12 @@ export const Login = () => {
           )}
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300 ml-1">E-mail corporativo</label>
+            <label className="text-sm font-medium text-zinc-300 ml-1">E-mail ou CPF</label>
             <input 
-              type="email" 
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
+              type="text" 
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="seu@email.com ou 000.000.000-00"
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               required
             />

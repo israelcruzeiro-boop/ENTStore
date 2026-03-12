@@ -8,8 +8,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store, Upload, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { User } from '../../types';
+import * as XLSX from 'xlsx';
+
+const isValidCPF = (cpf: string) => {
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+  let sum = 0, rest;
+  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (11 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(9, 10))) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (12 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(10, 11))) return false;
+  return true;
+};
 
 export const AdminUsers = () => {
   const { linkName } = useParams();
@@ -17,44 +34,37 @@ export const AdminUsers = () => {
   const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus, contentViews, contents, simpleLinks, repositories, orgUnits } = useAppStore();
   
   const company = companies.find(c => c.linkName === linkName);
-  
-  // Filtra apenas usuários dessa empresa
   const companyUsers = users.filter(u => u.companyId === company?.id)
                             .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
 
-  // Unidades da empresa atual
   const companyUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
   const unitLabel = company?.orgUnitName || 'Unidade';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'USER' as 'ADMIN' | 'USER',
-    active: true,
-    orgUnitId: ''
+    name: '', email: '', cpf: '', password: '', role: 'USER' as 'ADMIN' | 'USER', active: true, orgUnitId: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{id: string, name: string} | null>(null);
 
-  // Estados e cálculos para as Métricas de Atividade
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+
+  // Estados de Importação
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState<'upload' | 'preview'>('upload');
+  const [parsedData, setParsedData] = useState<any[]>([]);
 
   const userMetrics = useMemo(() => {
     if (!selectedUser) return null;
     const views = contentViews.filter(v => v.userId === selectedUser.id);
-    
     let lastAccess = '';
     const contentMap = new Map<string, any>();
 
     views.forEach(v => {
-      if (!lastAccess || new Date(v.viewedAt) > new Date(lastAccess)) {
-        lastAccess = v.viewedAt;
-      }
+      if (!lastAccess || new Date(v.viewedAt) > new Date(lastAccess)) lastAccess = v.viewedAt;
       const existing = contentMap.get(v.contentId);
       if (existing) {
         existing.viewCount += 1;
@@ -66,97 +76,68 @@ export const AdminUsers = () => {
 
     const history = Array.from(contentMap.entries()).map(([contentId, data]) => {
       let title = 'Conteúdo Excluído ou Desconhecido';
-      
       const fullC = contents.find(c => c.id === contentId);
-      if (fullC) {
-         title = fullC.title;
-      } else {
+      if (fullC) title = fullC.title;
+      else {
          const sLink = simpleLinks.find(l => l.id === contentId);
          if (sLink) title = sLink.name;
       }
-
       const repo = repositories.find(r => r.id === data.repoId);
-      
-      return {
-        id: contentId,
-        title,
-        type: data.type,
-        repoName: repo ? repo.name : 'Repositório Excluído',
-        viewCount: data.viewCount,
-        lastView: data.lastView
-      };
+      return { id: contentId, title, type: data.type, repoName: repo ? repo.name : 'Repositório Excluído', viewCount: data.viewCount, lastView: data.lastView };
     }).sort((a, b) => new Date(b.lastView).getTime() - new Date(a.lastView).getTime());
 
-    return {
-      totalViews: views.length,
-      uniqueContents: contentMap.size,
-      lastAccess,
-      history
-    };
+    return { totalViews: views.length, uniqueContents: contentMap.size, lastAccess, history };
   }, [selectedUser, contentViews, contents, simpleLinks, repositories]);
 
   if (!company) return null;
 
+  // Lógica de Cadastro Manual
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', password: '', role: 'USER', active: true, orgUnitId: '' });
+    setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, orgUnitId: '' });
     setIsFormOpen(true);
   };
 
   const openEdit = (user: User) => {
     setEditingId(user.id);
-    setFormData({ 
-      name: user.name, 
-      email: user.email, 
-      password: '', // Não mostramos a senha atual, apenas deixamos em branco para manter
-      role: user.role as 'ADMIN' | 'USER', 
-      active: user.active !== false,
-      orgUnitId: user.orgUnitId || ''
-    });
+    setFormData({ name: user.name, email: user.email || '', cpf: user.cpf || '', password: '', role: user.role as 'ADMIN' | 'USER', active: user.active !== false, orgUnitId: user.orgUnitId || '' });
     setIsFormOpen(true);
   };
 
-  const openActivity = (user: User) => {
-     setSelectedUser(user);
-     setIsActivityOpen(true);
-  };
+  const openActivity = (user: User) => { setSelectedUser(user); setIsActivityOpen(true); };
 
   const handleSaveUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email) {
-      return toast.error('Nome e E-mail são obrigatórios.');
+    if (!formData.name) return toast.error('Nome é obrigatório.');
+    if (!editingId && !formData.password) return toast.error('A senha é obrigatória para novos usuários.');
+
+    if (formData.email) {
+       const emailExists = users.some(u => u.email && u.email === formData.email && u.id !== editingId);
+       if (emailExists) return toast.error('Este e-mail já está em uso por outro usuário.');
     }
 
-    if (!editingId && !formData.password) {
-      return toast.error('A senha é obrigatória para novos usuários.');
-    }
-
-    // Verifica e-mail duplicado
-    const emailExists = users.some(u => u.email === formData.email && u.id !== editingId);
-    if (emailExists) {
-      return toast.error('Este e-mail já está em uso por outro usuário.');
+    let cleanCpf = formData.cpf.replace(/\D/g, '');
+    if (cleanCpf) {
+       if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
+       const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== editingId);
+       if (cpfExists) return toast.error('Este CPF já está cadastrado no sistema.');
     }
 
     const payload = {
       name: formData.name,
-      email: formData.email,
+      email: formData.email || undefined,
+      cpf: cleanCpf || undefined,
       role: formData.role,
       active: formData.active,
-      orgUnitId: formData.orgUnitId || undefined
+      orgUnitId: formData.orgUnitId || undefined,
+      status: 'ACTIVE' as const
     };
 
     if (editingId) {
-      updateUser(editingId, {
-        ...payload,
-        ...(formData.password ? { password: formData.password } : {})
-      });
+      updateUser(editingId, { ...payload, ...(formData.password ? { password: formData.password } : {}) });
       toast.success('Usuário atualizado com sucesso!');
     } else {
-      addUser({
-        companyId: company.id,
-        password: formData.password,
-        ...payload
-      });
+      addUser({ companyId: company.id, password: formData.password, ...payload });
       toast.success('Usuário criado com sucesso!');
     }
     setIsFormOpen(false);
@@ -164,11 +145,7 @@ export const AdminUsers = () => {
 
   const handleDeleteUser = () => {
     if (userToDelete) {
-      if (userToDelete.id === currentUser?.id) {
-        toast.error('Você não pode excluir a sua própria conta.');
-        setIsDeleteOpen(false);
-        return;
-      }
+      if (userToDelete.id === currentUser?.id) return toast.error('Você não pode excluir a sua própria conta.');
       deleteUser(userToDelete.id);
       toast.success('Usuário excluído.');
       setIsDeleteOpen(false);
@@ -176,23 +153,98 @@ export const AdminUsers = () => {
   };
 
   const toggleStatus = (user: User) => {
-    if (user.id === currentUser?.id) {
-      return toast.error('Você não pode inativar a sua própria conta.');
-    }
+    if (user.id === currentUser?.id) return toast.error('Você não pode inativar a sua própria conta.');
     toggleUserStatus(user.id);
     toast.success(`Status alterado para ${user.active === false ? 'Ativo' : 'Inativo'}.`);
   };
 
+  // Lógica de Importação
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rows = XLSX.utils.sheet_to_json(ws);
+
+        const cpfSet = new Set<string>();
+
+        const processed = rows.map((row: any, index: number) => {
+          const keys = Object.keys(row);
+          const nomeKey = keys.find(k => k.toLowerCase().includes('nome'));
+          const cpfKey = keys.find(k => k.toLowerCase().includes('cpf'));
+          
+          const nome = nomeKey ? String(row[nomeKey]).trim() : '';
+          let cpfRaw = cpfKey ? row[cpfKey] : '';
+          if (typeof cpfRaw === 'number') cpfRaw = cpfRaw.toString().padStart(11, '0');
+          const cpf = String(cpfRaw).replace(/\D/g, '');
+
+          const errors = [];
+          if (!nome) errors.push('Nome vazio');
+          if (!cpf) errors.push('CPF vazio');
+          else if (!isValidCPF(cpf)) errors.push('CPF inválido');
+          else {
+             if (users.some(u => u.cpf === cpf)) errors.push('CPF já cadastrado no sistema');
+             else if (cpfSet.has(cpf)) errors.push('CPF duplicado nesta planilha');
+             else cpfSet.add(cpf);
+          }
+
+          return { nome, cpf, valid: errors.length === 0, errors, rowNum: index + 2 };
+        });
+
+        setParsedData(processed);
+        setImportStep('preview');
+      } catch (err) {
+        toast.error('Erro ao ler a planilha. Verifique o formato do arquivo.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = ''; 
+  };
+
+  const handleConfirmImport = () => {
+    const validRows = parsedData.filter(r => r.valid);
+    if (validRows.length === 0) return toast.error('Nenhuma linha válida para importar.');
+
+    validRows.forEach(row => {
+      addUser({
+        companyId: company.id,
+        name: row.nome,
+        cpf: row.cpf,
+        password: row.cpf, // Senha inicial é o CPF (apenas números)
+        role: 'USER',
+        status: 'PENDING_SETUP',
+        firstAccess: true,
+        active: true,
+      });
+    });
+
+    toast.success(`${validRows.length} usuários importados com sucesso!`);
+    setIsImportModalOpen(false);
+  };
+
+  const validRows = parsedData.filter(r => r.valid);
+  const invalidRows = parsedData.filter(r => !r.valid);
+
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
          <div>
            <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso aos conteúdos da {company.name}.</p>
          </div>
-         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-            + Novo Usuário
-         </Button>
+         <div className="flex gap-2 w-full sm:w-auto">
+            <Button variant="outline" onClick={() => { setIsImportModalOpen(true); setImportStep('upload'); }} className="bg-white border-slate-200 flex-1 sm:flex-none">
+               <Upload size={16} className="mr-2" /> Importar Planilha
+            </Button>
+            <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex-1 sm:flex-none">
+               + Novo Usuário
+            </Button>
+         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -202,8 +254,8 @@ export const AdminUsers = () => {
                 <tr>
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Usuário</th>
+                   <th className="p-4">Identificação</th>
                    <th className="p-4">Permissão</th>
-                   <th className="p-4">Cadastrado em</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>
@@ -229,13 +281,15 @@ export const AdminUsers = () => {
                           <div>
                             <div className="flex items-center gap-2">
                                <p className="font-semibold text-slate-900 text-base">{user.name}</p>
-                               {user.id === currentUser?.id && (
-                                  <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">Você</span>
-                               )}
+                               {user.id === currentUser?.id && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">Você</span>}
+                               {user.status === 'PENDING_SETUP' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Setup Pendente</span>}
                             </div>
-                            <p className="text-xs text-slate-500">{user.email}</p>
+                            <p className="text-xs text-slate-500">{user.email || 'Sem e-mail'}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="p-4">
+                         <p className="text-sm font-medium text-slate-700">{user.cpf ? user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : '-'}</p>
                       </td>
                       <td className="p-4">
                          <div className="flex flex-col items-start gap-1.5">
@@ -253,7 +307,6 @@ export const AdminUsers = () => {
                             )}
                          </div>
                       </td>
-                      <td className="p-4 text-slate-500">{new Date(user.createdAt || '').toLocaleDateString('pt-BR')}</td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1 md:gap-2">
                            {user.role === 'USER' && (
@@ -261,45 +314,110 @@ export const AdminUsers = () => {
                                  <Activity size={16} />
                               </Button>
                            )}
-                           <Switch 
-                             checked={user.active !== false} 
-                             onCheckedChange={() => toggleStatus(user)} 
-                             disabled={user.id === currentUser?.id}
-                             title="Ativar/Inativar" 
-                             className="ml-2"
-                           />
+                           <Switch checked={user.active !== false} onCheckedChange={() => toggleStatus(user)} disabled={user.id === currentUser?.id} title="Ativar/Inativar" className="ml-2" />
                            <div className="h-6 w-px bg-slate-200 mx-1"></div>
                            <Button variant="ghost" size="icon" onClick={() => openEdit(user)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             onClick={() => {setUserToDelete({id: user.id, name: user.name}); setIsDeleteOpen(true);}} 
-                             disabled={user.id === currentUser?.id}
-                             className="text-slate-400 hover:text-red-600 disabled:opacity-50"
-                           >
-                              <Trash2 size={16} />
-                           </Button>
+                           <Button variant="ghost" size="icon" onClick={() => {setUserToDelete({id: user.id, name: user.name}); setIsDeleteOpen(true);}} disabled={user.id === currentUser?.id} className="text-slate-400 hover:text-red-600 disabled:opacity-50"><Trash2 size={16} /></Button>
                          </div>
                       </td>
                    </tr>
                 )})}
-                {companyUsers.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-slate-500">
-                        <Users size={48} className="text-slate-300 mb-4" />
-                        <p className="text-lg font-medium text-slate-900">Nenhum usuário encontrado</p>
-                        <p className="text-sm mt-1">Crie o primeiro usuário para conceder acesso à plataforma.</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
              </tbody>
           </table>
         </div>
       </div>
 
-      {/* MODAL DE ATIVIDADE E MÉTRICAS DO USUÁRIO */}
+      {/* MODAL DE IMPORTAÇÃO (XLSX/CSV) */}
+      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+             <DialogTitle>Importar Usuários em Lote</DialogTitle>
+             {importStep === 'upload' && <p className="text-sm text-slate-500 mt-1">Faça o upload de uma planilha .xlsx ou .csv contendo colunas de "Nome" e "CPF".</p>}
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto mt-4 px-1">
+            {importStep === 'upload' ? (
+               <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 flex flex-col items-center justify-center text-center bg-slate-50 hover:bg-indigo-50/50 transition-colors cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
+                  <FileSpreadsheet size={48} className="text-indigo-400 mb-4" />
+                  <p className="font-semibold text-slate-700 text-lg mb-1">Clique para procurar arquivo</p>
+                  <p className="text-sm text-slate-500 mb-4">Arquivos suportados: .xlsx, .xls, .csv</p>
+                  <div className="bg-indigo-100 text-indigo-700 text-xs px-3 py-1.5 rounded-md font-medium">
+                     Formato obrigatório das colunas: Nome, CPF
+                  </div>
+                  <input type="file" id="file-upload" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} />
+               </div>
+            ) : (
+               <div className="space-y-4">
+                  <div className="flex gap-4">
+                     <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                        <p className="text-xs font-bold text-emerald-700 uppercase">Linhas Válidas</p>
+                        <p className="text-2xl font-black text-emerald-600">{validRows.length}</p>
+                     </div>
+                     <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                        <p className="text-xs font-bold text-red-700 uppercase">Erros Encontrados</p>
+                        <p className="text-2xl font-black text-red-600">{invalidRows.length}</p>
+                     </div>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                     <div className="max-h-80 overflow-y-auto">
+                        <table className="w-full text-left text-sm text-slate-600">
+                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 sticky top-0">
+                              <tr>
+                                 <th className="p-2 pl-4 w-12">Linha</th>
+                                 <th className="p-2">Nome</th>
+                                 <th className="p-2">CPF</th>
+                                 <th className="p-2">Status / Erros</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-100">
+                              {parsedData.map((row, i) => (
+                                 <tr key={i} className={row.valid ? 'bg-white' : 'bg-red-50/50'}>
+                                    <td className="p-2 pl-4 font-mono text-xs text-slate-400">{row.rowNum}</td>
+                                    <td className="p-2 font-medium text-slate-800">{row.nome || '-'}</td>
+                                    <td className="p-2 font-mono text-xs">{row.cpf || '-'}</td>
+                                    <td className="p-2">
+                                       {row.valid ? (
+                                          <span className="flex items-center gap-1 text-emerald-600 text-xs font-bold"><CheckCircle2 size={14}/> Pronto</span>
+                                       ) : (
+                                          <div className="flex flex-col gap-0.5">
+                                             {row.errors.map((e: string, ei: number) => (
+                                                <span key={ei} className="flex items-center gap-1 text-red-600 text-xs font-medium"><AlertCircle size={12}/> {e}</span>
+                                             ))}
+                                          </div>
+                                       )}
+                                    </td>
+                                 </tr>
+                              ))}
+                           </tbody>
+                        </table>
+                     </div>
+                  </div>
+                  
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-4 flex gap-3 text-indigo-800 text-sm">
+                     <Shield className="shrink-0 mt-0.5" size={18} />
+                     <div>
+                        <p className="font-bold mb-1">Como funcionará o acesso?</p>
+                        <p>Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como senha temporária</strong> no primeiro login e serão solicitados a completar o perfil (e-mail, foto, etc).</p>
+                     </div>
+                  </div>
+               </div>
+            )}
+          </div>
+
+          <div className="shrink-0 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+             {importStep === 'preview' && <Button type="button" variant="outline" onClick={() => setImportStep('upload')}>Nova Planilha</Button>}
+             <Button type="button" variant="outline" onClick={() => setIsImportModalOpen(false)}>Cancelar</Button>
+             {importStep === 'preview' && validRows.length > 0 && (
+                <Button type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleConfirmImport}>
+                   Importar {validRows.length} Usuários
+                </Button>
+             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* OUTROS MODAIS (ATIVIDADE, CRIAÇÃO, EXCLUSÃO) */}
       <Dialog open={isActivityOpen} onOpenChange={setIsActivityOpen}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
@@ -374,7 +492,6 @@ export const AdminUsers = () => {
                     <div className="text-center py-10 bg-slate-50 rounded-lg border border-dashed border-slate-300 text-slate-500">
                        <Activity size={32} className="mx-auto text-slate-300 mb-3" />
                        <p className="font-medium text-slate-700">O usuário ainda não visualizou nenhum conteúdo.</p>
-                       <p className="text-sm mt-1">As métricas aparecerão aqui automaticamente.</p>
                     </div>
                   )}
                </div>
@@ -387,7 +504,6 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE CRIAÇÃO/EDIÇÃO */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle></DialogHeader>
@@ -397,9 +513,15 @@ export const AdminUsers = () => {
               <Input placeholder="Ex: Maria Silva" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus />
             </div>
             
-            <div className="space-y-2">
-              <Label>E-mail *</Label>
-              <Input type="email" placeholder="maria@empresa.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                 <Label>CPF (Opcional)</Label>
+                 <Input type="text" placeholder="Apenas números" value={formData.cpf} onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} maxLength={11} />
+               </div>
+               <div className="space-y-2">
+                 <Label>E-mail (Opcional)</Label>
+                 <Input type="email" placeholder="maria@empresa.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+               </div>
             </div>
 
             <div className="space-y-2">

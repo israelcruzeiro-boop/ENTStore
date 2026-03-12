@@ -26,10 +26,9 @@ export interface Company {
   heroTitle?: string;
   heroSubtitle?: string;
   
-  // Nomenclaturas da Estrutura Organizacional
-  orgLevels?: OrgLevelConfig[]; // Estrutura em N Níveis (Ex: 0: Diretoria, 1: Regional...)
-  orgTopLevelName?: string; // Legado
-  orgUnitName?: string; // Unidade Final (Ex: Loja)
+  orgLevels?: OrgLevelConfig[];
+  orgTopLevelName?: string;
+  orgUnitName?: string;
   
   createdAt: string;
   updatedAt?: string;
@@ -38,14 +37,17 @@ export interface Company {
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
+  cpf?: string;
   role: UserRole;
   password?: string;
   companyId?: string;
-  orgUnitId?: string; // Vínculo com a Unidade final
-  orgTopLevelId?: string; // Legado
+  orgUnitId?: string;
+  orgTopLevelId?: string;
   avatarUrl?: string;
   active?: boolean;
+  firstAccess?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE' | 'PENDING_SETUP';
   createdAt?: string;
   updatedAt?: string;
 }
@@ -62,8 +64,8 @@ export interface Repository {
   status: 'ACTIVE' | 'DRAFT';
   accessType?: 'ALL' | 'RESTRICTED';
   allowedUserIds?: string[];
-  allowedRegionIds?: string[]; // IDs de qualquer OrgTopLevel (Níveis intermediários) permitidos
-  allowedStoreIds?: string[]; // IDs de OrgUnit permitidas
+  allowedRegionIds?: string[];
+  allowedStoreIds?: string[];
   excludedUserIds?: string[]; 
   createdAt?: string;
   updatedAt?: string;
@@ -137,8 +139,8 @@ export interface ContentRating {
 export interface OrgTopLevel {
   id: string;
   companyId: string;
-  levelId?: string; // Refere-se ao OrgLevelConfig.id da Company
-  parentId?: string; // ID do OrgTopLevel que está um nível acima (se houver)
+  levelId?: string; 
+  parentId?: string; 
   name: string;
   active: boolean;
   createdAt: string;
@@ -148,7 +150,7 @@ export interface OrgTopLevel {
 export interface OrgUnit {
   id: string;
   companyId: string;
-  parentId: string; // ID do OrgTopLevel do nível imediatamente superior
+  parentId: string; 
   name: string;
   active: boolean;
   createdAt: string;
