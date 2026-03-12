@@ -1,17 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStore } from '../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Building, User as UserIcon } from 'lucide-react';
 
 export const Login = () => {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const { companies } = useAppStore();
   const navigate = useNavigate();
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Auto-redirecionamento se a sessão já existir
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'SUPER_ADMIN') {
+        navigate('/super-admin', { replace: true });
+      } else if (user.role === 'ADMIN') {
+        const adminCompany = companies.find(c => c.id === user.companyId);
+        if (adminCompany) navigate(`/admin/${adminCompany.linkName}`, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    }
+  }, [user, navigate, companies]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

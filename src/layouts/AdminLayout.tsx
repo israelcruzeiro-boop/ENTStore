@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStore } from '../store/useAppStore';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network } from 'lucide-react';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) => {
   const { user, logout } = useAuth();
@@ -10,6 +12,8 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   const navigate = useNavigate();
   const location = useLocation();
   const { linkName } = useParams();
+  
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -19,9 +23,8 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   // 1. Identifica a empresa alvo a partir da URL
   const targetCompany = linkName ? companies.find(c => c.linkName === linkName) : undefined;
 
-  // 2. Validações e Bloqueios (Aplicáveis apenas para as rotas /admin/:linkName)
+  // 2. Validações e Bloqueios
   if (!superAdmin) {
-    // Empresa não existe
     if (!targetCompany) {
       return (
         <div className="flex flex-col h-screen items-center justify-center p-4 bg-slate-50 text-center">
@@ -32,8 +35,6 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         </div>
       );
     }
-
-    // Empresa inativa
     if (!targetCompany.active) {
       return (
         <div className="flex flex-col h-screen items-center justify-center p-4 bg-slate-50 text-center">
@@ -44,8 +45,6 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         </div>
       );
     }
-
-    // Tentativa de invasão (Admin tentando acessar URL de outra empresa)
     if (user?.role === 'ADMIN' && user.companyId !== targetCompany.id) {
       return (
          <div className="flex flex-col h-screen items-center justify-center p-4 bg-slate-50 text-center">
@@ -69,17 +68,15 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
     { label: 'Configurações', icon: Settings, path: `/admin/${linkName}/settings` },
   ];
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col hidden md:flex">
-        <div className="p-6 border-b border-slate-100 flex flex-col">
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full bg-white">
+      <div className="p-6 border-b border-slate-100 flex flex-col">
           {user?.role === 'SUPER_ADMIN' && !superAdmin && (
-             <Link to="/super-admin" className="text-xs text-indigo-600 flex items-center gap-1 mb-4 hover:underline font-medium">
+             <Link to="/super-admin" onClick={() => setIsMobileMenuOpen(false)} className="text-xs text-indigo-600 flex items-center gap-1 mb-4 hover:underline font-medium">
                <ArrowLeft size={12} /> Voltar p/ Super Admin
              </Link>
           )}
           
-          {/* Header dinâmico da Sidebar com nome e logo da empresa */}
           {!superAdmin && targetCompany ? (
             <div className="flex items-center gap-3">
               {targetCompany.logoUrl ? (
@@ -102,7 +99,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
           )}
         </div>
         
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path || (location.pathname === `/admin/${linkName}` && item.path === `/admin/${linkName}`);
             const Icon = item.icon;
@@ -110,6 +107,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
               <Link 
                 key={item.path} 
                 to={item.path}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
               >
                 <Icon size={18} />
@@ -141,13 +139,34 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
               Sair
            </button>
         </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Desktop Sidebar */}
+      <aside className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col">
+        <SidebarContent />
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Mobile Header with Hamburger Menu */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-            <h1 className="font-bold truncate text-slate-900 text-sm">
-              {superAdmin ? 'Super Admin' : targetCompany?.name}
-            </h1>
+            <div className="flex items-center gap-3">
+              <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-slate-600 -ml-2">
+                    <Menu size={24} />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-64 p-0">
+                   <SidebarContent />
+                </SheetContent>
+              </Sheet>
+              <h1 className="font-bold truncate text-slate-900 text-sm">
+                {superAdmin ? 'Super Admin' : targetCompany?.name}
+              </h1>
+            </div>
             <button onClick={handleLogout} className="text-red-600"><LogOut size={20}/></button>
         </header>
         

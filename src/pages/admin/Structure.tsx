@@ -48,7 +48,7 @@ export const AdminStructure = () => {
     }
   }, [company]);
 
-  if (!company || levelsConfig.length === 0) return null;
+  if (!company) return null;
 
   const addLevel = () => setLevelsConfig([...levelsConfig, { id: crypto.randomUUID(), name: '' }]);
   const updateLevelName = (index: number, val: string) => {
@@ -67,6 +67,7 @@ export const AdminStructure = () => {
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
+    if (levelsConfig.length === 0) return toast.error("É necessário definir ao menos 1 nível intermediário.");
     if (levelsConfig.some(l => !l.name.trim())) return toast.error("Preencha o nome de todos os níveis.");
     if (!unitNameConfig.trim()) return toast.error("O nome da Unidade base não pode ser vazio.");
     
@@ -80,10 +81,15 @@ export const AdminStructure = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const companyUnits = orgUnits.filter(u => u.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  if (activeTabIndex >= levelsConfig.length) setActiveTabIndex(Math.max(0, levelsConfig.length - 1));
-  const activeLevelConfig = levelsConfig[activeTabIndex];
+  // Ajusta o tab ativo se apagar o último nível
+  if (activeTabIndex >= levelsConfig.length && levelsConfig.length > 0) {
+     setActiveTabIndex(Math.max(0, levelsConfig.length - 1));
+  }
+
+  // Fallbacks para caso array seja esvaziado, evitar a quebra da tela
+  const activeLevelConfig = levelsConfig[activeTabIndex] || { id: 'fallback', name: 'Nível' };
   const activePreviousLevelConfig = activeTabIndex > 0 ? levelsConfig[activeTabIndex - 1] : null;
-  const lowestLevelConfig = levelsConfig[levelsConfig.length - 1];
+  const lowestLevelConfig = levelsConfig.length > 0 ? levelsConfig[levelsConfig.length - 1] : { id: 'fallback', name: 'Nível' };
 
   const currentGroups = companyTopLevels.filter(t => t.levelId === activeLevelConfig.id || (!t.levelId && activeTabIndex === 0));
 
@@ -198,10 +204,13 @@ export const AdminStructure = () => {
                        <div className="flex items-center bg-slate-50 rounded-md border border-slate-200">
                           <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-slate-400" onClick={()=>moveLevel(index, -1)} disabled={index===0}><ArrowUp size={16}/></Button>
                           <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-slate-400" onClick={()=>moveLevel(index, 1)} disabled={index===levelsConfig.length-1}><ArrowDown size={16}/></Button>
-                          <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500 hover:text-red-700" onClick={()=>removeLevel(index)} disabled={levelsConfig.length===1}><Trash2 size={16}/></Button>
+                          <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500 hover:text-red-700" onClick={()=>removeLevel(index)}><Trash2 size={16}/></Button>
                        </div>
                     </div>
                  ))}
+                 {levelsConfig.length === 0 && (
+                    <div className="text-sm text-red-500 font-medium py-2">Você precisa criar ao menos um nível!</div>
+                 )}
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addLevel} className="mt-2 text-indigo-600 border-indigo-200 hover:bg-indigo-50"><Plus size={14} className="mr-1"/> Adicionar Novo Nível</Button>
             </div>
@@ -223,7 +232,7 @@ export const AdminStructure = () => {
       </form>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
+        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px] ${levelsConfig.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 2: Cadastrar Agrupamentos</h2>
              <div className="flex gap-2 overflow-x-auto pb-1">
@@ -290,7 +299,7 @@ export const AdminStructure = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
+        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px] ${levelsConfig.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 3: Cadastrar {unitNameConfig}s</h2>
              <div className="flex gap-2 overflow-x-auto pb-1">
