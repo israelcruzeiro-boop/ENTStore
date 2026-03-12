@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store/useAppStore';
-import { UserCircle, LogOut, Shield, Save, Camera, Building2 } from 'lucide-react';
+import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -168,9 +168,31 @@ export const UserProfile = () => {
                     Vínculo Organizacional
                  </h3>
                </div>
+
+               {/* Exibição da Estrutura Atual */}
+               <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0">
+                        <Building2 size={18} className="text-zinc-400" />
+                     </div>
+                     <div>
+                        <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{topLevelLabel}</p>
+                        <p className="text-sm font-bold text-white">{currentTopLevel?.name || 'Não definido'}</p>
+                     </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner">
+                        <Store size={18} className="text-[var(--c-primary)]" />
+                     </div>
+                     <div>
+                        <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{unitLabel}</p>
+                        <p className="text-sm font-bold text-white">{currentUnit?.name || 'Não definido'}</p>
+                     </div>
+                  </div>
+               </div>
                
-               <div className="space-y-3 text-left">
-                  <label className="text-xs text-zinc-500 font-medium">Selecione sua {unitLabel}</label>
+               <div className="space-y-3 text-left border-t border-zinc-800/50 pt-5">
+                  <label className="text-xs text-zinc-500 font-medium">Alterar {unitLabel}</label>
                   <select 
                      value={formData.orgUnitId} 
                      onChange={(e) => setFormData({...formData, orgUnitId: e.target.value})}
@@ -191,16 +213,6 @@ export const UserProfile = () => {
                         )
                      })}
                   </select>
-
-                  {/* Mostra visualmente o nível superior atual se houver unidade selecionada */}
-                  {currentTopLevel && (
-                    <div className="flex items-center gap-2 mt-2 px-3 py-2 bg-zinc-900/50 rounded-lg border border-zinc-800">
-                      <Building2 size={14} className="text-zinc-500" />
-                      <span className="text-xs text-zinc-400">
-                        Pertence ao {topLevelLabel.toLowerCase()}: <strong className="text-white">{currentTopLevel.name}</strong>
-                      </span>
-                    </div>
-                  )}
                </div>
             </div>
 
