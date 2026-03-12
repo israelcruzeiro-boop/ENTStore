@@ -32,9 +32,6 @@ export const UserProfile = () => {
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
-  const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
-  const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -87,7 +84,6 @@ export const UserProfile = () => {
     if (emailExists) return toast.error('Este e-mail já está em uso.');
 
     const cleanCpf = formData.cpf.replace(/\D/g, '');
-    // Só valida o CPF se ele existir e for diferente do que o usuário já tinha salvo (apesar de ser apenas leitura agora, protege contra bugs)
     if (cleanCpf && cleanCpf !== user.cpf) {
        if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
        const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== user.id);
@@ -126,6 +122,7 @@ export const UserProfile = () => {
   };
 
   const hierarchyPath = getHierarchyPath();
+  const currentUnit = activeUnits.find(u => u.id === formData.orgUnitId);
 
   return (
     <div className="pt-24 pb-12 px-4 md:px-12 max-w-3xl mx-auto min-h-screen">
@@ -250,36 +247,18 @@ export const UserProfile = () => {
                   )}
                </div>
                
-               <div className="space-y-3 text-left border-t border-zinc-800/50 pt-5">
-                  <label className="text-xs text-zinc-500 font-medium">Alterar {unitLabel}</label>
-                  <select 
-                     value={formData.orgUnitId} 
-                     onChange={(e) => setFormData({...formData, orgUnitId: e.target.value})}
-                     className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all cursor-pointer"
-                  >
-                     <option value="">Nenhuma {unitLabel.toLowerCase()} selecionada</option>
-                     {parentGroups.map(parentGroup => {
-                        const unitsInThisGroup = activeUnits.filter(u => u.parentId === parentGroup.id);
-                        return (
-                          <optgroup key={parentGroup.id} label={parentGroup.name} className="bg-zinc-800 text-zinc-300 font-bold">
-                            {unitsInThisGroup.map(unit => (
-                              <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-900">
-                                {unit.name}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )
-                     })}
-                     {orphanUnits.length > 0 && (
-                        <optgroup label="Outras" className="bg-zinc-800 text-zinc-300 font-bold">
-                           {orphanUnits.map(unit => (
-                              <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-900">
-                                {unit.name}
-                              </option>
-                           ))}
-                        </optgroup>
-                     )}
-                  </select>
+               <div className="space-y-1.5 text-left border-t border-zinc-800/50 pt-5">
+                  <label className="text-xs text-zinc-500 font-medium flex justify-between items-center">
+                    {unitLabel} Atual
+                    <span className="text-[10px] text-zinc-600 font-normal">Apenas admin pode alterar</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    value={currentUnit ? currentUnit.name : ''} 
+                    readOnly
+                    className="w-full bg-zinc-950 border border-zinc-800/50 rounded-xl p-3 text-zinc-500 text-sm cursor-not-allowed focus:outline-none"
+                    placeholder={`Nenhuma ${unitLabel.toLowerCase()} vinculada`}
+                  />
                </div>
             </div>
 
