@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
@@ -23,8 +23,9 @@ export const AdminRepositories = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company?.id && o.active);
   const companyUnitsLocal = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
-  const topLevelLabel = company?.orgTopLevelName || 'Regional';
   const unitLabel = company?.orgUnitName || 'Unidade';
+  // Array de níveis (garantia de legado)
+  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,6 +46,8 @@ export const AdminRepositories = () => {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [repoToDelete, setRepoToDelete] = useState<{id: string, name: string} | null>(null);
+
+  if (!company) return null;
 
   // Deriva dinamicamente quais usuários pertencem aos grupos/níveis/lojas que foram marcados
   const usersInScope = useMemo(() => {
@@ -80,7 +83,18 @@ export const AdminRepositories = () => {
     });
   }, [formData.allowedRegionIds, formData.allowedStoreIds, companyUsers, companyUnitsLocal, companyTopLevels]);
 
-  if (!company) return null;
+  // EFEITO: Remove automaticamente das exceções os usuários que não fazem mais parte do escopo
+  useEffect(() => {
+    setFormData(prev => {
+      const inScopeIds = new Set(usersInScope.map(u => u.id));
+      const filteredExclusions = prev.excludedUserIds.filter(id => inScopeIds.has(id));
+      
+      if (filteredExclusions.length !== prev.excludedUserIds.length) {
+        return { ...prev, excludedUserIds: filteredExclusions };
+      }
+      return prev;
+    });
+  }, [usersInScope]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'coverImage' | 'bannerImage') => {
     const file = e.target.files?.[0];
@@ -165,9 +179,6 @@ export const AdminRepositories = () => {
     updateRepository(repo.id, { status: repo.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE' });
     toast.success(`Status alterado para ${repo.status === 'ACTIVE' ? 'Rascunho' : 'Ativo'}.`);
   };
-
-  // Array de níveis (garantia de legado)
-  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
