@@ -41,9 +41,10 @@ export const AdminStructure = () => {
       if (company.orgLevels && company.orgLevels.length > 0) {
         setLevelsConfig(company.orgLevels);
       } else if (company.orgTopLevelName) {
-        setLevelsConfig([{ id: crypto.randomUUID(), name: company.orgTopLevelName }]);
+        // Usar um ID fixo ("legacy") para evitar perda de referência no reload sem salvar a estrutura
+        setLevelsConfig([{ id: 'legacy', name: company.orgTopLevelName }]);
       } else {
-        setLevelsConfig([{ id: crypto.randomUUID(), name: 'Regional' }]);
+        setLevelsConfig([{ id: 'legacy', name: 'Regional' }]);
       }
     }
   }, [company]);
@@ -392,7 +393,11 @@ export const AdminStructure = () => {
                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
                  >
                     <option value="" disabled>Selecione...</option>
-                    {companyTopLevels.filter(t => t.levelId === activePreviousLevelConfig.id || (!t.levelId && activeTabIndex === 1)).map(t => (
+                    {companyTopLevels.filter(t => 
+                       t.levelId === activePreviousLevelConfig.id || 
+                       (!t.levelId && activeTabIndex === 1) ||
+                       t.id === topLevelFormData.parentId
+                    ).map(t => (
                        <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                  </select>
@@ -426,7 +431,12 @@ export const AdminStructure = () => {
                 className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
               >
                  <option value="" disabled>Selecione...</option>
-                 {companyTopLevels.filter(t => t.levelId === lowestLevelConfig.id || (!t.levelId && levelsConfig.length === 1)).map(t => (
+                 {companyTopLevels.filter(t => 
+                    t.levelId === lowestLevelConfig.id || 
+                    !t.levelId || 
+                    levelsConfig.length === 1 ||
+                    t.id === unitFormData.parentId
+                 ).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                  ))}
               </select>
