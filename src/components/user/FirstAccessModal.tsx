@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
-import { Camera, Save, UserCircle } from 'lucide-react';
+import { Camera, Save, UserCircle, KeyRound } from 'lucide-react';
 
 export const FirstAccessModal = () => {
   const { user, company } = useAuth();
@@ -11,7 +11,9 @@ export const FirstAccessModal = () => {
   const [formData, setFormData] = useState({
     email: user?.email || '',
     orgUnitId: user?.orgUnitId || '',
-    avatarUrl: user?.avatarUrl || ''
+    avatarUrl: user?.avatarUrl || '',
+    password: '',
+    confirmPassword: ''
   });
 
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
@@ -41,12 +43,16 @@ export const FirstAccessModal = () => {
     const emailExists = users.some(u => u.email?.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== user.id);
     if (emailExists) return toast.error('Este e-mail já está em uso.');
 
+    if (formData.password.length < 6) return toast.error('A nova senha deve ter pelo menos 6 caracteres.');
+    if (formData.password !== formData.confirmPassword) return toast.error('As senhas não coincidem. Tente novamente.');
+
     if (activeUnits.length > 0 && !formData.orgUnitId) {
       return toast.error(`Selecione sua ${unitLabel} para continuar.`);
     }
 
     updateUser(user.id, {
       email: formData.email.trim(),
+      password: formData.password,
       orgUnitId: formData.orgUnitId || undefined,
       avatarUrl: formData.avatarUrl,
       firstAccess: false,
@@ -60,15 +66,15 @@ export const FirstAccessModal = () => {
     <div className="fixed inset-0 z-[99999] bg-zinc-950 flex flex-col items-center justify-center p-4">
        <div className="absolute inset-0 bg-gradient-to-br from-[var(--c-primary)]/10 to-transparent pointer-events-none"></div>
 
-       <div className="w-full max-w-lg bg-zinc-900/90 backdrop-blur-xl rounded-3xl p-8 border border-zinc-800 shadow-2xl relative z-10">
+       <div className="w-full max-w-lg bg-zinc-900/90 backdrop-blur-xl rounded-3xl p-8 border border-zinc-800 shadow-2xl relative z-10 max-h-[95vh] overflow-y-auto hide-scrollbar">
           <div className="text-center mb-8">
              <h1 className="text-2xl font-bold text-white mb-2">Bem-vindo(a), {user?.name}!</h1>
-             <p className="text-sm text-zinc-400">Este é seu primeiro acesso. Por favor, conclua seu cadastro para liberar a plataforma.</p>
+             <p className="text-sm text-zinc-400">Este é seu primeiro acesso. Por segurança e para liberar sua plataforma, conclua seu cadastro abaixo.</p>
           </div>
 
           <form onSubmit={handleCompleteSetup} className="flex flex-col items-center">
             {/* Foto */}
-            <div className="relative mb-6 group cursor-pointer" onClick={() => document.getElementById('avatar-upload-setup')?.click()}>
+            <div className="relative mb-6 group cursor-pointer" onClick={() => document.getElementById('avatar-upload-setup')?.click()} title="Adicionar foto de perfil">
               {formData.avatarUrl ? (
                  <img src={formData.avatarUrl} alt="avatar" className="w-24 h-24 rounded-full border-4 border-zinc-800 shadow-xl object-cover" />
               ) : (
@@ -96,8 +102,33 @@ export const FirstAccessModal = () => {
                  />
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="space-y-1.5 text-left">
+                    <label className="text-xs text-zinc-400 font-medium ml-1 flex items-center gap-1.5"><KeyRound size={12}/> Nova Senha *</label>
+                    <input 
+                      type="password" 
+                      value={formData.password} 
+                      onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                      placeholder="Mínimo 6 caracteres"
+                      required
+                    />
+                 </div>
+                 <div className="space-y-1.5 text-left">
+                    <label className="text-xs text-zinc-400 font-medium ml-1 flex items-center gap-1.5"><KeyRound size={12}/> Confirmar Senha *</label>
+                    <input 
+                      type="password" 
+                      value={formData.confirmPassword} 
+                      onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                      placeholder="Repita a senha"
+                      required
+                    />
+                 </div>
+              </div>
+
               {activeUnits.length > 0 && (
-                <div className="space-y-1.5 text-left">
+                <div className="space-y-1.5 text-left pt-2 border-t border-zinc-800/50">
                    <label className="text-xs text-zinc-400 font-medium ml-1">Sua {unitLabel} Base *</label>
                    <select 
                       value={formData.orgUnitId} 
@@ -129,7 +160,7 @@ export const FirstAccessModal = () => {
                className="w-full mt-8 flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold transition-all shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                style={{ backgroundColor: 'var(--c-primary)' }}
             >
-               <Save size={18} /> Acessar Plataforma
+               <Save size={18} /> Salvar e Acessar Plataforma
             </button>
           </form>
        </div>
