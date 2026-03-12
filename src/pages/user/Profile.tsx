@@ -87,7 +87,8 @@ export const UserProfile = () => {
     if (emailExists) return toast.error('Este e-mail já está em uso.');
 
     const cleanCpf = formData.cpf.replace(/\D/g, '');
-    if (cleanCpf) {
+    // Só valida o CPF se ele existir e for diferente do que o usuário já tinha salvo (apesar de ser apenas leitura agora, protege contra bugs)
+    if (cleanCpf && cleanCpf !== user.cpf) {
        if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
        const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== user.id);
        if (cpfExists) return toast.error('Este CPF já está sendo usado por outro usuário.');
@@ -204,14 +205,16 @@ export const UserProfile = () => {
                   </div>
                </div>
                <div className="space-y-1.5 text-left">
-                  <label className="text-xs text-zinc-500 font-medium">CPF</label>
+                  <label className="text-xs text-zinc-500 font-medium flex justify-between items-center">
+                    CPF
+                    <span className="text-[10px] text-zinc-600 font-normal">Não editável</span>
+                  </label>
                   <input 
                     type="text" 
-                    value={formData.cpf} 
-                    onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} 
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
-                    placeholder="Apenas números"
-                    maxLength={11}
+                    value={formData.cpf ? formData.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : ''} 
+                    readOnly
+                    className="w-full bg-zinc-950 border border-zinc-800/50 rounded-xl p-3 text-zinc-500 text-sm cursor-not-allowed focus:outline-none"
+                    placeholder="Não cadastrado"
                   />
                </div>
             </div>
