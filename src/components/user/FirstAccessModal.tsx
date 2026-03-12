@@ -3,7 +3,23 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Camera, Save, UserCircle, KeyRound } from 'lucide-react';
+import { Camera, Save, UserCircle, KeyRound, CreditCard } from 'lucide-react';
+
+const isValidCPF = (cpf: string) => {
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+  let sum = 0, rest;
+  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (11 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(9, 10))) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (12 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(10, 11))) return false;
+  return true;
+};
 
 export const FirstAccessModal = () => {
   const { user, company } = useAuth();
@@ -12,6 +28,7 @@ export const FirstAccessModal = () => {
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
+    cpf: user?.cpf || '',
     orgUnitId: user?.orgUnitId || '',
     avatarUrl: user?.avatarUrl || '',
     password: '',
@@ -21,10 +38,7 @@ export const FirstAccessModal = () => {
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
   
-  // Agrupamento robusto: encontra qualquer nível superior que seja pai de alguma unidade ativa
   const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
-  
-  // Lojas/Unidades que por algum motivo perderam o vínculo
   const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
 
   const unitLabel = company?.orgUnitName || 'Unidade';
@@ -48,6 +62,13 @@ export const FirstAccessModal = () => {
     const emailExists = users.some(u => u.email?.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== user.id);
     if (emailExists) return toast.error('Este e-mail já está em uso.');
 
+    const cleanCpf = formData.cpf.replace(/\D/g, '');
+    if (cleanCpf) {
+       if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
+       const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== user.id);
+       if (cpfExists) return toast.error('Este CPF já está cadastrado por outro usuário.');
+    }
+
     if (formData.password.length < 6) return toast.error('A nova senha deve ter pelo menos 6 caracteres.');
     if (formData.password !== formData.confirmPassword) return toast.error('As senhas não coincidem. Tente novamente.');
 
@@ -57,6 +78,7 @@ export const FirstAccessModal = () => {
 
     updateUser(user.id, {
       email: formData.email.trim(),
+      cpf: cleanCpf || undefined,
       password: formData.password,
       orgUnitId: formData.orgUnitId || undefined,
       avatarUrl: formData.avatarUrl,
@@ -65,7 +87,7 @@ export const FirstAccessModal = () => {
     });
 
     toast.success('Perfil configurado! Bem-vindo(a).');
-    navigate('/'); // Redireciona para a home
+    navigate('/');
   };
 
   return (
@@ -95,16 +117,29 @@ export const FirstAccessModal = () => {
             </div>
 
             <div className="w-full space-y-4">
-              <div className="space-y-1.5 text-left">
-                 <label className="text-xs text-zinc-400 font-medium ml-1">Seu E-mail Corporativo *</label>
-                 <input 
-                   type="email" 
-                   value={formData.email} 
-                   onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
-                   placeholder="seu@email.com"
-                   required
-                 />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div className="space-y-1.5 text-left">
+                    <label className="text-xs text-zinc-400 font-medium ml-1">E-mail Corporativo *</label>
+                    <input 
+                      type="email" 
+                      value={formData.email} 
+                      onChange={(e) => setFormData({...formData, email: e.target.value})} 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                      placeholder="seu@email.com"
+                      required
+                    />
+                 </div>
+                 <div className="space-y-1.5 text-left">
+                    <label className="text-xs text-zinc-400 font-medium ml-1 flex items-center gap-1.5"><CreditCard size={12}/> CPF (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={formData.cpf} 
+                      onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} 
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                      placeholder="Apenas números"
+                      maxLength={11}
+                    />
+                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

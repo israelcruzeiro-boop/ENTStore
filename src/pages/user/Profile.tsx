@@ -5,10 +5,26 @@ import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store } from 'luci
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+const isValidCPF = (cpf: string) => {
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
+  let sum = 0, rest;
+  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (11 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(9, 10))) return false;
+  sum = 0;
+  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (12 - i);
+  rest = (sum * 10) % 11;
+  if ((rest === 10) || (rest === 11)) rest = 0;
+  if (rest !== parseInt(cpf.substring(10, 11))) return false;
+  return true;
+};
+
 export const UserProfile = () => {
   const { user, company, logout } = useAuth();
   const navigate = useNavigate();
-  const { orgUnits, orgTopLevels, updateUser } = useAppStore();
+  const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
 
   const unitLabel = company?.orgUnitName || 'Unidade';
   const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
@@ -16,13 +32,13 @@ export const UserProfile = () => {
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
-  // Agrupamento robusto de lojas
   const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
   const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    cpf: '',
     avatarUrl: '',
     orgUnitId: ''
   });
@@ -32,6 +48,7 @@ export const UserProfile = () => {
       setFormData({
         name: user.name || '',
         email: user.email || '',
+        cpf: user.cpf || '',
         avatarUrl: user.avatarUrl || '',
         orgUnitId: user.orgUnitId || ''
       });
@@ -66,15 +83,26 @@ export const UserProfile = () => {
       return toast.error('Nome e E-mail são obrigatórios.');
     }
 
+    const emailExists = users.some(u => u.email?.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== user.id);
+    if (emailExists) return toast.error('Este e-mail já está em uso.');
+
+    const cleanCpf = formData.cpf.replace(/\D/g, '');
+    if (cleanCpf) {
+       if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
+       const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== user.id);
+       if (cpfExists) return toast.error('Este CPF já está sendo usado por outro usuário.');
+    }
+
     updateUser(user.id, {
       name: formData.name,
       email: formData.email,
+      cpf: cleanCpf || undefined,
       avatarUrl: formData.avatarUrl,
       orgUnitId: formData.orgUnitId
     });
 
     toast.success('Perfil atualizado com sucesso!');
-    navigate('/'); // Redireciona para a home
+    navigate('/');
   };
 
   const getHierarchyPath = () => {
@@ -153,7 +181,7 @@ export const UserProfile = () => {
                <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
                   Dados Pessoais
                </h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
                   <div className="space-y-1.5 text-left">
                      <label className="text-xs text-zinc-500 font-medium">Nome Completo</label>
                      <input 
@@ -174,6 +202,17 @@ export const UserProfile = () => {
                        placeholder="seu@email.com"
                      />
                   </div>
+               </div>
+               <div className="space-y-1.5 text-left">
+                  <label className="text-xs text-zinc-500 font-medium">CPF</label>
+                  <input 
+                    type="text" 
+                    value={formData.cpf} 
+                    onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} 
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                    placeholder="Apenas números"
+                    maxLength={11}
+                  />
                </div>
             </div>
 
