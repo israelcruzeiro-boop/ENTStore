@@ -3,19 +3,39 @@ import { persist } from 'zustand/middleware';
 import { Company, User, Repository, Category, Content, SimpleLink, ContentViewMetric, ContentRating, OrgTopLevel, OrgUnit } from '../types';
 import { MOCK_COMPANIES, MOCK_USERS, MOCK_REPOSITORIES, MOCK_CATEGORIES, MOCK_CONTENTS, mockThemes } from '../data/mock';
 
-// Helper Global para Validar Regras de Acesso do Repositório
-export const checkRepoAccess = (repo: Repository, user: User | null | undefined): boolean => {
+// Helper Global para Validar Regras de Acesso do Repositório varrendo os múltiplos níveis hierárquicos
+export const checkRepoAccess = (repo: Repository, user: User | null | undefined, orgUnits: OrgUnit[], orgTopLevels: OrgTopLevel[]): boolean => {
   if (!user) return false;
-  if (user.role !== 'USER') return true; // Admins e Super Admins veem tudo
-  if (repo.accessType !== 'RESTRICTED') return true; // Repositório aberto para todos
+  if (user.role !== 'USER') return true; 
+  if (repo.accessType !== 'RESTRICTED') return true; 
   
-  // 1. Verifica se está nas exceções (bloqueado explicitamente)
+  // 1. Verifica exceções (bloqueado)
   if (repo.excludedUserIds?.includes(user.id)) return false; 
   
-  // 2. Verifica se tem permissão por algum dos vínculos
+  // 2. Permissões diretas
   const hasUserPerm = repo.allowedUserIds?.includes(user.id);
   const hasUnitPerm = user.orgUnitId && repo.allowedStoreIds?.includes(user.orgUnitId);
-  const hasTopLevelPerm = user.orgTopLevelId && repo.allowedRegionIds?.includes(user.orgTopLevelId);
+  
+  // 3. Permissão por grupo/nível (Varredura recursiva na árvore)
+  let hasTopLevelPerm = false;
+  if (user.orgUnitId && repo.allowedRegionIds && repo.allowedRegionIds.length > 0) {
+    const unit = orgUnits.find(u => u.id === user.orgUnitId);
+    let currentParent = orgTopLevels.find(t => t.id === unit?.parentId);
+    
+    // Sobe a árvore verificando se o repositório foi liberado para algum dos pais (Ex: Regional -> Diretoria)
+    while (currentParent) {
+      if (repo.allowedRegionIds.includes(currentParent.id)) {
+        hasTopLevelPerm = true;
+        break;
+      }
+      currentParent = orgTopLevels.find(t => t.id === currentParent?.parentId);
+    }
+  }
+  
+  // Fallback legado caso seja dado antigo não migrado na árvore
+  if (!hasTopLevelPerm && user.orgTopLevelId && repo.allowedRegionIds?.includes(user.orgTopLevelId)) {
+    hasTopLevelPerm = true;
+  }
   
   return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
 };
@@ -32,51 +52,42 @@ interface AppState {
   orgTopLevels: OrgTopLevel[];
   orgUnits: OrgUnit[];
   
-  // Actions de Company
   addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
   updateCompany: (id: string, data: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
   toggleCompanyStatus: (id: string) => void;
   updateCompanyTheme: (id: string, theme: any) => void;
 
-  // Actions de User
   addUser: (user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateUser: (id: string, data: Partial<User>) => void;
   deleteUser: (id: string) => void;
   toggleUserStatus: (id: string) => void;
 
-  // Actions de Repositório
   addRepository: (repo: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateRepository: (id: string, data: Partial<Repository>) => void;
   deleteRepository: (id: string) => void;
 
-  // Actions de Fase (Categoria)
   addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
   reorderCategories: (repositoryId: string, orderedIds: string[]) => void;
 
-  // Actions de Conteúdo (Completo)
   addContent: (content: Omit<Content, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateContent: (id: string, data: Partial<Content>) => void;
   deleteContent: (id: string) => void;
 
-  // Actions de Links (Simples)
   addSimpleLink: (link: Omit<SimpleLink, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateSimpleLink: (id: string, data: Partial<SimpleLink>) => void;
   deleteSimpleLink: (id: string) => void;
 
-  // Actions de Métricas
   addContentView: (metric: Omit<ContentViewMetric, 'id' | 'viewedAt'>) => void;
   rateContent: (metric: Omit<ContentRating, 'id' | 'createdAt' | 'updatedAt'>) => void;
 
-  // Actions da Estrutura Organizacional - Nível Superior
   addOrgTopLevel: (data: Omit<OrgTopLevel, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateOrgTopLevel: (id: string, data: Partial<OrgTopLevel>) => void;
   deleteOrgTopLevel: (id: string) => void;
   toggleOrgTopLevelStatus: (id: string) => void;
 
-  // Actions da Estrutura Organizacional - Unidades
   addOrgUnit: (data: Omit<OrgUnit, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateOrgUnit: (id: string, data: Partial<OrgUnit>) => void;
   deleteOrgUnit: (id: string) => void;
@@ -157,8 +168,6 @@ export const useAppStore = create<AppState>()(
 
       addUser: (userData) => set((state) => {
         let orgTopLevelId = userData.orgTopLevelId;
-        
-        // Se vinculou uma unidade, herda automaticamente o parent_id (Top Level)
         if (userData.orgUnitId) {
           const unit = state.orgUnits.find(u => u.id === userData.orgUnitId);
           if (unit) orgTopLevelId = unit.parentId;
@@ -179,14 +188,12 @@ export const useAppStore = create<AppState>()(
         const newUsers = state.users.map(u => {
           if (u.id === id) {
             const updatedUser = { ...u, ...data, updatedAt: new Date().toISOString() };
-            
-            // Recalcula o parent_id (orgTopLevelId) caso a unidade (orgUnitId) tenha mudado
             if ('orgUnitId' in data) {
               if (data.orgUnitId) {
                 const unit = state.orgUnits.find(org => org.id === data.orgUnitId);
                 updatedUser.orgTopLevelId = unit ? unit.parentId : undefined;
               } else {
-                updatedUser.orgTopLevelId = undefined; // Limpou a unidade
+                updatedUser.orgTopLevelId = undefined;
               }
             }
             return updatedUser;
@@ -276,7 +283,6 @@ export const useAppStore = create<AppState>()(
 
       addContentView: (metricData) => set((state) => {
         const user = state.users.find(u => u.id === metricData.userId);
-        
         return {
           contentViews: [...state.contentViews, {
             ...metricData,

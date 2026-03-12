@@ -5,11 +5,11 @@ import { Library } from 'lucide-react';
 
 export const UserBiblioteca = () => {
   const { company, user } = useAuth();
-  const { repositories } = useAppStore();
+  const { repositories, orgUnits, orgTopLevels } = useAppStore();
 
   const libraryRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE' || r.type !== 'SIMPLE') return false;
-     return checkRepoAccess(r, user);
+     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
   });
 
   return (

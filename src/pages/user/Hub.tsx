@@ -5,13 +5,13 @@ import { MonitorPlay } from 'lucide-react';
 
 export const UserHub = () => {
   const { company, user } = useAuth();
-  const { repositories } = useAppStore();
+  const { repositories, orgUnits, orgTopLevels } = useAppStore();
 
   const hubRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
      if (r.type !== 'FULL' && r.type !== undefined) return false;
      
-     return checkRepoAccess(r, user);
+     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
   });
 
   return (

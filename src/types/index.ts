@@ -9,6 +9,11 @@ export interface Theme {
   text: string;
 }
 
+export interface OrgLevelConfig {
+  id: string;
+  name: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -22,8 +27,9 @@ export interface Company {
   heroSubtitle?: string;
   
   // Nomenclaturas da Estrutura Organizacional
-  orgTopLevelName?: string;
-  orgUnitName?: string;
+  orgLevels?: OrgLevelConfig[]; // Estrutura em N Níveis (Ex: 0: Diretoria, 1: Regional...)
+  orgTopLevelName?: string; // Legado
+  orgUnitName?: string; // Unidade Final (Ex: Loja)
   
   createdAt: string;
   updatedAt?: string;
@@ -36,8 +42,8 @@ export interface User {
   role: UserRole;
   password?: string;
   companyId?: string;
-  orgUnitId?: string; // Vínculo com a Unidade (unit_id)
-  orgTopLevelId?: string; // Nível Superior herdado da unidade (parent_id)
+  orgUnitId?: string; // Vínculo com a Unidade final
+  orgTopLevelId?: string; // Legado
   avatarUrl?: string;
   active?: boolean;
   createdAt?: string;
@@ -56,9 +62,9 @@ export interface Repository {
   status: 'ACTIVE' | 'DRAFT';
   accessType?: 'ALL' | 'RESTRICTED';
   allowedUserIds?: string[];
-  allowedRegionIds?: string[]; // Níveis superiores (Regional) permitidos
-  allowedStoreIds?: string[]; // Unidades (Loja) permitidas
-  excludedUserIds?: string[]; // Exceções explícitas (usuários bloqueados)
+  allowedRegionIds?: string[]; // IDs de qualquer OrgTopLevel (Níveis intermediários) permitidos
+  allowedStoreIds?: string[]; // IDs de OrgUnit permitidas
+  excludedUserIds?: string[]; 
   createdAt?: string;
   updatedAt?: string;
 }
@@ -110,8 +116,8 @@ export interface ContentViewMetric {
   companyId: string;
   repositoryId: string;
   contentType: string;
-  orgUnitId?: string; // Para métricas por unidade
-  orgTopLevelId?: string; // Para métricas por regional/grupo
+  orgUnitId?: string; 
+  orgTopLevelId?: string;
   viewedAt: string;
 }
 
@@ -131,6 +137,8 @@ export interface ContentRating {
 export interface OrgTopLevel {
   id: string;
   companyId: string;
+  levelId?: string; // Refere-se ao OrgLevelConfig.id da Company
+  parentId?: string; // ID do OrgTopLevel que está um nível acima (se houver)
   name: string;
   active: boolean;
   createdAt: string;
@@ -140,7 +148,7 @@ export interface OrgTopLevel {
 export interface OrgUnit {
   id: string;
   companyId: string;
-  parentId: string; // ID do OrgTopLevel que ela pertence
+  parentId: string; // ID do OrgTopLevel do nível imediatamente superior
   name: string;
   active: boolean;
   createdAt: string;

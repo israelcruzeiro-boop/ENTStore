@@ -9,13 +9,13 @@ import { Link } from 'react-router-dom';
 
 export const UserHome = () => {
   const { company, user } = useAuth();
-  const { repositories, contents, simpleLinks } = useAppStore();
+  const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filtra dados da Store local usando a função global de validação
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     return checkRepoAccess(r, user);
+     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
   });
   
   const repoIds = companyRepos.map(r => r.id);

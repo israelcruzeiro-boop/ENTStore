@@ -8,12 +8,12 @@ import { Link } from 'react-router-dom';
 
 export const UserBusca = () => {
   const { company, user } = useAuth();
-  const { repositories, contents, simpleLinks } = useAppStore();
+  const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
   const [query, setQuery] = useState('');
 
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     return checkRepoAccess(r, user);
+     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
   });
   
   const repoIds = companyRepos.map(r => r.id);

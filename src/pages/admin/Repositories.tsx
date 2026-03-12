@@ -23,8 +23,9 @@ export const AdminRepositories = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.companyId === company?.id && o.active);
   const companyUnitsLocal = orgUnits.filter(u => u.companyId === company?.id && u.active);
 
-  const topLevelLabel = company?.orgTopLevelName || 'Regional';
   const unitLabel = company?.orgUnitName || 'Unidade';
+  // Array de níveis (garantia de legado)
+  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -105,7 +106,7 @@ export const AdminRepositories = () => {
     if (formData.type === 'FULL' && !formData.coverImage) return toast.error('Capa é obrigatória para Repositórios Completos.');
 
     if (formData.accessType === 'RESTRICTED' && formData.allowedUserIds.length === 0 && formData.allowedRegionIds.length === 0 && formData.allowedStoreIds.length === 0) {
-      return toast.error('Selecione ao menos um usuário, regional ou loja para o acesso restrito.');
+      return toast.error('Selecione ao menos um usuário ou nível na estrutura para o acesso restrito.');
     }
 
     if (editingId) {
@@ -116,11 +117,6 @@ export const AdminRepositories = () => {
       toast.success('Repositório criado com sucesso!');
     }
     
-    setFormData({ 
-       name: '', description: '', type: 'FULL', coverImage: '', bannerImage: '', 
-       featured: false, status: 'ACTIVE', accessType: 'ALL', 
-       allowedUserIds: [], allowedRegionIds: [], allowedStoreIds: [], excludedUserIds: []
-    });
     setIsFormOpen(false);
   };
 
@@ -356,21 +352,26 @@ export const AdminRepositories = () => {
                     <p className="text-sm font-semibold text-slate-900 mb-3">Definir Permissões (quem pode acessar)</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        
-                       {/* Níveis Superiores */}
-                       <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
-                          <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{topLevelLabel}s:</p>
-                          <div className="space-y-1">
-                            {companyTopLevels.map(t => (
-                               <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
-                                 <input type="checkbox" checked={formData.allowedRegionIds.includes(t.id)} onChange={() => toggleArrayItem('allowedRegionIds', t.id)} className="accent-indigo-600 rounded w-4 h-4" />
-                                 <span className="text-sm font-semibold text-slate-900 leading-tight">{t.name}</span>
-                               </label>
-                            ))}
-                            {companyTopLevels.length === 0 && <span className="text-xs text-slate-400">Nenhum registro.</span>}
-                          </div>
-                       </div>
+                       {/* Renderiza dinamicamente as listas de níveis organizacionais configurados */}
+                       {orgLevels.map((lvl, index) => {
+                          const groupsInThisLevel = companyTopLevels.filter(t => t.levelId === lvl.id || (!t.levelId && index === 0));
+                          if (groupsInThisLevel.length === 0) return null;
+                          return (
+                             <div key={lvl.id} className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
+                                <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{lvl.name}s:</p>
+                                <div className="space-y-1">
+                                  {groupsInThisLevel.map(t => (
+                                     <label key={t.id} className="flex items-center gap-3 p-2 hover:bg-slate-100 rounded-md cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                       <input type="checkbox" checked={formData.allowedRegionIds.includes(t.id)} onChange={() => toggleArrayItem('allowedRegionIds', t.id)} className="accent-indigo-600 rounded w-4 h-4" />
+                                       <span className="text-sm font-semibold text-slate-900 leading-tight">{t.name}</span>
+                                     </label>
+                                  ))}
+                                </div>
+                             </div>
+                          );
+                       })}
 
-                       {/* Unidades */}
+                       {/* Unidades Base */}
                        <div className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">
                           <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">{unitLabel}s:</p>
                           <div className="space-y-1">

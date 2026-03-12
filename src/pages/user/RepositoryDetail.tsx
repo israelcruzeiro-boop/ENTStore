@@ -6,7 +6,6 @@ import { ContentCard } from '../../components/user/ContentCard';
 import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star } from 'lucide-react';
 import { SimpleLink } from '../../types';
 
-// Configuração Premium de Ícones (Modo Escuro)
 const getPremiumLinkConfig = (type: string) => {
   const t = type?.toLowerCase();
   if (t === 'vídeo' || t === 'video') {
@@ -31,22 +30,18 @@ const getPremiumLinkConfig = (type: string) => {
 export const RepositoryDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView, contentRatings, rateContent } = useAppStore();
+  const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView, contentRatings, rateContent, orgUnits, orgTopLevels } = useAppStore();
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   
-  const isAuthorized = checkRepoAccess(repo as any, user);
+  const isAuthorized = checkRepoAccess(repo as any, user, orgUnits, orgTopLevels);
 
-  // Estados para os filtros e busca (Repositório Simples)
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
-  // Estado para a aba de Categoria (Fase) do Hub
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-
-  // Estado para o Visualizador Interno de Links Simples
   const [activeLink, setActiveLink] = useState<SimpleLink | null>(null);
 
   useEffect(() => {
@@ -101,12 +96,10 @@ export const RepositoryDetail = () => {
 
   const isSimple = repo.type === 'SIMPLE';
 
-  // --- DADOS REPOSITÓRIO COMPLETO ---
   const categories = allCategories.filter(c => c.repositoryId === id).sort((a, b) => (a.order || 0) - (b.order || 0));
   const contents = allContents.filter(c => c.repositoryId === id && c.status === 'ACTIVE');
   const displayContents = activeCategory ? contents.filter(c => c.categoryId === activeCategory) : contents;
 
-  // --- DADOS REPOSITÓRIO SIMPLES ---
   const rawLinks = simpleLinks.filter(l => l.repositoryId === id && l.status === 'ACTIVE');
   
   const availableTypes = useMemo(() => {
@@ -153,14 +146,12 @@ export const RepositoryDetail = () => {
     return iframeUrl;
   };
 
-  // Avaliação do Link Ativo (para o select do modal)
   const activeLinkRatings = activeLink ? contentRatings.filter(r => r.contentId === activeLink.id) : [];
   const activeLinkAvg = activeLinkRatings.length > 0 ? (activeLinkRatings.reduce((acc, curr) => acc + curr.rating, 0) / activeLinkRatings.length).toFixed(1) : '-';
   const activeUserRating = activeLink ? contentRatings.find(r => r.contentId === activeLink.id && r.userId === user?.id)?.rating : undefined;
 
   return (
     <div className="pb-12 min-h-screen relative">
-      {/* Banner */}
       <div className="relative h-[30vh] md:h-[40vh] w-full mb-8 bg-zinc-950 overflow-hidden">
          {repo.bannerImage || repo.coverImage ? (
            <img src={repo.bannerImage || repo.coverImage} alt={repo.name} className="w-full h-full object-cover opacity-50 mix-blend-overlay" />

@@ -12,11 +12,17 @@ export const UserProfile = () => {
 
   // Nomenclaturas personalizadas da empresa
   const unitLabel = company?.orgUnitName || 'Unidade';
-  const topLevelLabel = company?.orgTopLevelName || 'Nível Superior';
+
+  // Array de Níveis Intermediários Configurados
+  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
+  const lowestLevel = orgLevels[orgLevels.length - 1];
 
   // Lista de unidades e níveis ativos da empresa atual
   const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
   const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
+
+  // O "Select" de unidades vai exibir as unidades agrupadas pelo nível imediatamente acima (lowestLevel)
+  const lowestLevelGroups = activeTopLevels.filter(t => t.levelId === lowestLevel.id || (!t.levelId && orgLevels.length === 1));
 
   // Estado do formulário
   const [formData, setFormData] = useState({
@@ -78,9 +84,28 @@ export const UserProfile = () => {
     toast.success('Perfil atualizado com sucesso!');
   };
 
-  // Recupera as informações de nível superior baseado na unidade selecionada (para exibição na UI)
-  const currentUnit = orgUnits.find(u => u.id === formData.orgUnitId);
-  const currentTopLevel = currentUnit ? orgTopLevels.find(t => t.id === currentUnit.parentId) : null;
+  // Resolve dinamicamente a cadeia de níveis (Hierarchy Path) a partir da unidade final
+  const getHierarchyPath = () => {
+    if (!formData.orgUnitId) return [];
+    const unit = activeUnits.find(u => u.id === formData.orgUnitId);
+    if (!unit) return [];
+    
+    const path: { label: string, name: string }[] = [];
+    let currentParent = activeTopLevels.find(t => t.id === unit.parentId);
+    
+    while (currentParent) {
+      const parentDef = orgLevels.find(l => l.id === currentParent?.levelId) || orgLevels[0];
+      path.unshift({ label: parentDef.name, name: currentParent.name });
+      currentParent = activeTopLevels.find(t => t.id === currentParent?.parentId);
+    }
+    
+    // Adiciona a unidade base no final da visualização
+    path.push({ label: unitLabel, name: unit.name });
+    
+    return path;
+  };
+
+  const hierarchyPath = getHierarchyPath();
 
   return (
     <div className="pt-24 pb-12 px-4 md:px-12 max-w-3xl mx-auto min-h-screen">
@@ -169,26 +194,29 @@ export const UserProfile = () => {
                  </h3>
                </div>
 
-               {/* Exibição da Estrutura Atual */}
+               {/* Exibição da Estrutura Atual (Hierarquia Dinâmica Completa) */}
                <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
-                  <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0">
-                        <Building2 size={18} className="text-zinc-400" />
-                     </div>
-                     <div>
-                        <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{topLevelLabel}</p>
-                        <p className="text-sm font-bold text-white">{currentTopLevel?.name || 'Não definido'}</p>
-                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0 shadow-inner">
-                        <Store size={18} className="text-[var(--c-primary)]" />
-                     </div>
-                     <div>
-                        <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{unitLabel}</p>
-                        <p className="text-sm font-bold text-white">{currentUnit?.name || 'Não definido'}</p>
-                     </div>
-                  </div>
+                  {hierarchyPath.length > 0 ? (
+                    hierarchyPath.map((pathItem, idx) => {
+                      const isLast = idx === hierarchyPath.length - 1;
+                      return (
+                        <div key={idx} className="flex items-center gap-3 relative">
+                           {/* Linha vertical conectando a estrutura */}
+                           {idx > 0 && <div className="absolute -top-4 left-5 w-px h-4 bg-zinc-800"></div>}
+                           
+                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isLast ? 'bg-zinc-950 border border-zinc-800 shadow-inner text-[var(--c-primary)]' : 'bg-zinc-950 border border-zinc-800 text-zinc-400'}`}>
+                              {isLast ? <Store size={18} /> : <Building2 size={18} />}
+                           </div>
+                           <div>
+                              <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{pathItem.label}</p>
+                              <p className="text-sm font-bold text-white">{pathItem.name}</p>
+                           </div>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="text-zinc-500 text-sm text-center py-2 font-medium">Nenhum vínculo organizacional definido.</div>
+                  )}
                </div>
                
                <div className="space-y-3 text-left border-t border-zinc-800/50 pt-5">
@@ -199,12 +227,12 @@ export const UserProfile = () => {
                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all cursor-pointer"
                   >
                      <option value="">Nenhuma {unitLabel.toLowerCase()} selecionada</option>
-                     {activeTopLevels.map(topLevel => {
-                        const unitsInThisLevel = activeUnits.filter(u => u.parentId === topLevel.id);
-                        if (unitsInThisLevel.length === 0) return null;
+                     {lowestLevelGroups.map(parentGroup => {
+                        const unitsInThisGroup = activeUnits.filter(u => u.parentId === parentGroup.id);
+                        if (unitsInThisGroup.length === 0) return null;
                         return (
-                          <optgroup key={topLevel.id} label={`${topLevelLabel}: ${topLevel.name}`} className="bg-zinc-800 text-zinc-300 font-bold">
-                            {unitsInThisLevel.map(unit => (
+                          <optgroup key={parentGroup.id} label={`${lowestLevel.name}: ${parentGroup.name}`} className="bg-zinc-800 text-zinc-300 font-bold">
+                            {unitsInThisGroup.map(unit => (
                               <option key={unit.id} value={unit.id} className="text-white font-medium bg-zinc-900">
                                 {unit.name}
                               </option>

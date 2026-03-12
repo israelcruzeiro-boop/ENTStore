@@ -8,7 +8,7 @@ import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
 export const ContentDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
-  const { contents, repositories, contentViews, addContentView, contentRatings, rateContent } = useAppStore();
+  const { contents, repositories, contentViews, addContentView, contentRatings, rateContent, orgUnits, orgTopLevels } = useAppStore();
   const hasTrackedView = useRef(false);
 
   const content = contents.find(c => c.id === id);
@@ -20,8 +20,8 @@ export const ContentDetail = () => {
   const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
   const userRating = contentRatings.find(r => r.contentId === content?.id && r.userId === user?.id)?.rating;
 
-  // Regra de Acesso Centralizada
-  const isAuthorized = checkRepoAccess(repo as any, user);
+  // Regra de Acesso Recursiva e Completa
+  const isAuthorized = checkRepoAccess(repo as any, user, orgUnits, orgTopLevels);
 
   useEffect(() => {
     if (content && repo && isAuthorized && user && !hasTrackedView.current) {
