@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store, Upload, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store, Upload, FileSpreadsheet, AlertCircle, Download } from 'lucide-react';
 import { User } from '../../types';
 import * as XLSX from 'xlsx';
 
@@ -91,7 +91,6 @@ export const AdminUsers = () => {
 
   if (!company) return null;
 
-  // Lógica de Cadastro Manual
   const openCreate = () => {
     setEditingId(null);
     setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, orgUnitId: '' });
@@ -158,7 +157,17 @@ export const AdminUsers = () => {
     toast.success(`Status alterado para ${user.active === false ? 'Ativo' : 'Inativo'}.`);
   };
 
-  // Lógica de Importação
+  // --- Importação de Planilha ---
+  const handleDownloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { Nome: 'João da Silva', CPF: '12345678901' },
+      { Nome: 'Maria Oliveira', CPF: '09876543210' }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo Importação');
+    XLSX.writeFile(wb, 'modelo_usuarios_entstore.xlsx');
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -184,16 +193,24 @@ export const AdminUsers = () => {
           const cpf = String(cpfRaw).replace(/\D/g, '');
 
           const errors = [];
+          let isDuplicate = false;
+
           if (!nome) errors.push('Nome vazio');
           if (!cpf) errors.push('CPF vazio');
           else if (!isValidCPF(cpf)) errors.push('CPF inválido');
           else {
-             if (users.some(u => u.cpf === cpf)) errors.push('CPF já cadastrado no sistema');
-             else if (cpfSet.has(cpf)) errors.push('CPF duplicado nesta planilha');
-             else cpfSet.add(cpf);
+             if (users.some(u => u.cpf === cpf)) {
+               errors.push('CPF já cadastrado no sistema');
+               isDuplicate = true;
+             } else if (cpfSet.has(cpf)) {
+               errors.push('CPF duplicado nesta planilha');
+               isDuplicate = true;
+             } else {
+               cpfSet.add(cpf);
+             }
           }
 
-          return { nome, cpf, valid: errors.length === 0, errors, rowNum: index + 2 };
+          return { nome, cpf, valid: errors.length === 0, errors, isDuplicate, rowNum: index + 2 };
         });
 
         setParsedData(processed);
@@ -215,7 +232,7 @@ export const AdminUsers = () => {
         companyId: company.id,
         name: row.nome,
         cpf: row.cpf,
-        password: row.cpf, // Senha inicial é o CPF (apenas números)
+        password: row.cpf, // Senha inicial é o CPF
         role: 'USER',
         status: 'PENDING_SETUP',
         firstAccess: true,
@@ -227,8 +244,10 @@ export const AdminUsers = () => {
     setIsImportModalOpen(false);
   };
 
+  const totalRows = parsedData.length;
   const validRows = parsedData.filter(r => r.valid);
-  const invalidRows = parsedData.filter(r => !r.valid);
+  const duplicateRows = parsedData.filter(r => !r.valid && r.isDuplicate);
+  const errorRows = parsedData.filter(r => !r.valid && !r.isDuplicate); // Erros não relacionados à duplicação
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -238,10 +257,10 @@ export const AdminUsers = () => {
            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso aos conteúdos da {company.name}.</p>
          </div>
          <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={() => { setIsImportModalOpen(true); setImportStep('upload'); }} className="bg-white border-slate-200 flex-1 sm:flex-none">
+            <Button variant="outline" onClick={() => { setIsImportModalOpen(true); setImportStep('upload'); }} className="bg-white border-slate-200 flex-1 sm:flex-none text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200">
                <Upload size={16} className="mr-2" /> Importar Planilha
             </Button>
-            <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex-1 sm:flex-none">
+            <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800 text-white shadow-sm flex-1 sm:flex-none">
                + Novo Usuário
             </Button>
          </div>
@@ -337,44 +356,63 @@ export const AdminUsers = () => {
 
           <div className="flex-1 overflow-y-auto mt-4 px-1">
             {importStep === 'upload' ? (
-               <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 flex flex-col items-center justify-center text-center bg-slate-50 hover:bg-indigo-50/50 transition-colors cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
-                  <FileSpreadsheet size={48} className="text-indigo-400 mb-4" />
-                  <p className="font-semibold text-slate-700 text-lg mb-1">Clique para procurar arquivo</p>
-                  <p className="text-sm text-slate-500 mb-4">Arquivos suportados: .xlsx, .xls, .csv</p>
-                  <div className="bg-indigo-100 text-indigo-700 text-xs px-3 py-1.5 rounded-md font-medium">
-                     Formato obrigatório das colunas: Nome, CPF
-                  </div>
-                  <input type="file" id="file-upload" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleFileUpload} />
+               <div className="space-y-4">
+                 <div className="border-2 border-dashed border-slate-200 rounded-xl p-10 flex flex-col items-center justify-center text-center bg-slate-50 hover:bg-indigo-50/50 transition-colors cursor-pointer group" onClick={() => document.getElementById('file-upload')?.click()}>
+                    <FileSpreadsheet size={48} className="text-indigo-400 mb-4 group-hover:scale-110 transition-transform" />
+                    <p className="font-semibold text-slate-700 text-lg mb-1">Clique para selecionar o arquivo</p>
+                    <p className="text-sm text-slate-500 mb-4">Arquivos suportados: .xlsx, .csv</p>
+                    <input type="file" id="file-upload" accept=".xlsx, .csv" className="hidden" onChange={handleFileUpload} />
+                 </div>
+
+                 <div className="bg-slate-100 p-4 rounded-lg flex items-center justify-between border border-slate-200">
+                    <div className="flex flex-col">
+                       <span className="font-medium text-slate-800 text-sm">Não tem a planilha ainda?</span>
+                       <span className="text-xs text-slate-500">Baixe o nosso modelo padrão para preencher.</span>
+                    </div>
+                    <Button variant="outline" onClick={handleDownloadTemplate} className="bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-sm flex items-center gap-2">
+                       <Download size={16} /> Baixar Modelo
+                    </Button>
+                 </div>
                </div>
             ) : (
                <div className="space-y-4">
-                  <div className="flex gap-4">
-                     <div className="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
-                        <p className="text-xs font-bold text-emerald-700 uppercase">Linhas Válidas</p>
-                        <p className="text-2xl font-black text-emerald-600">{validRows.length}</p>
+                  {/* Métricas Detalhadas */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                     <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total</p>
+                        <p className="text-xl font-black text-slate-800">{totalRows}</p>
                      </div>
-                     <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                        <p className="text-xs font-bold text-red-700 uppercase">Erros Encontrados</p>
-                        <p className="text-2xl font-black text-red-600">{invalidRows.length}</p>
+                     <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Válidas</p>
+                        <p className="text-xl font-black text-emerald-600">{validRows.length}</p>
+                     </div>
+                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Duplicadas</p>
+                        <p className="text-xl font-black text-amber-600">{duplicateRows.length}</p>
+                     </div>
+                     <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                        <p className="text-[10px] font-bold text-red-700 uppercase tracking-wider">Com Erro</p>
+                        <p className="text-xl font-black text-red-600">{errorRows.length}</p>
                      </div>
                   </div>
 
+                  {/* Tabela de Preview */}
                   <div className="border border-slate-200 rounded-lg overflow-hidden">
-                     <div className="max-h-80 overflow-y-auto">
-                        <table className="w-full text-left text-sm text-slate-600">
-                           <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 sticky top-0">
+                     <div className="max-h-[280px] overflow-y-auto">
+                        <table className="w-full text-left text-sm text-slate-600 relative">
+                           <thead className="bg-slate-100 border-b border-slate-200 text-slate-900 sticky top-0 z-10">
                               <tr>
-                                 <th className="p-2 pl-4 w-12">Linha</th>
-                                 <th className="p-2">Nome</th>
-                                 <th className="p-2">CPF</th>
-                                 <th className="p-2">Status / Erros</th>
+                                 <th className="p-2.5 pl-4 w-12 text-xs font-semibold">L.</th>
+                                 <th className="p-2.5 text-xs font-semibold">Nome</th>
+                                 <th className="p-2.5 text-xs font-semibold">CPF</th>
+                                 <th className="p-2.5 text-xs font-semibold">Status</th>
                               </tr>
                            </thead>
                            <tbody className="divide-y divide-slate-100">
                               {parsedData.map((row, i) => (
-                                 <tr key={i} className={row.valid ? 'bg-white' : 'bg-red-50/50'}>
-                                    <td className="p-2 pl-4 font-mono text-xs text-slate-400">{row.rowNum}</td>
-                                    <td className="p-2 font-medium text-slate-800">{row.nome || '-'}</td>
+                                 <tr key={i} className={row.valid ? 'bg-white' : (row.isDuplicate ? 'bg-amber-50/50' : 'bg-red-50/50')}>
+                                    <td className="p-2 pl-4 font-mono text-[10px] text-slate-400">{row.rowNum}</td>
+                                    <td className="p-2 font-medium text-slate-800 text-xs">{row.nome || '-'}</td>
                                     <td className="p-2 font-mono text-xs">{row.cpf || '-'}</td>
                                     <td className="p-2">
                                        {row.valid ? (
@@ -382,7 +420,9 @@ export const AdminUsers = () => {
                                        ) : (
                                           <div className="flex flex-col gap-0.5">
                                              {row.errors.map((e: string, ei: number) => (
-                                                <span key={ei} className="flex items-center gap-1 text-red-600 text-xs font-medium"><AlertCircle size={12}/> {e}</span>
+                                                <span key={ei} className={`flex items-center gap-1 text-xs font-medium ${row.isDuplicate ? 'text-amber-600' : 'text-red-600'}`}>
+                                                   <AlertCircle size={12}/> {e}
+                                                </span>
                                              ))}
                                           </div>
                                        )}
@@ -398,7 +438,7 @@ export const AdminUsers = () => {
                      <Shield className="shrink-0 mt-0.5" size={18} />
                      <div>
                         <p className="font-bold mb-1">Como funcionará o acesso?</p>
-                        <p>Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como senha temporária</strong> no primeiro login e serão solicitados a completar o perfil (e-mail, foto, etc).</p>
+                        <p className="leading-relaxed">Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como senha temporária</strong> no primeiro login e serão solicitados a preencher os dados restantes do perfil antes de acessar a plataforma.</p>
                      </div>
                   </div>
                </div>
