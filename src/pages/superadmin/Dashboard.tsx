@@ -42,12 +42,15 @@ export const SuperAdminDashboard = () => {
       setActiveCompany(null);
       setAdminFormView(false);
       setEditingAdminId(null);
-    }, 200);
+      setFormData({ name: '', linkName: '', logoUrl: '', active: true });
+      setAdminFormData({ name: '', email: '', password: '', active: true });
+      setActiveTab('details');
+    }, 300);
   };
 
   const handleCloseDelete = () => {
     setIsDeleteOpen(false);
-    setTimeout(() => setCompanyToDelete(null), 200);
+    setTimeout(() => setCompanyToDelete(null), 300);
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -274,7 +277,7 @@ export const SuperAdminDashboard = () => {
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
              <DialogTitle className="text-xl">
@@ -285,12 +288,14 @@ export const SuperAdminDashboard = () => {
           {editingId && !adminFormView && (
             <div className="flex border-b border-slate-200 mt-2">
               <button
+                type="button"
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 onClick={() => setActiveTab('details')}
               >
                 Detalhes da Empresa
               </button>
               <button
+                type="button"
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'admins' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 onClick={() => setActiveTab('admins')}
               >
@@ -434,7 +439,7 @@ export const SuperAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Empresa</DialogTitle></DialogHeader>
           <div className="py-4">

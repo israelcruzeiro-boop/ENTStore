@@ -86,12 +86,19 @@ export const AdminRepositories = () => {
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
-    setTimeout(() => setEditingId(null), 200);
+    setTimeout(() => {
+      setEditingId(null);
+      setFormData({ 
+        name: '', description: '', type: 'FULL', coverImage: '', bannerImage: '', 
+        featured: false, status: 'ACTIVE', accessType: 'ALL', 
+        allowedUserIds: [], allowedRegionIds: [], allowedStoreIds: [], excludedUserIds: []
+      });
+    }, 300);
   };
 
   const handleCloseDelete = () => {
     setIsDeleteOpen(false);
-    setTimeout(() => setRepoToDelete(null), 200);
+    setTimeout(() => setRepoToDelete(null), 300);
   };
 
   const openCreate = () => {
@@ -258,8 +265,8 @@ export const AdminRepositories = () => {
                              </Button>
                              <Switch checked={repo.status === 'ACTIVE'} onCheckedChange={() => toggleStatus(repo)} title="Ativar/Inativar" />
                              <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                             <Button variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600" title="Editar Repositório"><Edit2 size={16} /></Button>
-                             <Button variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600" title="Excluir Repositório"><Trash2 size={16} /></Button>
+                             <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(repo)} className="text-slate-400 hover:text-blue-600" title="Editar Repositório"><Edit2 size={16} /></Button>
+                             <Button type="button" variant="ghost" size="icon" onClick={() => {setRepoToDelete({id: repo.id, name: repo.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600" title="Excluir Repositório"><Trash2 size={16} /></Button>
                            </div>
                         </td>
                      </tr>
@@ -281,7 +288,7 @@ export const AdminRepositories = () => {
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Repositório' : 'Novo Repositório'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveRepo} className="space-y-6 mt-4">
@@ -464,7 +471,7 @@ export const AdminRepositories = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Repositório</DialogTitle></DialogHeader>
           <div className="py-4">

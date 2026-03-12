@@ -52,17 +52,23 @@ export const AdminStructure = () => {
 
   const handleCloseTopLevelForm = () => {
     setIsTopLevelFormOpen(false);
-    setTimeout(() => setEditingTopLevelId(null), 200);
+    setTimeout(() => {
+      setEditingTopLevelId(null);
+      setTopLevelFormData({ name: '', parentId: '', active: true });
+    }, 300);
   };
 
   const handleCloseUnitForm = () => {
     setIsUnitFormOpen(false);
-    setTimeout(() => setEditingUnitId(null), 200);
+    setTimeout(() => {
+      setEditingUnitId(null);
+      setUnitFormData({ name: '', parentId: '', active: true });
+    }, 300);
   };
 
   const handleCloseDelete = () => {
     setIsDeleteOpen(false);
-    setTimeout(() => setItemToDelete(null), 200);
+    setTimeout(() => setItemToDelete(null), 300);
   };
 
   const addLevel = () => setLevelsConfig([...levelsConfig, { id: crypto.randomUUID(), name: '' }]);
@@ -373,7 +379,7 @@ export const AdminStructure = () => {
         </div>
       </div>
 
-      <Dialog open={isTopLevelFormOpen} onOpenChange={(open) => !open ? handleCloseTopLevelForm() : setIsTopLevelFormOpen(true)}>
+      <Dialog open={isTopLevelFormOpen} onOpenChange={(open) => { if (!open) handleCloseTopLevelForm(); }}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingTopLevelId ? `Editar ${activeLevelConfig.name}` : `Novo(a) ${activeLevelConfig.name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveTopLevel} className="space-y-4 mt-4">
@@ -408,7 +414,7 @@ export const AdminStructure = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isUnitFormOpen} onOpenChange={(open) => !open ? handleCloseUnitForm() : setIsUnitFormOpen(true)}>
+      <Dialog open={isUnitFormOpen} onOpenChange={(open) => { if (!open) handleCloseUnitForm(); }}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingUnitId ? `Editar ${unitNameConfig}` : `Nova ${unitNameConfig}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveUnit} className="space-y-4 mt-4">
@@ -441,7 +447,7 @@ export const AdminStructure = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Registro</DialogTitle></DialogHeader>
           <div className="py-4">

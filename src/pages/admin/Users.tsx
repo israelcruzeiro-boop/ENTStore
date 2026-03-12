@@ -92,17 +92,17 @@ export const AdminUsers = () => {
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
-    setTimeout(() => setEditingId(null), 200);
+    setTimeout(() => setEditingId(null), 300);
   };
 
   const handleCloseDelete = () => {
     setIsDeleteOpen(false);
-    setTimeout(() => setUserToDelete(null), 200);
+    setTimeout(() => setUserToDelete(null), 300);
   };
 
   const handleCloseActivity = () => {
     setIsActivityOpen(false);
-    setTimeout(() => setSelectedUser(null), 200);
+    setTimeout(() => setSelectedUser(null), 300);
   };
 
   const handleCloseImport = () => {
@@ -110,7 +110,7 @@ export const AdminUsers = () => {
     setTimeout(() => {
       setImportStep('upload');
       setParsedData([]);
-    }, 200);
+    }, 300);
   };
 
   const openCreate = () => {
@@ -371,7 +371,7 @@ export const AdminUsers = () => {
         </div>
       </div>
 
-      <Dialog open={isImportModalOpen} onOpenChange={(open) => !open ? handleCloseImport() : setIsImportModalOpen(true)}>
+      <Dialog open={isImportModalOpen} onOpenChange={(open) => { if (!open) handleCloseImport(); }}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
              <DialogTitle>Importar Usuários em Lote</DialogTitle>
@@ -393,7 +393,7 @@ export const AdminUsers = () => {
                        <span className="font-medium text-slate-800 text-sm">Não tem a planilha ainda?</span>
                        <span className="text-xs text-slate-500">Baixe o nosso modelo padrão para preencher.</span>
                     </div>
-                    <Button variant="outline" onClick={handleDownloadTemplate} className="bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-sm flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={handleDownloadTemplate} className="bg-white hover:bg-slate-50 text-indigo-600 border-indigo-200 shadow-sm flex items-center gap-2">
                        <Download size={16} /> Baixar Modelo
                     </Button>
                  </div>
@@ -479,7 +479,7 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isActivityOpen} onOpenChange={(open) => !open ? handleCloseActivity() : setIsActivityOpen(true)}>
+      <Dialog open={isActivityOpen} onOpenChange={(open) => { if (!open) handleCloseActivity(); }}>
         <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0">
              <DialogTitle className="text-xl">Atividade do Usuário</DialogTitle>
@@ -563,7 +563,7 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader><DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveUser} className="space-y-4 mt-4">
@@ -631,7 +631,7 @@ export const AdminUsers = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Usuário</DialogTitle></DialogHeader>
           <div className="py-4">

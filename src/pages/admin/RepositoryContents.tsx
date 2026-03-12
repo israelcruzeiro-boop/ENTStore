@@ -101,17 +101,21 @@ export const AdminRepositoryContents = () => {
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
-    setTimeout(() => setEditingId(null), 200);
+    setTimeout(() => {
+      setEditingId(null);
+      setFormData({ title: '', description: '', thumbnailUrl: '', type: 'VIDEO', url: '', embedUrl: '', featured: false, recent: true, status: 'ACTIVE', categoryId: '' });
+      setBatchLinks([]);
+    }, 300);
   };
 
   const handleCloseDelete = () => {
     setIsDeleteOpen(false);
-    setTimeout(() => setItemToDelete(null), 200);
+    setTimeout(() => setItemToDelete(null), 300);
   };
 
   const handleCloseCategory = () => {
     setIsCategoryModalOpen(false);
-    setTimeout(() => setNewCategoryName(''), 200);
+    setTimeout(() => setNewCategoryName(''), 300);
   };
 
   const handleAddCategory = () => {
@@ -593,7 +597,7 @@ export const AdminRepositoryContents = () => {
       </div>
 
       {!isSimple && (
-        <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
+        <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>{editingId ? 'Editar Conteúdo' : 'Novo Conteúdo'}</DialogTitle></DialogHeader>
             <form onSubmit={handleSaveFull} className="space-y-4 mt-4">
@@ -655,7 +659,7 @@ export const AdminRepositoryContents = () => {
       )}
 
       {!isSimple && (
-        <Dialog open={isCategoryModalOpen} onOpenChange={(open) => !open ? handleCloseCategory() : setIsCategoryModalOpen(true)}>
+        <Dialog open={isCategoryModalOpen} onOpenChange={(open) => { if (!open) handleCloseCategory(); }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader><DialogTitle>Gerenciar Fases</DialogTitle></DialogHeader>
             <div className="space-y-4 mt-4">
@@ -686,7 +690,7 @@ export const AdminRepositoryContents = () => {
       )}
 
       {isSimple && (
-        <Dialog open={isFormOpen} onOpenChange={(open) => !open ? handleCloseForm() : setIsFormOpen(true)}>
+        <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col">
             <DialogHeader className="shrink-0">
               <DialogTitle>{editingId ? 'Editar Link' : 'Cadastro Rápido de Links'}</DialogTitle>
@@ -766,7 +770,7 @@ export const AdminRepositoryContents = () => {
         </Dialog>
       )}
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => !open ? handleCloseDelete() : setIsDeleteOpen(true)}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Item</DialogTitle></DialogHeader>
           <div className="py-4">
