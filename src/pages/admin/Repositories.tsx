@@ -16,7 +16,7 @@ export const AdminRepositories = () => {
   
   const company = companies.find(c => c.linkName === linkName);
   
-  // Ordenação segura (evita o bug de NaN que esconde os itens na tela)
+  // Ordenação segura
   const companyRepos = useMemo(() => {
     return repositories
       .filter(r => r.companyId === company?.id)
@@ -85,9 +85,13 @@ export const AdminRepositories = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'coverImage' | 'bannerImage') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) return toast.error('A imagem deve ter no máximo 2MB.');
+      // Regra fundamental: Limite reduzido para proteger a memória (QuotaExceededError do LocalStorage)
+      if (file.size > 300 * 1024) {
+         toast.error('A imagem é muito pesada (máx: 300KB). Para imagens maiores, por favor use o campo de URL logo abaixo.');
+         return;
+      }
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({ ...formData, [field]: reader.result as string });
+      reader.onloadend = () => setFormData(prev => ({ ...prev, [field]: reader.result as string }));
       reader.readAsDataURL(file);
     }
   };
@@ -165,9 +169,14 @@ export const AdminRepositories = () => {
         toast.success('Repositório criado com sucesso!');
       }
       handleCloseForm();
-    } catch (err) {
-      toast.error('Erro ao salvar o repositório.');
-      console.error(err);
+    } catch (err: any) {
+      // Captura o erro silencioso de estouro de LocalStorage que quebrava o fluxo
+      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
+         toast.error('Limite de armazenamento atingido! Você salvou muitas imagens pesadas. Remova as imagens grandes e use URLs.');
+      } else {
+         toast.error('Erro inesperado ao salvar o repositório.');
+      }
+      console.error("Store persistence error:", err);
     }
   };
 
