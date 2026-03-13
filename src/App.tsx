@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useAppStore } from './store/useAppStore';
+import { TenantProvider } from './contexts/TenantContext';
 
 // Layouts
 import { UserLayout } from './layouts/UserLayout';
@@ -34,19 +35,19 @@ const queryClient = new QueryClient();
 // Route Protectors
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: JSX.Element, role?: string, allowSuperAdmin?: boolean }) => {
   const { user } = useAuth();
-  const { slug } = useParams();
+  const { companySlug, linkName } = useParams();
   const { companies } = useAppStore();
   
   if (!user) {
-     if (slug) return <Navigate to={`/${slug}/login`} replace />;
+     if (companySlug) return <Navigate to={`/${companySlug}/login`} replace />;
      return <Navigate to="/login" replace />;
   }
 
   // Validação Multi-tenant (Garante que o usuário está na URL da sua própria empresa)
-  if (role === 'USER' && slug) {
-     const targetCompany = companies.find(c => c.linkName === slug || c.slug === slug);
+  if (role === 'USER' && companySlug) {
+     const targetCompany = companies.find(c => c.linkName === companySlug || c.slug === companySlug);
      if (!targetCompany || user.companyId !== targetCompany.id) {
-        return <Navigate to={`/${slug}/login`} replace />;
+        return <Navigate to={`/${companySlug}/login`} replace />;
      }
   }
   
@@ -68,20 +69,23 @@ const AppRoutes = () => (
     
     {/* Global Login (Super Admin / Fallback) */}
     <Route path="/login" element={<Login />} />
-    
-    {/* Tenant Login */}
-    <Route path="/:slug/login" element={<Login />} />
 
-    {/* User Routes (Multi-tenant via Slug) */}
-    <Route path="/:slug" element={<RequireAuth role="USER"><UserLayout /></RequireAuth>}>
-      <Route index element={<UserHome />} />
-      <Route path="home" element={<UserHome />} />
-      <Route path="biblioteca" element={<UserBiblioteca />} />
-      <Route path="hub" element={<UserHub />} />
-      <Route path="busca" element={<UserBusca />} />
-      <Route path="perfil" element={<UserProfile />} />
-      <Route path="repo/:id" element={<RepositoryDetail />} />
-      <Route path="content/:id" element={<ContentDetail />} />
+    {/* User Routes (Tenant Namespace) */}
+    <Route path="/:companySlug" element={<TenantProvider />}>
+      {/* Tenant Login */}
+      <Route path="login" element={<Login />} />
+
+      {/* Protected Area */}
+      <Route element={<RequireAuth role="USER"><UserLayout /></RequireAuth>}>
+        <Route index element={<Navigate to="home" replace />} />
+        <Route path="home" element={<UserHome />} />
+        <Route path="biblioteca" element={<UserBiblioteca />} />
+        <Route path="hub" element={<UserHub />} />
+        <Route path="busca" element={<UserBusca />} />
+        <Route path="perfil" element={<UserProfile />} />
+        <Route path="repo/:id" element={<RepositoryDetail />} />
+        <Route path="content/:id" element={<ContentDetail />} />
+      </Route>
     </Route>
 
     {/* Admin Routes (Com linkName na URL) */}

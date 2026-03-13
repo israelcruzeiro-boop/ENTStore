@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import { useAppStore } from '../../store/useAppStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -23,6 +24,7 @@ const isValidCPF = (cpf: string) => {
 
 export const FirstAccessModal = () => {
   const { user, company } = useAuth();
+  const { slug } = useTenant();
   const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
   const navigate = useNavigate();
 
@@ -92,7 +94,7 @@ export const FirstAccessModal = () => {
     });
 
     toast.success('Perfil configurado! Bem-vindo(a).');
-    navigate(`/${company.linkName}`);
+    navigate(`/${slug}/home`);
   };
 
   if (!isVisible) return null;

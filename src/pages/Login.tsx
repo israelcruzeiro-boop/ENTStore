@@ -8,23 +8,23 @@ export const Login = () => {
   const { login, user } = useAuth();
   const { companies } = useAppStore();
   const navigate = useNavigate();
-  const { slug } = useParams();
+  const { companySlug } = useParams();
   
-  const tenantCompany = slug ? companies.find(c => c.linkName === slug || c.slug === slug) : null;
+  const tenantCompany = companySlug ? companies.find(c => c.linkName === companySlug || c.slug === companySlug) : null;
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  // Aplica o tema visual da empresa caso a URL possua um slug válido
+  // Fallback para login global: reseta o tema (o TenantProvider já gerencia isso no slug)
   useEffect(() => {
-    if (tenantCompany && tenantCompany.theme) {
+    if (!tenantCompany) {
       const root = document.documentElement;
-      root.style.setProperty('--c-primary', tenantCompany.theme.primary);
-      root.style.setProperty('--c-secondary', tenantCompany.theme.secondary);
-      root.style.setProperty('--c-bg', tenantCompany.theme.background);
-      root.style.setProperty('--c-card', tenantCompany.theme.card);
-      root.style.setProperty('--c-text', tenantCompany.theme.text);
+      root.style.setProperty('--c-primary', '#3b82f6');
+      root.style.setProperty('--c-secondary', '#1d4ed8');
+      root.style.setProperty('--c-bg', '#09090b');
+      root.style.setProperty('--c-card', '#18181b');
+      root.style.setProperty('--c-text', '#ffffff');
     }
   }, [tenantCompany]);
 
@@ -37,13 +37,13 @@ export const Login = () => {
         const adminCompany = companies.find(c => c.id === user.companyId);
         if (adminCompany) navigate(`/admin/${adminCompany.linkName}`, { replace: true });
       } else {
-        navigate(`/${slug || tenantCompany?.linkName || ''}`, { replace: true });
+        navigate(`/${companySlug || tenantCompany?.linkName || ''}/home`, { replace: true });
       }
     }
-  }, [user, navigate, companies, slug, tenantCompany]);
+  }, [user, navigate, companies, companySlug, tenantCompany]);
 
   // Fallback visual caso a empresa do slug não exista
-  if (slug && !tenantCompany) {
+  if (companySlug && !tenantCompany) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-center">
          <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
@@ -51,7 +51,7 @@ export const Login = () => {
          </div>
          <h1 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h1>
          <p className="text-zinc-400 max-w-sm mb-8">
-            O endereço <strong>{slug}</strong> não corresponde a nenhuma empresa ativa no momento.
+            O endereço <strong>{companySlug}</strong> não corresponde a nenhuma empresa ativa no momento.
          </p>
          <button onClick={() => navigate('/login')} className="px-6 py-2.5 rounded-xl bg-zinc-800 text-white font-medium hover:bg-zinc-700 transition-colors">
             Acessar Login Global
@@ -78,7 +78,7 @@ export const Login = () => {
            setError('Empresa não encontrada ou inativa.');
         }
       } else {
-        navigate(`/${slug || tenantCompany?.linkName}`);
+        navigate(`/${companySlug || tenantCompany?.linkName}/home`);
       }
     } else {
       setError('E-mail/CPF ou senha incorretos, ou conta inativa.');

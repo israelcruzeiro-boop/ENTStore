@@ -1,10 +1,11 @@
 import { Repository } from '../../types';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useTenant } from '../../contexts/TenantContext';
 import { Folder, PlaySquare } from 'lucide-react';
 
 export const RepoCard = ({ repo, fullWidth = false }: { repo: Repository, fullWidth?: boolean }) => {
   const isSimple = repo.type === 'SIMPLE';
-  const { slug } = useParams();
+  const { slug } = useTenant();
 
   return (
     <Link to={`/${slug}/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : 'w-28 md:w-32'}`}>

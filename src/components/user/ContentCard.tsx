@@ -1,11 +1,12 @@
 import { Play, Eye, Star, Image as ImageIcon } from 'lucide-react';
 import { Content } from '../../types';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useTenant } from '../../contexts/TenantContext';
 import { useAppStore } from '../../store/useAppStore';
 
 export const ContentCard = ({ content, fullWidth = false }: { content: Content, fullWidth?: boolean }) => {
   const { contentViews, contentRatings } = useAppStore();
-  const { slug } = useParams();
+  const { slug } = useTenant();
   
   const views = contentViews.filter(v => v.contentId === content.id).length;
   

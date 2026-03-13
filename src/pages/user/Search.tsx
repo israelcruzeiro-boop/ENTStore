@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library } from 'lucide-react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 export const UserBusca = () => {
   const { company, user } = useAuth();
-  const { slug } = useParams();
+  const { slug } = useTenant();
   const [searchParams] = useSearchParams();
   const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
   

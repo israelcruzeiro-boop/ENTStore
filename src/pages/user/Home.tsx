@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
 import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink, MonitorPlay } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const UserHome = () => {
   const { company, user } = useAuth();
-  const { slug } = useParams();
+  const { slug } = useTenant();
   const navigate = useNavigate();
   const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');

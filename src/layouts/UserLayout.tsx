@@ -1,13 +1,14 @@
-import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { Home, Library, MonitorPlay, UserCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 
 export const UserLayout = () => {
   const { user } = useAuth();
+  const { slug } = useTenant();
   const location = useLocation();
-  const { slug } = useParams();
   const [scrolled, setScrolled] = useState(false);
 
   const basePath = `/${slug}`;
@@ -21,7 +22,7 @@ export const UserLayout = () => {
   }, []);
 
   const isActive = (path: string) => {
-    if (path === '') return location.pathname === basePath || location.pathname === `${basePath}/` || location.pathname === `${basePath}/home`;
+    if (path === '/home') return location.pathname === `${basePath}/home` || location.pathname === `${basePath}`;
     return location.pathname === `${basePath}${path}`;
   };
 
@@ -37,11 +38,11 @@ export const UserLayout = () => {
       {/* Navbar Transparente (escurece no scroll) */}
       <header className={`fixed top-0 w-full z-50 transition-colors duration-300 px-4 md:px-12 py-4 flex justify-between items-center ${scrolled ? 'bg-black/90 backdrop-blur-sm' : 'bg-gradient-to-b from-black/80 to-transparent'}`}>
         <div className="flex items-center gap-8">
-          <Link to={`${basePath}`} className="text-2xl font-bold tracking-tighter" style={{ color: 'var(--c-primary)' }}>
+          <Link to={`${basePath}/home`} className="text-2xl font-bold tracking-tighter" style={{ color: 'var(--c-primary)' }}>
              ENT<span className="text-white">Store</span>
           </Link>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
-            <Link to={`${basePath}`} className={`transition-colors hover:text-white ${isActive('') ? 'text-white font-bold' : ''}`}>Home</Link>
+            <Link to={`${basePath}/home`} className={`transition-colors hover:text-white ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>
             <Link to={`${basePath}/biblioteca`} className={`transition-colors hover:text-white ${isActive('/biblioteca') ? 'text-white font-bold' : ''}`}>Biblioteca</Link>
             <Link to={`${basePath}/hub`} className={`transition-colors hover:text-white ${isActive('/hub') ? 'text-white font-bold' : ''}`}>Hub</Link>
           </nav>
@@ -64,7 +65,7 @@ export const UserLayout = () => {
 
       {/* Mobile Bottom Nav */}
       <div className="md:hidden fixed bottom-0 w-full bg-black/95 backdrop-blur-lg border-t border-zinc-900 flex justify-around p-2 z-50">
-         <Link to={`${basePath}`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+         <Link to={`${basePath}/home`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/home') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
             <Home size={22} />
             <span className="text-[10px] font-medium">Home</span>
          </Link>
