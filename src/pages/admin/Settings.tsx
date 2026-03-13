@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Building, Upload, AlertTriangle, Save, Image as ImageIcon } from 'lucide-react';
 
+const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
+
 export const AdminSettings = () => {
   const { linkName } = useParams();
   const navigate = useNavigate();
@@ -109,6 +111,10 @@ export const AdminSettings = () => {
       return toast.error('Nome e Link de Acesso são obrigatórios.');
     }
 
+    if (RESERVED_SLUGS.includes(newLinkName)) {
+      return toast.error(`O link "${newLinkName}" é reservado pelo sistema e não pode ser utilizado.`);
+    }
+
     const isDuplicate = companies.some(c => c.linkName === newLinkName && c.id !== company.id);
     if (isDuplicate) {
       return toast.error('Este Link de Acesso já está em uso por outra empresa.');
@@ -161,7 +167,7 @@ export const AdminSettings = () => {
                   <Label>Link de Acesso (URL) *</Label>
                   <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200 transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500">
                     <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">
-                      /admin/
+                      seusite.com/
                     </span>
                     <Input 
                       className="border-0 rounded-none focus-visible:ring-0 px-3 shadow-none bg-white font-mono" 

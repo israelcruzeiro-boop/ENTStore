@@ -11,6 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
 import { Company, User } from '../../types';
 
+// Proteção contra conflitos de rota
+const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
+
 export const SuperAdminDashboard = () => {
   const { companies, users, addCompany, updateCompany, deleteCompany, toggleCompanyStatus, addUser, updateUser, deleteUser, toggleUserStatus } = useAppStore();
   
@@ -108,6 +111,10 @@ export const SuperAdminDashboard = () => {
     const linkName = formData.linkName.trim();
     
     if (!name || !linkName) return toast.error('Nome e Link da Empresa são obrigatórios.');
+
+    if (RESERVED_SLUGS.includes(linkName)) {
+      return toast.error(`"${linkName}" é um nome reservado pelo sistema e não pode ser utilizado.`);
+    }
 
     const isDuplicate = companies.some(c => c.linkName === linkName && c.id !== editingId);
     if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
@@ -250,10 +257,10 @@ export const SuperAdminDashboard = () => {
                       </td>
                       <td className="p-4">
                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/admin/{company.linkName}</span>
+                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/{company.linkName}</span>
                             <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
                                <Link to={`/admin/${company.linkName}`}>
-                                 Entrar <ExternalLink size={12} />
+                                 Admin <ExternalLink size={12} />
                                </Link>
                             </Button>
                          </div>
@@ -313,11 +320,12 @@ export const SuperAdminDashboard = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Link do Admin *</Label>
+                  <Label>Link de Acesso (URL) *</Label>
                   <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200">
-                    <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">/admin/</span>
+                    <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">seusite.com/</span>
                     <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.linkName} onChange={handleLinkNameChange} />
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Este slug servirá tanto para acesso do usuário (/{formData.linkName}/home) quanto para o admin (/admin/{formData.linkName}).</p>
                 </div>
 
                 <div className="space-y-2">

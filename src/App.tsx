@@ -43,34 +43,73 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: JS
      return <Navigate to="/login" replace />;
   }
 
-  // Validação Multi-tenant (Garante que o usuário está na URL da sua própria empresa)
+  // Validação Multi-tenant rigorosa para rotas de usuário
   if (role === 'USER' && companySlug) {
      const targetCompany = companies.find(c => c.linkName === companySlug || c.slug === companySlug);
-     if (!targetCompany || user.companyId !== targetCompany.id) {
+     
+     // 1. Se acessar um slug de empresa que não existe (ou foi inativada)
+     if (!targetCompany) {
+        const userCompany = companies.find(c => c.id === user.companyId);
+        if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
+        return <Navigate to="/login" replace />;
+     }
+     
+     // 2. Se tentar acessar o painel/slug de uma empresa que não é a sua
+     if (user.companyId !== targetCompany.id && user.role !== 'SUPER_ADMIN') {
+        const userCompany = companies.find(c => c.id === user.companyId);
+        if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
         return <Navigate to={`/${companySlug}/login`} replace />;
      }
   }
   
   if (role && user.role !== role) {
+     // Permite Super Admin impersonar Admins
      if (allowSuperAdmin && user.role === 'SUPER_ADMIN') {
-         return children; // Permite Super Admin acessar (Impersonate)
+         return children; 
      }
+     // Resgate de papel incorreto na rota
      if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
-     if (user.role === 'ADMIN') return <Navigate to="/login" replace />; // Volta para o login para recalcular rota
+     if (user.role === 'ADMIN') {
+        const adminCompany = companies.find(c => c.id === user.companyId);
+        if (adminCompany) return <Navigate to={`/admin/${adminCompany.linkName}`} replace />;
+        return <Navigate to="/login" replace />;
+     }
+     
+     // Resgate para usuário final
+     const userCompany = companies.find(c => c.id === user.companyId);
+     if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
      return <Navigate to="/login" replace />;
   }
+  
   return children;
 };
 
 const AppRoutes = () => (
   <Routes>
-    {/* Redirect padrão */}
+    {/* Rotas Globais e Reservadas (Têm prioridade sobre /:companySlug) */}
     <Route path="/" element={<Navigate to="/login" replace />} />
-    
-    {/* Global Login (Super Admin / Fallback) */}
     <Route path="/login" element={<Login />} />
 
-    {/* User Routes (Tenant Namespace) */}
+    <Route path="/super-admin" element={<RequireAuth role="SUPER_ADMIN"><AdminLayout superAdmin /></RequireAuth>}>
+      <Route index element={<SuperAdminDashboard />} />
+      <Route path="*" element={<SuperAdminDashboard />} />
+    </Route>
+
+    <Route path="/admin/:linkName" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
+      <Route index element={<AdminDashboard />} />
+      <Route path="repos" element={<AdminRepositories />} />
+      <Route path="repos/:repoId" element={<AdminRepositoryContents />} />
+      <Route path="users" element={<AdminUsers />} />
+      <Route path="structure" element={<AdminStructure />} />
+      <Route path="appearance" element={<AdminAppearance />} />
+      <Route path="settings" element={<AdminSettings />} />
+      <Route path="*" element={<AdminDashboard />} /> 
+    </Route>
+    
+    {/* Redirecionamento seguro para quem esquecer o slug do admin */}
+    <Route path="/admin" element={<Navigate to="/login" replace />} />
+
+    {/* Namespace de Tenant (Captura os acessos ao painel do usuário) */}
     <Route path="/:companySlug" element={<TenantProvider />}>
       {/* Tenant Login */}
       <Route path="login" element={<Login />} />
@@ -85,30 +124,12 @@ const AppRoutes = () => (
         <Route path="perfil" element={<UserProfile />} />
         <Route path="repo/:id" element={<RepositoryDetail />} />
         <Route path="content/:id" element={<ContentDetail />} />
+        {/* Fallback interno do Tenant */}
+        <Route path="*" element={<Navigate to="home" replace />} />
       </Route>
     </Route>
 
-    {/* Admin Routes (Com linkName na URL) */}
-    <Route path="/admin/:linkName" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
-      <Route index element={<AdminDashboard />} />
-      <Route path="repos" element={<AdminRepositories />} />
-      <Route path="repos/:repoId" element={<AdminRepositoryContents />} />
-      <Route path="users" element={<AdminUsers />} />
-      <Route path="structure" element={<AdminStructure />} />
-      <Route path="appearance" element={<AdminAppearance />} />
-      <Route path="settings" element={<AdminSettings />} />
-      <Route path="*" element={<AdminDashboard />} /> 
-    </Route>
-
-    {/* Fallback de Admin sem parametro */}
-    <Route path="/admin" element={<Navigate to="/login" replace />} />
-
-    {/* Super Admin Routes */}
-    <Route path="/super-admin" element={<RequireAuth role="SUPER_ADMIN"><AdminLayout superAdmin /></RequireAuth>}>
-      <Route index element={<SuperAdminDashboard />} />
-      <Route path="*" element={<SuperAdminDashboard />} />
-    </Route>
-
+    {/* Rota 404 Global */}
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
