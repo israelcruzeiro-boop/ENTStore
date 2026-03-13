@@ -102,9 +102,9 @@ export const Login = () => {
           {tenantCompany ? (
             <>
                {tenantCompany.logoUrl ? (
-                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="h-20 mb-4 object-contain" />
+                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="w-20 h-20 mb-4 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
                ) : (
-                  <div className="w-20 h-20 rounded-2xl mb-4 flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                  <div className="w-20 h-20 rounded-full mb-4 flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
                     {tenantCompany.name.charAt(0).toUpperCase()}
                   </div>
                )}
