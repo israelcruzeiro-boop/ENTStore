@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store/useAppStore';
 import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const isValidCPF = (cpf: string) => {
@@ -24,6 +24,7 @@ const isValidCPF = (cpf: string) => {
 export const UserProfile = () => {
   const { user, company, logout } = useAuth();
   const navigate = useNavigate();
+  const { slug } = useParams();
   const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
 
   const unitLabel = company?.orgUnitName || 'Unidade';
@@ -99,7 +100,7 @@ export const UserProfile = () => {
     });
 
     toast.success('Perfil atualizado com sucesso!');
-    navigate('/');
+    navigate(`/${slug}`);
   };
 
   const getHierarchyPath = () => {

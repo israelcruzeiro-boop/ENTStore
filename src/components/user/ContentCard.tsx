@@ -1,10 +1,11 @@
 import { Play, Eye, Star, Image as ImageIcon } from 'lucide-react';
 import { Content } from '../../types';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 
 export const ContentCard = ({ content, fullWidth = false }: { content: Content, fullWidth?: boolean }) => {
   const { contentViews, contentRatings } = useAppStore();
+  const { slug } = useParams();
   
   const views = contentViews.filter(v => v.contentId === content.id).length;
   
@@ -28,7 +29,7 @@ export const ContentCard = ({ content, fullWidth = false }: { content: Content, 
   const displayThumbnail = getDisplayThumbnail();
 
   return (
-    <Link to={`/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-80'}`}>
+    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-80'}`}>
       <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800 relative shadow-md flex items-center justify-center">
         {displayThumbnail ? (
           <img 

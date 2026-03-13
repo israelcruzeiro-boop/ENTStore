@@ -1,17 +1,32 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppStore } from '../store/useAppStore';
-import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, Building, User as UserIcon } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ShieldAlert, Building, User as UserIcon, AlertTriangle } from 'lucide-react';
 
 export const Login = () => {
   const { login, user } = useAuth();
   const { companies } = useAppStore();
   const navigate = useNavigate();
+  const { slug } = useParams();
+  
+  const tenantCompany = slug ? companies.find(c => c.linkName === slug || c.slug === slug) : null;
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  // Aplica o tema visual da empresa caso a URL possua um slug válido
+  useEffect(() => {
+    if (tenantCompany && tenantCompany.theme) {
+      const root = document.documentElement;
+      root.style.setProperty('--c-primary', tenantCompany.theme.primary);
+      root.style.setProperty('--c-secondary', tenantCompany.theme.secondary);
+      root.style.setProperty('--c-bg', tenantCompany.theme.background);
+      root.style.setProperty('--c-card', tenantCompany.theme.card);
+      root.style.setProperty('--c-text', tenantCompany.theme.text);
+    }
+  }, [tenantCompany]);
 
   // Auto-redirecionamento se a sessão já existir
   useEffect(() => {
@@ -22,16 +37,35 @@ export const Login = () => {
         const adminCompany = companies.find(c => c.id === user.companyId);
         if (adminCompany) navigate(`/admin/${adminCompany.linkName}`, { replace: true });
       } else {
-        navigate('/', { replace: true });
+        navigate(`/${slug || tenantCompany?.linkName || ''}`, { replace: true });
       }
     }
-  }, [user, navigate, companies]);
+  }, [user, navigate, companies, slug, tenantCompany]);
+
+  // Fallback visual caso a empresa do slug não exista
+  if (slug && !tenantCompany) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-center">
+         <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
+            <AlertTriangle size={36} className="text-zinc-500" />
+         </div>
+         <h1 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h1>
+         <p className="text-zinc-400 max-w-sm mb-8">
+            O endereço <strong>{slug}</strong> não corresponde a nenhuma empresa ativa no momento.
+         </p>
+         <button onClick={() => navigate('/login')} className="px-6 py-2.5 rounded-xl bg-zinc-800 text-white font-medium hover:bg-zinc-700 transition-colors">
+            Acessar Login Global
+         </button>
+      </div>
+    );
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    const loggedUser = login(identifier, password);
+    // Passa o ID da empresa alvo para blindar a autenticação no tenant correto
+    const loggedUser = login(identifier, password, tenantCompany?.id);
     
     if (loggedUser) {
       if (loggedUser.role === 'SUPER_ADMIN') {
@@ -44,7 +78,7 @@ export const Login = () => {
            setError('Empresa não encontrada ou inativa.');
         }
       } else {
-        navigate('/');
+        navigate(`/${slug || tenantCompany?.linkName}`);
       }
     } else {
       setError('E-mail/CPF ou senha incorretos, ou conta inativa.');
@@ -58,85 +92,93 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden transition-colors duration-500" style={{ backgroundColor: tenantCompany ? 'var(--c-bg)' : '#09090b' }}>
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] blur-[120px] rounded-full pointer-events-none opacity-20" style={{ backgroundColor: 'var(--c-primary, #2563eb)' }}></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] blur-[120px] rounded-full pointer-events-none opacity-20" style={{ backgroundColor: 'var(--c-secondary, #9333ea)' }}></div>
 
-      <div className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-zinc-800/50 p-8 md:p-10 relative z-10">
+      <div className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/5 p-8 md:p-10 relative z-10" style={{ backgroundColor: tenantCompany ? 'var(--c-card)' : 'rgba(24, 24, 27, 0.8)' }}>
         
         <div className="flex flex-col items-center mb-8">
-          <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-zinc-700 shadow-xl mb-4 bg-zinc-800 flex items-center justify-center text-white font-bold text-xl">
-            ENT
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">ENT<span className="text-blue-500">Store</span></h1>
-          <p className="text-sm text-zinc-400 mt-1">Acesse sua conta corporativa</p>
+          {tenantCompany ? (
+            <>
+               {tenantCompany.logoUrl ? (
+                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="h-20 mb-4 object-contain" />
+               ) : (
+                  <div className="w-20 h-20 rounded-2xl mb-4 flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                    {tenantCompany.name.charAt(0).toUpperCase()}
+                  </div>
+               )}
+               <h1 className="text-2xl font-bold tracking-tight text-center" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
+            </>
+          ) : (
+            <>
+              <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-zinc-700 shadow-xl mb-4 bg-zinc-800 flex items-center justify-center text-white font-bold text-xl">
+                ENT
+              </div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">ENT<span className="text-blue-500">Store</span></h1>
+            </>
+          )}
+          <p className="text-sm mt-1 opacity-70" style={{ color: 'var(--c-text, #a1a1aa)' }}>Acesse sua conta corporativa</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-500 text-sm text-center">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-500 text-sm text-center font-medium">
               {error}
             </div>
           )}
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300 ml-1">E-mail ou CPF</label>
+            <label className="text-sm font-medium ml-1 opacity-80" style={{ color: 'var(--c-text, #d4d4d8)' }}>E-mail ou CPF</label>
             <input 
               type="text" 
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="seu@email.com ou 000.000.000-00"
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all placeholder:opacity-50"
+              style={{ color: 'var(--c-text, #fff)', '--tw-ring-color': 'var(--c-primary, #3b82f6)' } as React.CSSProperties}
               required
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-zinc-300 ml-1">Senha</label>
+            <label className="text-sm font-medium ml-1 opacity-80" style={{ color: 'var(--c-text, #d4d4d8)' }}>Senha</label>
             <input 
               type="password" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all placeholder:opacity-50"
+              style={{ color: 'var(--c-text, #fff)', '--tw-ring-color': 'var(--c-primary, #3b82f6)' } as React.CSSProperties}
               required
             />
           </div>
 
           <button 
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-[0.98] mt-4"
+            className="w-full font-medium py-3 rounded-xl shadow-lg transition-all active:scale-[0.98] mt-4 text-white"
+            style={{ backgroundColor: 'var(--c-primary, #2563eb)' }}
           >
             Entrar na Plataforma
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-zinc-800/50">
-           <p className="text-xs text-zinc-500 text-center mb-4 uppercase tracking-widest font-semibold">
+        <div className="mt-8 pt-6 border-t border-white/10">
+           <p className="text-xs text-center mb-4 uppercase tracking-widest font-semibold opacity-60" style={{ color: 'var(--c-text, #a1a1aa)' }}>
              Acessos Rápidos de Teste
            </p>
            <div className="flex flex-col gap-2.5">
-              <button 
-                type="button" 
-                onClick={() => fillCredentials('sadmin@entstore.com', '123456')}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
-              >
-                 <ShieldAlert size={16} /> Preencher Super Admin
-              </button>
+              {!tenantCompany && (
+                 <button type="button" onClick={() => fillCredentials('sadmin@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
+                    <ShieldAlert size={16} /> Preencher Super Admin
+                 </button>
+              )}
               
-              <button 
-                type="button" 
-                onClick={() => fillCredentials('admin@entstore.com', '123456')}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
-              >
-                 <Building size={16} /> Preencher Admin (Acme)
+              <button type="button" onClick={() => fillCredentials('admin@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
+                 <Building size={16} /> Preencher Admin {tenantCompany ? `(${tenantCompany.name})` : '(Acme)'}
               </button>
 
-              <button 
-                type="button" 
-                onClick={() => fillCredentials('user@entstore.com', '123456')}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-zinc-700 bg-zinc-800/40 hover:bg-zinc-700 hover:text-white text-zinc-400 text-sm transition-colors"
-              >
+              <button type="button" onClick={() => fillCredentials('user@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
                  <UserIcon size={16} /> Preencher Usuário Final
               </button>
            </div>

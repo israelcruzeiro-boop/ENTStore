@@ -5,10 +5,12 @@ import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
 import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink, MonitorPlay } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 export const UserHome = () => {
   const { company, user } = useAuth();
+  const { slug } = useParams();
+  const navigate = useNavigate();
   const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -42,6 +44,12 @@ export const UserHome = () => {
   const heroTitle = company?.heroTitle || (companyRepos.length > 0 ? companyRepos[0].name : `Bem-vindo à ${company?.name}`);
   const heroSubtitle = company?.heroSubtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os hubs e bibliotecas exclusivas da sua plataforma corporativa.');
 
+  const handleSearchSubmit = (e: React.KeyboardEvent) => {
+     if (e.key === 'Enter' && searchQuery.trim()) {
+        navigate(`/${slug}/busca?q=${encodeURIComponent(searchQuery)}`);
+     }
+  };
+
   return (
     <div className="pb-10 pt-0 min-h-screen">
       <div className="relative w-full h-[45vh] min-h-[380px] max-h-[500px] flex flex-col justify-end pb-8 md:pb-12 bg-[var(--c-bg)] overflow-hidden">
@@ -74,6 +82,7 @@ export const UserHome = () => {
                 placeholder="O que você quer aprender hoje?"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchSubmit}
                 className="w-full bg-zinc-900/80 backdrop-blur-md border border-white/10 hover:border-white/20 rounded-full py-3.5 pl-12 pr-6 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] transition-all shadow-lg placeholder:text-zinc-400"
              />
           </div>
@@ -143,7 +152,7 @@ export const UserHome = () => {
                       </div>
                       <div className="grid md:grid-cols-2 gap-4">
                         {filteredLinks.map(link => (
-                          <Link key={link.id} to={`/repo/${link.repositoryId}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
+                          <Link key={link.id} to={`/${slug}/repo/${link.repositoryId}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
                             <div className="overflow-hidden">
                               <h3 className="text-white font-medium group-hover:text-[var(--c-primary)] transition-colors truncate">{link.name}</h3>
                               <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5 truncate">

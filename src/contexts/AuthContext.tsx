@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore';
 interface AuthContextType {
   user: User | null;
   company: Company | null;
-  login: (identifier: string, pass: string) => User | null;
+  login: (identifier: string, pass: string, targetCompanyId?: string) => User | null;
   logout: () => void;
 }
 
@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [company]);
 
-  const login = (identifier: string, pass: string): User | null => {
+  const login = (identifier: string, pass: string, targetCompanyId?: string): User | null => {
     const cleanId = identifier.trim();
     const cleanCpf = cleanId.replace(/\D/g, '');
 
@@ -49,6 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (foundUser) {
       if (foundUser.active === false) {
+         return null;
+      }
+
+      // Previne que um usuário de uma empresa logue na URL de outra (Cross-tenant block)
+      if (targetCompanyId && foundUser.role !== 'SUPER_ADMIN' && foundUser.companyId !== targetCompanyId) {
          return null;
       }
 

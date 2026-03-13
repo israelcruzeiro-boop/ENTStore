@@ -28,7 +28,7 @@ const getPremiumLinkConfig = (type: string) => {
 };
 
 export const RepositoryDetail = () => {
-  const { id } = useParams();
+  const { id, slug } = useParams();
   const { user } = useAuth();
   const { repositories, categories: allCategories, contents: allContents, simpleLinks, contentViews, addContentView, contentRatings, rateContent, orgUnits, orgTopLevels } = useAppStore();
 
@@ -87,7 +87,7 @@ export const RepositoryDetail = () => {
          </div>
          <h1 className="text-2xl font-bold text-white mb-2">Acesso Restrito</h1>
          <p className="max-w-md mb-6">Você não tem permissão para acessar os conteúdos deste repositório.</p>
-         <Link to="/" className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
+         <Link to={`/${slug}`} className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
             Voltar ao Início
          </Link>
       </div>
@@ -160,7 +160,7 @@ export const RepositoryDetail = () => {
          )}
          <div className="absolute inset-0 bg-black/40"></div>
          <div className="absolute inset-0 bg-gradient-to-t from-[var(--c-bg)] via-[var(--c-bg)]/80 to-transparent"></div>
-         <Link to="/" className="absolute top-24 left-4 md:left-12 flex items-center gap-2 text-zinc-300 hover:text-white transition-colors z-10 font-medium">
+         <Link to={`/${slug}`} className="absolute top-24 left-4 md:left-12 flex items-center gap-2 text-zinc-300 hover:text-white transition-colors z-10 font-medium">
             <ArrowLeft size={20} /> Voltar
          </Link>
          <div className="absolute bottom-0 left-4 md:left-12 pb-8 pr-4">

@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 export const UserBusca = () => {
   const { company, user } = useAuth();
+  const { slug } = useParams();
+  const [searchParams] = useSearchParams();
   const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
-  const [query, setQuery] = useState('');
+  
+  const initialQuery = searchParams.get('q') || '';
+  const [query, setQuery] = useState(initialQuery);
 
   const companyRepos = repositories.filter(r => {
      if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
@@ -92,7 +96,7 @@ export const UserBusca = () => {
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 {filteredLinks.map(link => (
-                  <Link key={link.id} to={`/repo/${link.repositoryId}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
+                  <Link key={link.id} to={`/${slug}/repo/${link.repositoryId}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
                     <div className="overflow-hidden">
                       <h3 className="text-white font-medium group-hover:text-[var(--c-primary)] transition-colors truncate">{link.name}</h3>
                       <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5 truncate">

@@ -6,7 +6,7 @@ import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
 
 export const ContentDetail = () => {
-  const { id } = useParams();
+  const { id, slug } = useParams();
   const { user } = useAuth();
   const { contents, repositories, contentViews, addContentView, contentRatings, rateContent, orgUnits, orgTopLevels } = useAppStore();
   const hasTrackedView = useRef(false);
@@ -59,7 +59,7 @@ export const ContentDetail = () => {
          </div>
          <h1 className="text-2xl font-bold text-white mb-2">Acesso Negado</h1>
          <p className="max-w-md mb-6">Você não tem permissão para acessar este conteúdo.</p>
-         <Link to="/" className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
+         <Link to={`/${slug}`} className="px-6 py-2.5 rounded-md bg-[var(--c-primary)] text-white font-medium hover:bg-opacity-80 transition-colors">
             Voltar ao Início
          </Link>
       </div>
@@ -68,7 +68,7 @@ export const ContentDetail = () => {
 
   return (
     <div className="pt-24 pb-12 px-4 md:px-12 min-h-screen">
-       <Link to={`/repo/${repo.id}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-white mb-6 transition-colors">
+       <Link to={`/${slug}/repo/${repo.id}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-white mb-6 transition-colors">
           <ArrowLeft size={20} /> Voltar para {repo.name}
        </Link>
 

@@ -1,12 +1,13 @@
 import { Repository } from '../../types';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Folder, PlaySquare } from 'lucide-react';
 
 export const RepoCard = ({ repo, fullWidth = false }: { repo: Repository, fullWidth?: boolean }) => {
   const isSimple = repo.type === 'SIMPLE';
+  const { slug } = useParams();
 
   return (
-    <Link to={`/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : 'w-28 md:w-32'}`}>
+    <Link to={`/${slug}/repo/${repo.id}`} className={`group block flex-shrink-0 snap-start ${fullWidth ? 'w-full' : 'w-28 md:w-32'}`}>
       <div className="aspect-square w-full overflow-hidden rounded-lg shadow-md relative bg-zinc-800 transition-transform duration-300 group-hover:scale-105 group-hover:ring-2 group-hover:ring-[var(--c-primary)]">
         {repo.coverImage ? (
           <img 

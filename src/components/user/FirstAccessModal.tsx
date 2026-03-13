@@ -57,7 +57,7 @@ export const FirstAccessModal = () => {
 
   const handleCompleteSetup = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !company) return;
 
     if (!formData.email.trim()) return toast.error('O preenchimento do E-mail é obrigatório.');
     
@@ -92,7 +92,7 @@ export const FirstAccessModal = () => {
     });
 
     toast.success('Perfil configurado! Bem-vindo(a).');
-    navigate('/');
+    navigate(`/${company.linkName}`);
   };
 
   if (!isVisible) return null;
