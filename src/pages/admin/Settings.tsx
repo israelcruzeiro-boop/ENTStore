@@ -49,18 +49,54 @@ export const AdminSettings = () => {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'heroImage') => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 300 * 1024) {
-        toast.error('A imagem é muito pesada (máx: 300KB). Para evitar travamentos de memória, use uma imagem mais leve ou cole o link (URL) no campo abaixo.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        // Usa `prev` para evitar estado obsoleto (stale state) caso outras edições ocorram
-        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // Limite de 10MB para o arquivo bruto
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('A imagem é muito grande (máximo 10MB).');
+      return;
     }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Limita a resolução para proteger a memória (Hero = 1280px, Logo = 400px)
+        const maxWidth = field === 'heroImage' ? 1280 : 400;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Fundo branco para caso a imagem tenha transparência (útil para JPEG)
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Comprime como JPEG com 80% de qualidade
+          const compressedUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setFormData(prev => ({ ...prev, [field]: compressedUrl }));
+        } else {
+          // Fallback caso o canvas falhe
+          setFormData(prev => ({ ...prev, [field]: event.target?.result as string }));
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    
+    // Reseta o input para permitir upload da mesma imagem se necessário
+    e.target.value = '';
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -87,7 +123,7 @@ export const AdminSettings = () => {
       }
     } catch (err: any) {
       if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
-         toast.error('Limite de armazenamento do navegador atingido! Remova a imagem pesada e use links (URLs).');
+         toast.error('Limite de armazenamento do navegador atingido! Use uma imagem menor ou através de um link de URL.');
       } else {
          toast.error('Erro inesperado ao salvar as configurações.');
       }
