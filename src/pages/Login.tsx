@@ -102,9 +102,9 @@ export const Login = () => {
           {tenantCompany ? (
             <>
                {tenantCompany.logoUrl ? (
-                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="w-20 h-20 mb-4 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
+                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="w-28 h-28 mb-5 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
                ) : (
-                  <div className="w-20 h-20 rounded-full mb-4 flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                  <div className="w-28 h-28 rounded-full mb-5 flex items-center justify-center text-white font-bold text-4xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
                     {tenantCompany.name.charAt(0).toUpperCase()}
                   </div>
                )}
@@ -112,7 +112,7 @@ export const Login = () => {
             </>
           ) : (
             <>
-              <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-zinc-700 shadow-xl mb-4 bg-zinc-800 flex items-center justify-center text-white font-bold text-xl">
+              <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-zinc-700 shadow-xl mb-5 bg-zinc-800 flex items-center justify-center text-white font-bold text-2xl">
                 ENT
               </div>
               <h1 className="text-2xl font-bold text-white tracking-tight">ENT<span className="text-blue-500">Store</span></h1>
