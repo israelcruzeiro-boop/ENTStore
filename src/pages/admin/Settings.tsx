@@ -44,19 +44,20 @@ export const AdminSettings = () => {
 
   const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
-    setFormData({ ...formData, linkName: newLink });
+    setFormData(prev => ({ ...prev, linkName: newLink }));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'heroImage') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('A imagem deve ter no máximo 2MB.');
+      if (file.size > 300 * 1024) {
+        toast.error('A imagem é muito pesada (máx: 300KB). Para evitar travamentos de memória, use uma imagem mais leve ou cole o link (URL) no campo abaixo.');
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, [field]: reader.result as string });
+        // Usa `prev` para evitar estado obsoleto (stale state) caso outras edições ocorram
+        setFormData(prev => ({ ...prev, [field]: reader.result as string }));
       };
       reader.readAsDataURL(file);
     }
@@ -77,12 +78,20 @@ export const AdminSettings = () => {
       return toast.error('Este Link de Acesso já está em uso por outra empresa.');
     }
 
-    updateCompany(company.id, formData);
-
-    toast.success('Configurações atualizadas com sucesso!');
-
-    if (newLinkName !== company.linkName) {
-      navigate(`/admin/${newLinkName}/settings`, { replace: true });
+    try {
+      updateCompany(company.id, formData);
+      toast.success('Configurações atualizadas com sucesso!');
+      
+      if (newLinkName !== company.linkName) {
+        navigate(`/admin/${newLinkName}/settings`, { replace: true });
+      }
+    } catch (err: any) {
+      if (err?.name === 'QuotaExceededError' || err?.message?.includes('exceeded the quota')) {
+         toast.error('Limite de armazenamento do navegador atingido! Remova a imagem pesada e use links (URLs).');
+      } else {
+         toast.error('Erro inesperado ao salvar as configurações.');
+      }
+      console.error("Erro ao salvar configurações da empresa:", err);
     }
   };
 
@@ -108,7 +117,7 @@ export const AdminSettings = () => {
                   <Input 
                     placeholder="Ex: Globex Corp" 
                     value={formData.name} 
-                    onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                    onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))} 
                   />
                 </div>
                 
@@ -147,7 +156,7 @@ export const AdminSettings = () => {
                     </Button>
                     <div className="flex flex-col gap-1.5">
                        <Label className="text-xs text-slate-500">Ou cole a URL da imagem (https://...)</Label>
-                       <Input placeholder="https://exemplo.com/logo.png" value={formData.logoUrl} onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} className="text-sm max-w-md" />
+                       <Input placeholder="https://exemplo.com/logo.png" value={formData.logoUrl} onChange={(e) => setFormData(prev => ({...prev, logoUrl: e.target.value}))} className="text-sm max-w-md" />
                     </div>
                  </div>
               </div>
@@ -175,17 +184,17 @@ export const AdminSettings = () => {
                        )}
                     </div>
                     <Input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'heroImage')} className="hidden" id="hero-upload" />
-                    <Input placeholder="Ou cole a URL da imagem..." value={formData.heroImage} onChange={(e) => setFormData({...formData, heroImage: e.target.value})} className="h-8 text-xs mt-2" />
+                    <Input placeholder="Ou cole a URL da imagem..." value={formData.heroImage} onChange={(e) => setFormData(prev => ({...prev, heroImage: e.target.value}))} className="h-8 text-xs mt-2" />
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div className="space-y-2">
                      <Label>Título Principal</Label>
-                     <Input placeholder="Ex: Treinamento de Vendas 2024" value={formData.heroTitle} onChange={(e) => setFormData({...formData, heroTitle: e.target.value})} />
+                     <Input placeholder="Ex: Treinamento de Vendas 2024" value={formData.heroTitle} onChange={(e) => setFormData(prev => ({...prev, heroTitle: e.target.value}))} />
                    </div>
                    <div className="space-y-2">
                      <Label>Subtítulo / Descrição</Label>
-                     <Input placeholder="Ex: Assista aos novos conteúdos disponibilizados." value={formData.heroSubtitle} onChange={(e) => setFormData({...formData, heroSubtitle: e.target.value})} />
+                     <Input placeholder="Ex: Assista aos novos conteúdos disponibilizados." value={formData.heroSubtitle} onChange={(e) => setFormData(prev => ({...prev, heroSubtitle: e.target.value}))} />
                    </div>
                  </div>
               </div>
@@ -212,7 +221,7 @@ export const AdminSettings = () => {
                     </Label>
                     <Switch 
                       checked={formData.active} 
-                      onCheckedChange={(checked) => setFormData({...formData, active: checked})} 
+                      onCheckedChange={(checked) => setFormData(prev => ({...prev, active: checked}))} 
                     />
                   </div>
                 </div>
