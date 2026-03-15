@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
+import { supabase } from '../../lib/supabaseClient';
+import { useCompanies } from '../../hooks/useSupabaseData';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Theme } from '../../types';
-import { Play, Search, UserCircle, ChevronRight } from 'lucide-react';
+import { Play, Search, UserCircle, ChevronRight, Loader2, Save, ExternalLink, LayoutTemplate, Sparkles, Image as ImageIcon, PanelTop } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const AdminAppearance = () => {
-  const { linkName } = useParams();
-  const { companies, updateCompanyTheme } = useAppStore();
-  const company = companies.find(c => c.linkName === linkName);
+  const { link_name } = useParams();
+  const { companies, mutate: mutateCompanies } = useCompanies();
+  const company = companies.find(c => c.link_name === link_name);
   
   const [activeThemeKey, setActiveThemeKey] = useState('custom');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [localTheme, setLocalTheme] = useState<Theme>({
     primary: '#2563EB',
     secondary: '#1D4ED8',
@@ -21,15 +25,26 @@ export const AdminAppearance = () => {
     card: '#18181b',
     text: '#ffffff'
   });
+  const [publicBio, setPublicBio] = useState('');
+  const [landingPageActive, setLandingPageActive] = useState(false);
+  const [landingPageLayout, setLandingPageLayout] = useState<'classic' | 'gradient' | 'immersive' | 'solid'>('classic');
 
   useEffect(() => {
      if (company?.theme) {
         setLocalTheme(company.theme);
-        // Tenta descobrir se a cor bate com algum preset
         const presetEntry = Object.entries(mockThemes).find(([_, t]) => 
-            t.primary === company.theme.primary && t.background === company.theme.background
+            (t as Theme).primary === company.theme.primary && (t as Theme).background === company.theme.background
         );
         setActiveThemeKey(presetEntry ? presetEntry[0] : 'custom');
+     }
+     if (company?.public_bio) {
+        setPublicBio(company.public_bio);
+     }
+     if (company?.landing_page_active !== undefined) {
+        setLandingPageActive(company.landing_page_active);
+     }
+     if (company?.landing_page_layout) {
+        setLandingPageLayout(company.landing_page_layout);
      }
   }, [company]);
 
@@ -43,13 +58,34 @@ export const AdminAppearance = () => {
     setActiveThemeKey('custom');
   };
 
-  const handleSaveTheme = () => {
+  const handleSaveTheme = async () => {
     if (!company) return;
-    updateCompanyTheme(company.id, localTheme);
-    toast.success('Aparência atualizada e aplicada com sucesso!');
+    
+    try {
+      setIsSubmitting(true);
+      const { error } = await supabase.from('companies').update({ 
+         theme: localTheme,
+         public_bio: publicBio,
+         landing_page_active: landingPageActive,
+         landing_page_layout: landingPageLayout
+      }).eq('id', company.id);
+      if (error) throw error;
+      
+      toast.success('Aparência atualizada e aplicada com sucesso!');
+      mutateCompanies();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao salvar identidade visual: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  if (!company) return null;
+  if (!company) return (
+    <div className="flex justify-center items-center h-48 text-slate-400">
+       <Loader2 className="animate-spin" />
+    </div>
+  );
 
   const colorFields: { key: keyof Theme, label: string }[] = [
     { key: 'primary', label: 'Cor Primária (Destaques e Botões)' },
@@ -66,13 +102,13 @@ export const AdminAppearance = () => {
             <h1 className="text-2xl font-bold text-slate-900">Identidade Visual</h1>
             <p className="text-sm text-slate-500 mt-1">Personalize a aparência do painel dos seus usuários na <strong>{company.name}</strong>.</p>
          </div>
-         <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white hidden md:flex">
+         <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white hidden md:flex items-center gap-2" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
             Salvar Aparência
          </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         {/* Lado Esquerdo: Controles */}
          <div className="space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h2 className="text-base font-semibold text-slate-900 mb-4">Temas Pré-definidos</h2>
@@ -81,11 +117,12 @@ export const AdminAppearance = () => {
                      <button 
                         key={key}
                         onClick={() => handleApplyPreset(key, theme as Theme)}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${activeThemeKey === key ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'}`}
+                        disabled={isSubmitting}
+                        className={`p-3 rounded-lg border-2 text-left transition-all ${activeThemeKey === key ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300'} disabled:opacity-50`}
                      >
                         <div className="flex gap-1.5 mb-2">
-                           <div className="w-5 h-5 rounded-full border border-black/10" style={{ backgroundColor: theme.primary }}></div>
-                           <div className="w-5 h-5 rounded-full border border-black/10" style={{ backgroundColor: theme.background }}></div>
+                           <div className="w-5 h-5 rounded-full border border-black/10" style={{ backgroundColor: (theme as Theme).primary }}></div>
+                           <div className="w-5 h-5 rounded-full border border-black/10" style={{ backgroundColor: (theme as Theme).background }}></div>
                         </div>
                         <p className="font-medium text-xs text-slate-900 capitalize truncate">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
                      </button>
@@ -104,12 +141,14 @@ export const AdminAppearance = () => {
                              type="color" 
                              value={localTheme[field.key]} 
                              onChange={(e) => handleColorChange(field.key, e.target.value)}
+                             disabled={isSubmitting}
                              className="h-10 w-16 p-1 cursor-pointer border-slate-200 bg-white" 
                            />
                            <Input 
                              type="text" 
                              value={localTheme[field.key]}
                              onChange={(e) => handleColorChange(field.key, e.target.value)}
+                             disabled={isSubmitting}
                              className="font-mono text-sm h-10 w-24 uppercase" 
                              maxLength={7}
                            />
@@ -119,15 +158,68 @@ export const AdminAppearance = () => {
                </div>
             </div>
 
-            <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white w-full md:hidden">
+            {company.landing_page_enabled !== false && (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                 <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
+                   <div>
+                      <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">Página Pública (Landing Page)</h2>
+                      <p className="text-sm text-slate-500 mt-1">Exponha os repositórios aprovados da sua empresa na internet de forma pública e otimizada.</p>
+                   </div>
+                   <Switch checked={landingPageActive} onCheckedChange={setLandingPageActive} disabled={isSubmitting} title="Ativar Landing Page" />
+                 </div>
+                 
+                 <div className={`transition-all duration-300 ${!landingPageActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                   <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-semibold text-slate-700">Bio Descritiva</label>
+                      <Link to={`/${company.slug || company.link_name}/landing`} target="_blank" className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors">
+                         <ExternalLink size={14} /> Acessar Landing Page
+                      </Link>
+                   </div>
+                   <textarea 
+                      className="flex w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 min-h-[100px] resize-y"
+                      placeholder="Escreva uma breve bio ou slogan da empresa..."
+                      value={publicBio}
+                      onChange={(e) => setPublicBio(e.target.value)}
+                      disabled={isSubmitting || !landingPageActive}
+                   />
+  
+                   <div className="mt-6 border-t border-slate-100 pt-5">
+                      <label className="text-sm font-semibold text-slate-700 block mb-3">Estilo de Capa Global (Banner)</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {[
+                          { id: 'classic', label: 'Clássico', desc: 'Capa padrão com avatar sobreposto.', icon: <LayoutTemplate size={18}/> },
+                          { id: 'gradient', label: 'Degradê Premium', desc: 'Capa fundida ao fundo escuro suavemente.', icon: <Sparkles size={18}/> },
+                          { id: 'immersive', label: 'Imersivo', desc: 'Capa tela-cheia com desfoque central.', icon: <ImageIcon size={18}/> },
+                          { id: 'solid', label: 'Recorte Seco', desc: 'Divisão nítida da capa e conteúdo.', icon: <PanelTop size={18}/> }
+                        ].map(layout => (
+                          <button 
+                            key={layout.id}
+                            type="button"
+                            onClick={() => setLandingPageLayout(layout.id as any)}
+                            disabled={isSubmitting || !landingPageActive}
+                            className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${landingPageLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 disabled:opacity-50'}`}
+                          >
+                             <div className={`mb-2 p-2 rounded-lg transition-colors ${landingPageLayout === layout.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                                {layout.icon}
+                             </div>
+                             <span className={`font-semibold text-sm transition-colors ${landingPageLayout === layout.id ? 'text-indigo-900' : 'text-slate-700'}`}>{layout.label}</span>
+                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">{layout.desc} Aplicado na Landing Page, Home e Detalhes de Repositório.</p>
+                          </button>
+                        ))}
+                      </div>
+                   </div>
+                 </div>
+              </div>
+            )}  
+
+            <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white w-full md:hidden flex justify-center items-center gap-2" disabled={isSubmitting}>
+               {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                Salvar Aparência
             </Button>
          </div>
 
-         {/* Lado Direito: Preview */}
          <div>
             <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xl sticky top-6 bg-white">
-               {/* Cabeçalho "Navegador" Falso */}
                <div className="bg-slate-100 px-4 py-3 flex items-center gap-2 border-b border-slate-200">
                   <div className="flex gap-1.5">
                      <div className="w-3 h-3 rounded-full bg-red-400"></div>
@@ -137,12 +229,10 @@ export const AdminAppearance = () => {
                   <span className="text-slate-500 text-xs ml-4 font-medium">Preview ao vivo - App do Usuário</span>
                </div>
                
-               {/* Container do Preview usando as cores locais inline */}
                <div 
                   style={{ backgroundColor: localTheme.background, color: localTheme.text }} 
                   className="min-h-[500px] relative transition-colors duration-300 font-sans"
                >
-                  {/* Header */}
                   <header className="px-6 py-4 flex justify-between items-center bg-black/20 backdrop-blur-sm border-b border-white/5">
                      <div className="font-bold text-xl flex gap-1">
                         ENT<span style={{ color: localTheme.primary }}>Store</span>
@@ -153,7 +243,6 @@ export const AdminAppearance = () => {
                      </div>
                   </header>
 
-                  {/* Hero Banner */}
                   <div className="px-6 py-10 relative overflow-hidden">
                      <div className="absolute inset-0 opacity-10" style={{ backgroundColor: localTheme.primary, background: `linear-gradient(45deg, ${localTheme.background}, ${localTheme.primary})` }}></div>
                      <div className="relative z-10">
@@ -178,7 +267,6 @@ export const AdminAppearance = () => {
                      </div>
                   </div>
 
-                  {/* Conteúdos */}
                   <div className="px-6 pb-10">
                      <h3 className="text-lg font-semibold mb-4 flex items-center group">
                         Meus Repositórios 
@@ -188,7 +276,6 @@ export const AdminAppearance = () => {
                         {[1, 2].map(i => (
                            <div key={i} className="w-48 rounded-lg overflow-hidden shrink-0 border border-white/5 shadow-md" style={{ backgroundColor: localTheme.card }}>
                               <div className="h-32 bg-black/20 relative group">
-                                 {/* Falso efeito de imagem */}
                                  <div className="absolute inset-0 opacity-20 bg-gradient-to-tr from-black to-transparent"></div>
                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 cursor-pointer">
                                     <div className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-xl transition-transform hover:scale-110" style={{ backgroundColor: localTheme.primary }}>

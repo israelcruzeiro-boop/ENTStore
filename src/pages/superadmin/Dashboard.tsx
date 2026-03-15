@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
+import { supabase } from '../../lib/supabaseClient';
+import { useCompanies, useUsers } from '../../hooks/useSupabaseData';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,35 +9,41 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload } from 'lucide-react';
-import { Company, User } from '../../types';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2 } from 'lucide-react';
+import { Company, User, Theme } from '../../types';
 
 // Proteção contra conflitos de rota
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
 
 export const SuperAdminDashboard = () => {
-  const { companies, users, addCompany, updateCompany, deleteCompany, toggleCompanyStatus, addUser, updateUser, deleteUser, toggleUserStatus } = useAppStore();
+  const { companies, mutate: mutateCompanies, isLoading: loadingCompanies } = useCompanies();
+  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers();
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'admins'>('details');
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', linkName: '', logoUrl: '', active: true });
+  const [formData, setFormData] = useState({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
 
+  const [isDeleteAdminOpen, setIsDeleteAdminOpen] = useState(false);
+  const [adminToDelete, setAdminToDelete] = useState<{id: string, name: string} | null>(null);
+
   const [adminFormView, setAdminFormView] = useState(false);
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [adminFormData, setAdminFormData] = useState({ name: '', email: '', password: '', active: true });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalCompanies = companies.length;
   const activeCompanies = companies.filter(c => c.active).length;
   const inactiveCompanies = totalCompanies - activeCompanies;
   const totalAdmins = users.filter(u => u.role === 'ADMIN').length;
 
-  const sortedCompanies = [...companies].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const sortedCompanies = [...companies].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
@@ -45,7 +52,7 @@ export const SuperAdminDashboard = () => {
       setActiveCompany(null);
       setAdminFormView(false);
       setEditingAdminId(null);
-      setFormData({ name: '', linkName: '', logoUrl: '', active: true });
+      setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
       setAdminFormData({ name: '', email: '', password: '', active: true });
       setActiveTab('details');
     }, 300);
@@ -60,8 +67,8 @@ export const SuperAdminDashboard = () => {
      const newName = e.target.value;
      const newLinkName = newName.toLowerCase().trim().replace(/[\s\W-]+/g, '');
      
-     if (!editingId && (!formData.linkName || formData.linkName === formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, ''))) {
-        setFormData({ ...formData, name: newName, linkName: newLinkName });
+     if (!editingId && (!formData.link_name || formData.link_name === formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, ''))) {
+        setFormData({ ...formData, name: newName, link_name: newLinkName });
      } else {
         setFormData({ ...formData, name: newName });
      }
@@ -69,7 +76,7 @@ export const SuperAdminDashboard = () => {
 
   const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
-     setFormData({ ...formData, linkName: newLink });
+     setFormData({ ...formData, link_name: newLink });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,7 +88,7 @@ export const SuperAdminDashboard = () => {
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, logoUrl: reader.result as string });
+        setFormData({ ...formData, logo_url: reader.result as string });
       };
       reader.readAsDataURL(file);
     }
@@ -90,7 +97,7 @@ export const SuperAdminDashboard = () => {
   const openCreate = () => {
     setEditingId(null);
     setActiveCompany(null);
-    setFormData({ name: '', linkName: '', logoUrl: '', active: true });
+    setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
     setActiveTab('details');
     setAdminFormView(false);
     setIsFormOpen(true);
@@ -99,43 +106,74 @@ export const SuperAdminDashboard = () => {
   const openEdit = (company: Company) => {
     setEditingId(company.id);
     setActiveCompany(company);
-    setFormData({ name: company.name, linkName: company.linkName, logoUrl: company.logoUrl || '', active: company.active });
+    setFormData({ name: company.name, link_name: company.link_name, logo_url: company.logo_url || '', active: company.active !== false, landing_page_enabled: company.landing_page_enabled !== false });
+    setActiveTab('details');
     setActiveTab('details');
     setAdminFormView(false);
     setIsFormOpen(true);
   };
 
-  const handleSaveCompany = (e: React.FormEvent) => {
+  const handleSaveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = formData.name.trim();
-    const linkName = formData.linkName.trim();
+    const link_name = formData.link_name.trim();
     
-    if (!name || !linkName) return toast.error('Nome e Link da Empresa são obrigatórios.');
+    if (!name || !link_name) return toast.error('Nome e Link da Empresa são obrigatórios.');
 
-    if (RESERVED_SLUGS.includes(linkName)) {
-      return toast.error(`"${linkName}" é um nome reservado pelo sistema e não pode ser utilizado.`);
+    if (RESERVED_SLUGS.includes(link_name)) {
+      return toast.error(`"${link_name}" é um nome reservado pelo sistema e não pode ser utilizado.`);
     }
 
-    const isDuplicate = companies.some(c => c.linkName === linkName && c.id !== editingId);
+    const isDuplicate = companies.some(c => c.link_name === link_name && c.id !== editingId);
     if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
 
+    setIsSubmitting(true);
     if (editingId) {
-      updateCompany(editingId, { name, linkName, logoUrl: formData.logoUrl, active: formData.active });
-      toast.success('Empresa atualizada com sucesso!');
+      const { error } = await supabase.from('companies').update({
+        name, link_name, logo_url: formData.logo_url, active: formData.active, landing_page_enabled: formData.landing_page_enabled
+      }).eq('id', editingId);
+      
+      if (error) toast.error(`Erro ao atualizar empresa: ${error.message}`);
+      else toast.success('Empresa atualizada com sucesso!');
     } else {
-      addCompany({ name, linkName, logoUrl: formData.logoUrl, active: formData.active, theme: mockThemes.corporateBlue });
-      toast.success('Empresa criada! Admin padrão gerado.');
+      const { error } = await supabase.from('companies').insert({
+        name, 
+        link_name, 
+        slug: link_name, // Adicionado slug obrigatório
+        logo_url: formData.logo_url, 
+        active: formData.active, 
+        landing_page_enabled: formData.landing_page_enabled,
+        theme: mockThemes.corporateBlue as Theme
+      });
+      
+      if (error) toast.error(`Erro ao criar empresa: ${error.message}`);
+      else toast.success('Empresa criada com sucesso!');
     }
     
+    await mutateCompanies();
+    setIsSubmitting(false);
     handleCloseForm();
   };
 
-  const handleDeleteCompany = () => {
+  const handleDeleteCompany = async () => {
     if (companyToDelete) {
-      deleteCompany(companyToDelete.id);
-      toast.success('Empresa e usuários excluídos com sucesso.');
+      setIsSubmitting(true);
+      const { error } = await supabase.from('companies').delete().eq('id', companyToDelete.id);
+      
+      if (error) toast.error('Erro ao excluir empresa.');
+      else {
+        toast.success('Empresa excluída com sucesso.');
+        mutateCompanies();
+      }
+      setIsSubmitting(false);
     }
     handleCloseDelete();
+  };
+
+  const toggleCompanyStatus = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase.from('companies').update({ active: !currentStatus }).eq('id', id);
+    if (error) toast.error('Erro ao alterar status.');
+    else mutateCompanies();
   };
 
   const openAdminCreate = () => {
@@ -150,7 +188,7 @@ export const SuperAdminDashboard = () => {
     setAdminFormView(true);
   };
 
-  const handleSaveAdmin = (e: React.FormEvent) => {
+  const handleSaveAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCompany) return;
     
@@ -161,38 +199,71 @@ export const SuperAdminDashboard = () => {
     const emailInUse = users.some(u => u.email === adminFormData.email && u.id !== editingAdminId);
     if (emailInUse) return toast.error('Este e-mail já está em uso.');
 
+    setIsSubmitting(true);
     if (editingAdminId) {
-      updateUser(editingAdminId, { 
+      const { error } = await supabase.from('users').update({ 
         name: adminFormData.name, 
         email: adminFormData.email,
         ...(adminFormData.password ? { password: adminFormData.password } : {}),
         active: adminFormData.active 
-      });
-      toast.success('Admin atualizado!');
+      }).eq('id', editingAdminId);
+      
+      if (error) toast.error(`Erro ao atualizar admin: ${error.message}`);
+      else toast.success('Admin atualizado!');
     } else {
-      addUser({
+      const { error } = await supabase.from('users').insert({
         name: adminFormData.name,
         email: adminFormData.email,
         password: adminFormData.password,
         role: 'ADMIN',
-        companyId: activeCompany.id,
+        company_id: activeCompany.id,
         active: adminFormData.active
       });
-      toast.success('Admin criado!');
+      
+      if (error) toast.error(`Erro ao criar admin: ${error.message}`);
+      else toast.success('Admin criado!');
     }
     
+    await mutateUsers();
+    setIsSubmitting(false);
     setAdminFormView(false);
-    setEditingAdminId(null);
   };
 
-  const handleDeleteAdmin = (id: string) => {
-    if(confirm('Tem certeza que deseja excluir este admin?')) {
-      deleteUser(id);
-      toast.success('Admin removido.');
+  const handleCloseDeleteAdmin = () => {
+    setIsDeleteAdminOpen(false);
+    setTimeout(() => setAdminToDelete(null), 300);
+  };
+
+  const handleDeleteAdmin = async () => {
+    if (adminToDelete) {
+      setIsSubmitting(true);
+      const { error } = await supabase.from('users').delete().eq('id', adminToDelete.id);
+      if (error) toast.error('Erro ao remover admin.');
+      else { toast.success('Admin removido.'); mutateUsers(); }
+      setIsSubmitting(false);
     }
+    handleCloseDeleteAdmin();
   };
 
-  const activeAdmins = users.filter(u => u.companyId === activeCompany?.id && u.role === 'ADMIN');
+  const toggleUserStatus = async (id: string, currentStatus: boolean) => {
+     const { error } = await supabase.from('users').update({ active: !currentStatus }).eq('id', id);
+     if (error) toast.error('Erro ao alterar status.');
+     else mutateUsers();
+  };
+
+  const activeAdmins = users.filter(u => u.company_id === activeCompany?.id && u.role === 'ADMIN');
+
+  // Otimização: Apenas mostra o loader central na primeira carga (quando não há dados)
+  // Isso evita que fundos/modais fechem durante revalidações do SWR
+  const isInitialLoad = (loadingCompanies && companies.length === 0) || (loadingUsers && users.length === 0);
+
+  if (isInitialLoad) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="animate-spin text-slate-300" size={40} />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -220,7 +291,7 @@ export const SuperAdminDashboard = () => {
           <div><p className="text-sm font-medium text-slate-500">Inativas</p><p className="text-2xl font-bold text-slate-900">{inactiveCompanies}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center shrink-0"><Users size={24} /></div>
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0"><Users size={24} /></div>
           <div><p className="text-sm font-medium text-slate-500">Total Admins</p><p className="text-2xl font-bold text-slate-900">{totalAdmins}</p></div>
         </div>
       </div>
@@ -247,7 +318,7 @@ export const SuperAdminDashboard = () => {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                            {company.logoUrl ? <img src={company.logoUrl} alt={company.name} className="w-full h-full object-cover" /> : <Building className="text-slate-400" size={18} />}
+                            {company.logo_url ? <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" /> : <Building className="text-slate-400" size={18} />}
                           </div>
                           <div>
                             <p className="font-semibold text-slate-900">{company.name}</p>
@@ -257,21 +328,21 @@ export const SuperAdminDashboard = () => {
                       </td>
                       <td className="p-4">
                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/{company.linkName}</span>
-                            <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50">
-                               <Link to={`/admin/${company.linkName}`}>
+                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/{company.link_name}</span>
+                            <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50">
+                               <Link to={`/admin/${company.link_name}`}>
                                  Admin <ExternalLink size={12} />
                                </Link>
                             </Button>
                          </div>
                       </td>
-                      <td className="p-4 text-slate-500">{new Date(company.updatedAt || company.createdAt).toLocaleDateString('pt-BR')}</td>
+                      <td className="p-4 text-slate-500">{new Date(company.updated_at || company.created_at).toLocaleDateString('pt-BR')}</td>
                       <td className="p-4 text-right">
                          <div className="flex items-center justify-end gap-1 md:gap-2">
-                           <Switch checked={company.active} onCheckedChange={() => toggleCompanyStatus(company.id)} title="Ativar/Desativar" />
+                           <Switch checked={company.active} onCheckedChange={() => toggleCompanyStatus(company.id, company.active)} />
                            <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} title="Editar Empresa e Administradores" className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => {setCompanyToDelete({id: company.id, name: company.name}); setIsDeleteOpen(true);}} title="Excluir Empresa" className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => {setCompanyToDelete({id: company.id, name: company.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
                          </div>
                       </td>
                    </tr>
@@ -284,7 +355,7 @@ export const SuperAdminDashboard = () => {
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseForm(); }}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
              <DialogTitle className="text-xl">
@@ -296,14 +367,14 @@ export const SuperAdminDashboard = () => {
             <div className="flex border-b border-slate-200 mt-2">
               <button
                 type="button"
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 onClick={() => setActiveTab('details')}
               >
                 Detalhes da Empresa
               </button>
               <button
                 type="button"
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'admins' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'admins' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                 onClick={() => setActiveTab('admins')}
               >
                 Administradores
@@ -323,17 +394,17 @@ export const SuperAdminDashboard = () => {
                   <Label>Link de Acesso (URL) *</Label>
                   <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200">
                     <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">seusite.com/</span>
-                    <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.linkName} onChange={handleLinkNameChange} />
+                    <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.link_name} onChange={handleLinkNameChange} />
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">Este slug servirá tanto para acesso do usuário (/{formData.linkName}/home) quanto para o admin (/admin/{formData.linkName}).</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Este slug servirá tanto para acesso do usuário (/{formData.link_name}/home) quanto para o admin (/admin/{formData.link_name}).</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Logo da Empresa</Label>
                   <div className="flex gap-4 items-start">
                      <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 mt-1">
-                        {formData.logoUrl ? (
-                          <img src={formData.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                        {formData.logo_url ? (
+                          <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
                         ) : (
                           <Building className="text-slate-400" size={24} />
                         )}
@@ -358,13 +429,21 @@ export const SuperAdminDashboard = () => {
                            <span className="text-xs text-slate-400 font-medium">OU</span>
                            <Input 
                              placeholder="Cole a URL da imagem (https://...)" 
-                             value={formData.logoUrl} 
-                             onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} 
+                             value={formData.logo_url} 
+                             onChange={(e) => setFormData({...formData, logo_url: e.target.value})} 
                              className="h-9 text-xs"
                            />
                         </div>
                      </div>
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="space-y-0.5">
+                    <Label>Habilitar Módulo Landing Page</Label>
+                    <p className="text-xs text-slate-500">Se desativado, o admin da empresa não poderá gerenciar a landing page.</p>
+                  </div>
+                  <Switch checked={formData.landing_page_enabled} onCheckedChange={(checked) => setFormData({...formData, landing_page_enabled: checked})} />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
@@ -381,7 +460,7 @@ export const SuperAdminDashboard = () => {
                   <div className="space-y-4">
                      <div className="flex justify-between items-center">
                         <p className="text-sm text-slate-500">Gestão de acesso ao painel da {activeCompany?.name}</p>
-                        <Button type="button" onClick={openAdminCreate} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">+ Novo Admin</Button>
+                        <Button type="button" onClick={openAdminCreate} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">+ Novo Admin</Button>
                      </div>
                      {activeAdmins.length === 0 ? (
                         <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">Nenhum administrador cadastrado.</div>
@@ -397,9 +476,9 @@ export const SuperAdminDashboard = () => {
                                     <p className="text-sm text-slate-500">{admin.email}</p>
                                  </div>
                                  <div className="flex items-center gap-2">
-                                    <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id)} title="Ativar/Desativar" className="mr-2" />
+                                    <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} title="Ativar/Desativar" className="mr-2" />
                                     <Button type="button" variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8"><Edit2 size={16} /></Button>
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteAdmin(admin.id)} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
+                                     <Button type="button" variant="ghost" size="icon" onClick={() => { setAdminToDelete({id: admin.id, name: admin.name}); setIsDeleteAdminOpen(true); }} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
                                  </div>
                               </div>
                            ))}
@@ -430,24 +509,28 @@ export const SuperAdminDashboard = () => {
           <div className="flex-shrink-0 pt-4 border-t border-slate-100 flex justify-end gap-3 mt-2">
             {activeTab === 'details' ? (
               <>
-                <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
-                <Button type="submit" form="company-form" className="bg-indigo-600 hover:bg-indigo-700 text-white">{editingId ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
+                <Button type="button" variant="outline" onClick={handleCloseForm} disabled={isSubmitting}>Cancelar</Button>
+                <Button type="submit" form="company-form" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : (editingId ? 'Salvar Alterações' : 'Criar Empresa')}
+                </Button>
               </>
             ) : (
               adminFormView ? (
                 <>
-                  <Button type="button" variant="outline" onClick={() => setAdminFormView(false)}>Cancelar</Button>
-                  <Button type="submit" form="admin-form" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar Admin</Button>
+                  <Button type="button" variant="outline" onClick={() => setAdminFormView(false)} disabled={isSubmitting}>Cancelar</Button>
+                  <Button type="submit" form="admin-form" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Admin'}
+                  </Button>
                 </>
               ) : (
-                <Button type="button" variant="outline" onClick={handleCloseForm}>Fechar</Button>
+                <Button type="button" variant="outline" onClick={handleCloseForm} disabled={isSubmitting}>Fechar</Button>
               )
             )}
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Empresa</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -455,8 +538,26 @@ export const SuperAdminDashboard = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Isso apagará também todos os usuários e dados vinculados localmente.</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
-             <Button type="button" variant="destructive" onClick={handleDeleteCompany}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete} disabled={isSubmitting}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteCompany} disabled={isSubmitting}>
+               {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Sim, excluir'}
+             </Button>
+          </div>
+        </DialogContent>
+       </Dialog>
+
+      <Dialog open={isDeleteAdminOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseDeleteAdmin(); }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader><DialogTitle className="text-red-600">Excluir Administrador</DialogTitle></DialogHeader>
+          <div className="py-4">
+             <p className="text-slate-600 text-sm">Tem certeza que deseja excluir o admin <strong>{adminToDelete?.name}</strong>?</p>
+             <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não pode ser desfeita.</p>
+          </div>
+          <div className="flex justify-end gap-3">
+             <Button type="button" variant="outline" onClick={handleCloseDeleteAdmin} disabled={isSubmitting}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteAdmin} disabled={isSubmitting}>
+               {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Sim, excluir'}
+             </Button>
           </div>
         </DialogContent>
       </Dialog>

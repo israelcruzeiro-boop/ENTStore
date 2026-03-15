@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { useParams, Outlet } from 'react-router-dom';
-import { useAppStore } from '../store/useAppStore';
+import { useCompanies } from '../hooks/useSupabaseData';
 import { Company } from '../types';
 
 interface TenantContextType {
@@ -12,10 +12,10 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider = () => {
   const { companySlug } = useParams<{ companySlug: string }>();
-  const { companies } = useAppStore();
+  const { companies } = useCompanies();
   
   const slug = companySlug || '';
-  const tenantCompany = companies.find(c => c.linkName === slug || c.slug === slug) || null;
+  const tenantCompany = companies.find(c => c.link_name === slug || c.slug === slug) || null;
 
   useEffect(() => {
     const root = document.documentElement;

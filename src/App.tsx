@@ -4,8 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { useAppStore } from './store/useAppStore';
 import { TenantProvider } from './contexts/TenantContext';
+import { useCompanies } from './hooks/useSupabaseData';
 
 // Layouts
 import { UserLayout } from './layouts/UserLayout';
@@ -29,55 +29,71 @@ import { AdminAppearance } from './pages/admin/Appearance';
 import { AdminSettings } from './pages/admin/Settings';
 import { SuperAdminDashboard } from './pages/superadmin/Dashboard';
 import NotFound from "./pages/NotFound";
+import { LandingPage } from './pages/LandingPage';
+import { CompanyLandingPage } from './pages/user/CompanyLandingPage';
 
 const queryClient = new QueryClient();
 
 // Route Protectors
-const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: JSX.Element, role?: string, allowSuperAdmin?: boolean }) => {
-  const { user } = useAuth();
-  const { companySlug, linkName } = useParams();
-  const { companies } = useAppStore();
+const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
+  const { user, loading: authLoading } = useAuth();
+  const params = useParams();
+  const { companies, isLoading: companiesLoading } = useCompanies();
   
+  // link_name é usado nas rotas /admin/:link_name
+  // companySlug é usado em todas as rotas de usuário /:companySlug/...
+  const currentSlug = params.link_name || params.companySlug;
+  const loading = authLoading || companiesLoading;
+  
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+          <p className="text-zinc-500 text-sm animate-pulse">Carregando segurança...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se não houver usuário logado (Supabase Auth reporta nulo)
   if (!user) {
-     if (companySlug) return <Navigate to={`/${companySlug}/login`} replace />;
+     if (currentSlug) return <Navigate to={`/${currentSlug}/login`} replace />;
      return <Navigate to="/login" replace />;
   }
 
-  // Validação Multi-tenant rigorosa para rotas de usuário
-  if (role === 'USER' && companySlug) {
-     const targetCompany = companies.find(c => c.linkName === companySlug || c.slug === companySlug);
+  // Validação Multi-tenant rigorosa para rotas de usuário e admin
+  if (currentSlug) {
+     const targetCompany = companies.find(c => c.link_name === currentSlug || c.slug === currentSlug);
      
      // 1. Se acessar um slug de empresa que não existe (ou foi inativada)
-     if (!targetCompany) {
-        const userCompany = companies.find(c => c.id === user.companyId);
-        if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
+     if (!targetCompany && companies.length > 0) {
+        const userCompany = companies.find(c => c.id === user.company_id);
+        if (userCompany) return <Navigate to={`/${userCompany.link_name}/home`} replace />;
+        // Evita loop: se não sabemos para onde ir, força login global
         return <Navigate to="/login" replace />;
      }
      
-     // 2. Se tentar acessar o painel/slug de uma empresa que não é a sua
-     if (user.companyId !== targetCompany.id && user.role !== 'SUPER_ADMIN') {
-        const userCompany = companies.find(c => c.id === user.companyId);
-        if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
-        return <Navigate to={`/${companySlug}/login`} replace />;
+     // 2. Se tentar acessar o painel/slug de uma empresa que não é a sua (Proteção de Tenant)
+     if (targetCompany && user.company_id !== targetCompany.id && user.role !== 'SUPER_ADMIN') {
+        const userCompany = companies.find(c => c.id === user.company_id);
+        if (userCompany) return <Navigate to={`/${userCompany.link_name}/home`} replace />;
+        return <Navigate to="/login" replace />;
      }
   }
   
   if (role && user.role !== role) {
-     // Permite Super Admin impersonar Admins
-     if (allowSuperAdmin && user.role === 'SUPER_ADMIN') {
-         return children; 
-     }
-     // Resgate de papel incorreto na rota
+     if (allowSuperAdmin && user.role === 'SUPER_ADMIN') return children; 
+     
      if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
      if (user.role === 'ADMIN') {
-        const adminCompany = companies.find(c => c.id === user.companyId);
-        if (adminCompany) return <Navigate to={`/admin/${adminCompany.linkName}`} replace />;
+        const adminCompany = companies.find(c => c.id === user.company_id);
+        if (adminCompany) return <Navigate to={`/admin/${adminCompany.link_name}`} replace />;
         return <Navigate to="/login" replace />;
      }
      
-     // Resgate para usuário final
-     const userCompany = companies.find(c => c.id === user.companyId);
-     if (userCompany) return <Navigate to={`/${userCompany.linkName}/home`} replace />;
+     const userCompany = companies.find(c => c.id === user.company_id);
+     if (userCompany) return <Navigate to={`/${userCompany.link_name}/home`} replace />;
      return <Navigate to="/login" replace />;
   }
   
@@ -89,13 +105,14 @@ const AppRoutes = () => (
     {/* Rotas Globais e Reservadas (Têm prioridade sobre /:companySlug) */}
     <Route path="/" element={<Navigate to="/login" replace />} />
     <Route path="/login" element={<Login />} />
+    <Route path="/lpage" element={<LandingPage />} />
 
     <Route path="/super-admin" element={<RequireAuth role="SUPER_ADMIN"><AdminLayout superAdmin /></RequireAuth>}>
       <Route index element={<SuperAdminDashboard />} />
       <Route path="*" element={<SuperAdminDashboard />} />
     </Route>
 
-    <Route path="/admin/:linkName" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
+    <Route path="/admin/:link_name" element={<RequireAuth role="ADMIN" allowSuperAdmin><AdminLayout /></RequireAuth>}>
       <Route index element={<AdminDashboard />} />
       <Route path="repos" element={<AdminRepositories />} />
       <Route path="repos/:repoId" element={<AdminRepositoryContents />} />
@@ -113,6 +130,8 @@ const AppRoutes = () => (
     <Route path="/:companySlug" element={<TenantProvider />}>
       {/* Tenant Login */}
       <Route path="login" element={<Login />} />
+      {/* Public Landing Page */}
+      <Route path="landing" element={<CompanyLandingPage />} />
 
       {/* Protected Area */}
       <Route element={<RequireAuth role="USER"><UserLayout /></RequireAuth>}>

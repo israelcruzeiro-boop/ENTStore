@@ -1,20 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useAppStore } from '../store/useAppStore';
+import { useCompanies } from '../hooks/useSupabaseData';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ShieldAlert, Building, User as UserIcon, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, Building, User as UserIcon, AlertTriangle, Loader2 } from 'lucide-react';
 
 export const Login = () => {
   const { login, user } = useAuth();
-  const { companies } = useAppStore();
+  const { companies, isLoading: companiesLoading } = useCompanies();
   const navigate = useNavigate();
   const { companySlug } = useParams();
   
-  const tenantCompany = companySlug ? companies.find(c => c.linkName === companySlug || c.slug === companySlug) : null;
+  const tenantCompany = companySlug ? companies.find(c => c.link_name === companySlug || c.slug === companySlug) : null;
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Fallback para login global: reseta o tema (o TenantProvider já gerencia isso no slug)
   useEffect(() => {
@@ -30,17 +31,20 @@ export const Login = () => {
 
   // Auto-redirecionamento se a sessão já existir
   useEffect(() => {
-    if (user) {
+    // Só redireciona se tiver usuário e a lista de empresas já tiver carregado (evita loop)
+    if (user && !companiesLoading) {
       if (user.role === 'SUPER_ADMIN') {
         navigate('/super-admin', { replace: true });
       } else if (user.role === 'ADMIN') {
-        const adminCompany = companies.find(c => c.id === user.companyId);
-        if (adminCompany) navigate(`/admin/${adminCompany.linkName}`, { replace: true });
+        const adminCompany = companies.find(c => c.id === user.company_id);
+        if (adminCompany) navigate(`/admin/${adminCompany.link_name}`, { replace: true });
       } else {
-        navigate(`/${companySlug || tenantCompany?.linkName || ''}/home`, { replace: true });
+        const userCompany = companies.find(c => c.id === user.company_id);
+        const slugPrefix = companySlug || tenantCompany?.link_name || userCompany?.link_name;
+        if (slugPrefix) navigate(`/${slugPrefix}/home`, { replace: true });
       }
     }
-  }, [user, navigate, companies, companySlug, tenantCompany]);
+  }, [user, navigate, companies, companiesLoading, companySlug, tenantCompany]);
 
   // Fallback visual caso a empresa do slug não exista
   if (companySlug && !tenantCompany) {
@@ -60,28 +64,38 @@ export const Login = () => {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoggingIn(true);
     
-    // Passa o ID da empresa alvo para blindar a autenticação no tenant correto
-    const loggedUser = login(identifier, password, tenantCompany?.id);
-    
-    if (loggedUser) {
-      if (loggedUser.role === 'SUPER_ADMIN') {
-        navigate('/super-admin');
-      } else if (loggedUser.role === 'ADMIN') {
-        const adminCompany = companies.find(c => c.id === loggedUser.companyId);
-        if (adminCompany) {
-           navigate(`/admin/${adminCompany.linkName}`);
+    try {
+      // Passa o ID da empresa alvo para blindar a autenticação no tenant correto
+      const loggedUser = await login(identifier, password, tenantCompany?.id);
+      
+      if (loggedUser) {
+        if (loggedUser.role === 'SUPER_ADMIN') {
+          navigate('/super-admin');
+        } else if (loggedUser.role === 'ADMIN') {
+          const adminCompany = companies.find(c => c.id === loggedUser.company_id);
+          if (adminCompany) {
+             navigate(`/admin/${adminCompany.link_name}`);
+          } else {
+             setError('Empresa não encontrada ou inativa.');
+          }
         } else {
-           setError('Empresa não encontrada ou inativa.');
+          const userCompany = companies.find(c => c.id === loggedUser.company_id);
+          const slugPrefix = companySlug || tenantCompany?.link_name || userCompany?.link_name;
+          if (slugPrefix) navigate(`/${slugPrefix}/home`);
         }
       } else {
-        navigate(`/${companySlug || tenantCompany?.linkName}/home`);
+        setError('E-mail/CPF ou senha incorretos, ou conta inativa.');
       }
-    } else {
-      setError('E-mail/CPF ou senha incorretos, ou conta inativa.');
+    } catch (err) {
+      console.error('Submit error:', err);
+      setError('Ocorreu um erro ao tentar entrar. Tente novamente.');
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -99,26 +113,24 @@ export const Login = () => {
       <div className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/5 p-8 md:p-10 relative z-10" style={{ backgroundColor: tenantCompany ? 'var(--c-card)' : 'rgba(24, 24, 27, 0.8)' }}>
         
         <div className="flex flex-col items-center mb-8">
-          {tenantCompany ? (
-            <>
-               {tenantCompany.logoUrl ? (
-                  <img src={tenantCompany.logoUrl} alt={tenantCompany.name} className="w-28 h-28 mb-5 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
+          {tenantCompany && (
+            <div className="mb-6 flex flex-col items-center">
+               {tenantCompany.logo_url ? (
+                  <img src={tenantCompany.logo_url} alt={tenantCompany.name} className="w-24 h-24 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
                ) : (
-                  <div className="w-28 h-28 rounded-full mb-5 flex items-center justify-center text-white font-bold text-4xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                  <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
                     {tenantCompany.name.charAt(0).toUpperCase()}
                   </div>
                )}
-               <h1 className="text-2xl font-bold tracking-tight text-center" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
-            </>
-          ) : (
-            <>
-              <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-zinc-700 shadow-xl mb-5 bg-zinc-800 flex items-center justify-center text-white font-bold text-2xl">
-                ENT
-              </div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">ENT<span className="text-blue-500">Store</span></h1>
-            </>
+               <h1 className="text-sm font-medium mt-3 opacity-60 uppercase tracking-widest" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
+            </div>
           )}
-          <p className="text-sm mt-1 opacity-70" style={{ color: 'var(--c-text, #a1a1aa)' }}>Acesse sua conta corporativa</p>
+          
+          <div className="mb-2">
+            <img src="/assets/logo.png" alt="ENTStore" className="h-12 md:h-14 w-auto" />
+          </div>
+          
+          <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de Treinamento</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -156,33 +168,14 @@ export const Login = () => {
 
           <button 
             type="submit"
-            className="w-full font-medium py-3 rounded-xl shadow-lg transition-all active:scale-[0.98] mt-4 text-white"
+            disabled={isLoggingIn}
+            className="w-full flex justify-center items-center gap-2 font-medium py-3 rounded-xl shadow-lg transition-all active:scale-[0.98] mt-4 text-white disabled:opacity-70 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--c-primary, #2563eb)' }}
           >
-            Entrar na Plataforma
+            {isLoggingIn ? <><Loader2 size={20} className="animate-spin" /> Entrando...</> : 'Entrar na Plataforma'}
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-white/10">
-           <p className="text-xs text-center mb-4 uppercase tracking-widest font-semibold opacity-60" style={{ color: 'var(--c-text, #a1a1aa)' }}>
-             Acessos Rápidos de Teste
-           </p>
-           <div className="flex flex-col gap-2.5">
-              {!tenantCompany && (
-                 <button type="button" onClick={() => fillCredentials('sadmin@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
-                    <ShieldAlert size={16} /> Preencher Super Admin
-                 </button>
-              )}
-              
-              <button type="button" onClick={() => fillCredentials('admin@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
-                 <Building size={16} /> Preencher Admin {tenantCompany ? `(${tenantCompany.name})` : '(Acme)'}
-              </button>
-
-              <button type="button" onClick={() => fillCredentials('user@entstore.com', '123456')} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-white/10 bg-black/20 hover:bg-black/40 text-sm transition-colors opacity-80 hover:opacity-100" style={{ color: 'var(--c-text, #d4d4d8)' }}>
-                 <UserIcon size={16} /> Preencher Usuário Final
-              </button>
-           </div>
-        </div>
       </div>
     </div>
   );

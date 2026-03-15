@@ -1,5 +1,5 @@
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
-export type ContentType = 'PDF' | 'VIDEO' | 'DOCUMENT' | 'LINK';
+export type ContentType = 'PDF' | 'VIDEO' | 'DOCUMENT' | 'LINK' | 'MUSIC';
 
 export interface Theme {
   primary: string;
@@ -18,20 +18,26 @@ export interface Company {
   id: string;
   name: string;
   slug: string;
-  linkName: string;
+  link_name: string;
   active: boolean;
   theme: Theme;
-  logoUrl?: string;
-  heroImage?: string;
-  heroTitle?: string;
-  heroSubtitle?: string;
+  logo_url?: string;
+  hero_image?: string;
+  hero_title?: string;
+  hero_subtitle?: string;
+  hero_position?: number;
+  hero_brightness?: number;
+  public_bio?: string;
+  landing_page_enabled?: boolean;
+  landing_page_active?: boolean;
+  landing_page_layout?: 'classic' | 'gradient' | 'immersive' | 'solid' | 'glass' | 'split';
   
-  orgLevels?: OrgLevelConfig[];
-  orgTopLevelName?: string;
-  orgUnitName?: string;
+  org_levels?: OrgLevelConfig[];
+  org_top_level_name?: string;
+  org_unit_name?: string;
   
-  createdAt: string;
-  updatedAt?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export interface User {
@@ -41,118 +47,121 @@ export interface User {
   cpf?: string;
   role: UserRole;
   password?: string;
-  companyId?: string;
-  orgUnitId?: string;
-  orgTopLevelId?: string;
-  avatarUrl?: string;
+  company_id?: string;
+  org_unit_id?: string;
+  org_top_level_id?: string;
+  avatar_url?: string;
   active?: boolean;
-  firstAccess?: boolean;
+  first_access?: boolean;
   status?: 'ACTIVE' | 'INACTIVE' | 'PENDING_SETUP';
-  createdAt?: string;
-  updatedAt?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Repository {
   id: string;
-  companyId: string;
+  company_id: string;
   name: string;
   description: string;
-  coverImage: string;
-  bannerImage?: string;
+  cover_image: string;
+  banner_image?: string;
+  banner_position?: number;
+  banner_brightness?: number;
   featured: boolean;
-  type: 'FULL' | 'SIMPLE';
+  show_in_landing?: boolean;
+  type: 'FULL' | 'SIMPLE' | 'PLAYLIST' | 'VIDEO_PLAYLIST';
   status: 'ACTIVE' | 'DRAFT';
-  accessType?: 'ALL' | 'RESTRICTED';
-  allowedUserIds?: string[];
-  allowedRegionIds?: string[];
-  allowedStoreIds?: string[];
-  excludedUserIds?: string[]; 
-  createdAt?: string;
-  updatedAt?: string;
+  access_type?: 'ALL' | 'RESTRICTED';
+  allowed_user_ids?: string[];
+  allowed_region_ids?: string[];
+  allowed_store_ids?: string[];
+  excluded_user_ids?: string[]; 
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Category {
   id: string;
-  repositoryId: string;
+  repository_id: string;
   name: string;
-  order?: number;
-  createdAt?: string;
-  updatedAt?: string;
+  order_index?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Content {
   id: string;
-  companyId: string;
-  repositoryId: string;
-  categoryId?: string;
+  company_id: string;
+  repository_id: string;
+  category_id?: string;
   title: string;
   description: string;
-  thumbnailUrl: string;
+  thumbnail_url: string;
   type: ContentType;
   url: string;
-  embedUrl?: string;
+  embed_url?: string;
   featured: boolean;
   recent: boolean;
   status: 'ACTIVE' | 'DRAFT';
-  createdAt?: string;
-  updatedAt?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SimpleLink {
   id: string;
-  companyId: string;
-  repositoryId: string;
+  company_id: string;
+  repository_id: string;
   name: string;
   url: string;
   type: string;
   date: string;
   status: 'ACTIVE' | 'INACTIVE';
-  createdAt?: string;
-  updatedAt?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ContentViewMetric {
   id: string;
-  userId: string;
-  contentId: string;
-  companyId: string;
-  repositoryId: string;
-  contentType: string;
-  orgUnitId?: string; 
-  orgTopLevelId?: string;
-  viewedAt: string;
+  user_id: string;
+  content_id: string;
+  company_id: string;
+  repository_id: string;
+  content_type: string;
+  org_unit_id?: string; 
+  org_top_level_id?: string;
+  viewed_at: string;
 }
 
 export interface ContentRating {
   id: string;
-  userId: string;
-  contentId: string;
-  companyId: string;
-  repositoryId: string;
+  user_id: string;
+  content_id: string;
+  company_id: string;
+  repository_id: string;
   rating: number; // 0 a 10
-  orgUnitId?: string;
-  orgTopLevelId?: string;
-  createdAt: string;
-  updatedAt: string;
+  org_unit_id?: string;
+  org_top_level_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrgTopLevel {
   id: string;
-  companyId: string;
-  levelId?: string; 
-  parentId?: string; 
+  company_id: string;
+  level_id?: string; 
+  parent_id?: string; 
   name: string;
   active: boolean;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrgUnit {
   id: string;
-  companyId: string;
-  parentId: string; 
+  company_id: string;
+  parent_id: string; 
   name: string;
   active: boolean;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,24 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
 import { toast } from 'sonner';
+import { supabase } from '../../lib/supabaseClient';
+import { useCompanies, useOrgStructure } from '../../hooks/useSupabaseData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Network, Save, Building2, Store, CheckCircle2, XCircle, Edit2, Trash2, Plus } from 'lucide-react';
+import { Network, Save, Building2, Store, CheckCircle2, XCircle, Edit2, Trash2, Plus, Loader2 } from 'lucide-react';
 import { OrgTopLevel, OrgUnit } from '../../types';
 
 export const AdminStructure = () => {
-  const { linkName } = useParams();
-  const { 
-    companies, updateCompany, 
-    orgTopLevels, addOrgTopLevel, updateOrgTopLevel, deleteOrgTopLevel, toggleOrgTopLevelStatus,
-    orgUnits, addOrgUnit, updateOrgUnit, deleteOrgUnit, toggleOrgUnitStatus
-  } = useAppStore();
+  const { link_name } = useParams();
   
-  const company = companies.find(c => c.linkName === linkName);
+  const { companies, mutate: mutateCompanies } = useCompanies();
+  const company = companies.find(c => c.link_name === link_name);
+
+  const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutateTopLevels, mutateUnits, isLoading } = useOrgStructure(company?.id);
 
   // Estados Fixos para os 3 níveis
   const [l1, setL1] = useState({ active: false, id: 'level-1', name: 'Diretoria' });
@@ -29,19 +28,21 @@ export const AdminStructure = () => {
 
   const [isTopLevelFormOpen, setIsTopLevelFormOpen] = useState(false);
   const [editingTopLevelId, setEditingTopLevelId] = useState<string | null>(null);
-  const [topLevelFormData, setTopLevelFormData] = useState({ name: '', parentId: '', active: true });
+  const [topLevelFormData, setTopLevelFormData] = useState({ name: '', parent_id: '', active: true });
 
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false);
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
-  const [unitFormData, setUnitFormData] = useState({ name: '', parentId: '', active: true });
+  const [unitFormData, setUnitFormData] = useState({ name: '', parent_id: '', active: true });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, name: string, type: 'TOP_LEVEL' | 'UNIT'} | null>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     if (company) {
-      setL3Name(company.orgUnitName || 'Unidade');
-      const levels = company.orgLevels || [];
+      setL3Name(company.org_unit_name || 'Unidade');
+      const levels = company.org_levels || [];
       
       // Carregando do banco de forma retrocompatível
       if (levels.length === 2) {
@@ -56,10 +57,10 @@ export const AdminStructure = () => {
           setL2({ active: true, id: levels[0].id, name: levels[0].name });
         }
       } else if (levels.length === 0) {
-        if (company.orgTopLevelName) {
-          // Legacy support (Old version had only 1 top level defined as a string)
+        if (company.org_top_level_name) {
+          // Legacy support
           setL1(prev => ({ ...prev, active: false }));
-          setL2({ active: true, id: 'legacy', name: company.orgTopLevelName });
+          setL2({ active: true, id: 'legacy', name: company.org_top_level_name });
         } else {
           setL1(prev => ({ ...prev, active: false }));
           setL2(prev => ({ ...prev, active: false }));
@@ -68,13 +69,19 @@ export const AdminStructure = () => {
     }
   }, [company]);
 
-  if (!company) return null;
+  if (!company) {
+    return (
+      <div className="flex justify-center items-center h-48 text-slate-400">
+         <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
 
   const handleCloseTopLevelForm = () => {
     setIsTopLevelFormOpen(false);
     setTimeout(() => {
       setEditingTopLevelId(null);
-      setTopLevelFormData({ name: '', parentId: '', active: true });
+      setTopLevelFormData({ name: '', parent_id: '', active: true });
     }, 300);
   };
 
@@ -82,7 +89,7 @@ export const AdminStructure = () => {
     setIsUnitFormOpen(false);
     setTimeout(() => {
       setEditingUnitId(null);
-      setUnitFormData({ name: '', parentId: '', active: true });
+      setUnitFormData({ name: '', parent_id: '', active: true });
     }, 300);
   };
 
@@ -91,21 +98,32 @@ export const AdminStructure = () => {
     setTimeout(() => setItemToDelete(null), 300);
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!l3Name.trim()) return toast.error("O nome do Nível 3 (Unidade) não pode ser vazio.");
-    if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Nível 1.");
-    if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Nível 2.");
+    if (!l3Name.trim()) return toast.error("O nome da Unidade Operacional (Base) não pode ser vazio.");
+    if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Agrupamento Principal (Topo).");
+    if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Agrupamento Secundário (Interm.).");
     
     const newLevels = [];
     if (l1.active) newLevels.push({ id: l1.id, name: l1.name.trim() });
     if (l2.active) newLevels.push({ id: l2.id, name: l2.name.trim() });
 
-    updateCompany(company.id, {
-      orgLevels: newLevels,
-      orgUnitName: l3Name.trim()
-    });
-    toast.success('Nomenclaturas da estrutura configuradas com sucesso!');
+    try {
+      setIsSubmitting(true);
+      const { error } = await supabase.from('companies').update({
+        org_levels: newLevels,
+        org_unit_name: l3Name.trim()
+      }).eq('id', company.id);
+
+      if (error) throw error;
+      toast.success('Nomenclaturas da estrutura configuradas com sucesso!');
+      mutateCompanies();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao salvar nomenclaturas: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Mapeamento dos Níveis Ativos para o Passo 2
@@ -122,74 +140,146 @@ export const AdminStructure = () => {
   const currentActiveLevel = activeLevelsConfig[activeTabIndex];
   const activePreviousLevelConfig = activeTabIndex > 0 ? activeLevelsConfig[activeTabIndex - 1] : null;
 
-  const companyTopLevels = orgTopLevels.filter(o => o.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const companyUnits = orgUnits.filter(u => u.companyId === company.id).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const companyTopLevels = allTopLevels.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const companyUnits = allUnits.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   const currentGroups = currentActiveLevel 
-    ? companyTopLevels.filter(t => t.levelId === currentActiveLevel.id || (!t.levelId && activeTabIndex === 0))
+    ? companyTopLevels.filter(t => t.level_id === currentActiveLevel.id || (!t.level_id && activeTabIndex === 0))
+    : [];
+
+  const parentOptionsForL2 = companyTopLevels.filter(t => t.level_id === l1.id || !t.level_id || t.id === topLevelFormData.parent_id);
+  const parentOptionsForUnit = lowestLevelConfig
+    ? companyTopLevels.filter(t => 
+        t.level_id === lowestLevelConfig.id || 
+        (!t.level_id && activeLevelsConfig[0]?.id === lowestLevelConfig.id) || 
+        t.id === unitFormData.parent_id
+      )
     : [];
 
   // ==== HANDLERS PARA TOP LEVELS (L1 e L2) ====
   const openCreateTopLevel = () => {
     setEditingTopLevelId(null);
-    setTopLevelFormData({ name: '', parentId: '', active: true });
+    setTopLevelFormData({ name: '', parent_id: '', active: true });
     setIsTopLevelFormOpen(true);
   };
 
   const openEditTopLevel = (item: OrgTopLevel) => {
     setEditingTopLevelId(item.id);
-    setTopLevelFormData({ name: item.name, parentId: item.parentId || '', active: item.active });
+    setTopLevelFormData({ name: item.name, parent_id: item.parent_id || '', active: item.active });
     setIsTopLevelFormOpen(true);
   };
 
-  const handleSaveTopLevel = (e: React.FormEvent) => {
+  const handleSaveTopLevel = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = topLevelFormData.name.trim();
 
     if (!name) return toast.error('O Nome é obrigatório.');
-    if (activePreviousLevelConfig && !topLevelFormData.parentId) return toast.error(`Selecione a qual ${activePreviousLevelConfig.name} este registro pertence.`);
+    if (activePreviousLevelConfig && !topLevelFormData.parent_id) return toast.error(`Selecione a qual ${activePreviousLevelConfig.name} este registro pertence.`);
 
-    if (editingTopLevelId) {
-      updateOrgTopLevel(editingTopLevelId, { name, parentId: topLevelFormData.parentId, active: topLevelFormData.active });
-      toast.success(`${currentActiveLevel?.name} atualizado(a) com sucesso!`);
-    } else {
-      addOrgTopLevel({ companyId: company.id, levelId: currentActiveLevel?.id, name, parentId: topLevelFormData.parentId, active: topLevelFormData.active });
-      toast.success(`${currentActiveLevel?.name} cadastrado(a) com sucesso!`);
+    try {
+      setIsSubmitting(true);
+      if (editingTopLevelId) {
+        const { error } = await supabase.from('org_top_levels').update({ 
+          name, 
+          parent_id: topLevelFormData.parent_id || null, 
+          active: topLevelFormData.active 
+        }).eq('id', editingTopLevelId);
+        if (error) throw error;
+        toast.success(`${currentActiveLevel?.name} atualizado(a) com sucesso!`);
+      } else {
+        const { error } = await supabase.from('org_top_levels').insert({ 
+          company_id: company.id, 
+          level_id: currentActiveLevel?.id, 
+          name, 
+          parent_id: topLevelFormData.parent_id || null, 
+          active: topLevelFormData.active 
+        });
+        if (error) throw error;
+        toast.success(`${currentActiveLevel?.name} cadastrado(a) com sucesso!`);
+      }
+      mutateTopLevels();
+      handleCloseTopLevelForm();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao salvar grupo: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    handleCloseTopLevelForm();
+  };
+
+  const toggleOrgTopLevelStatus = async (id: string, active: boolean) => {
+    try {
+      const { error } = await supabase.from('org_top_levels').update({ active: !active }).eq('id', id);
+      if (error) throw error;
+      mutateTopLevels();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao alterar status: ${error.message}`);
+    }
   };
 
   // ==== HANDLERS PARA UNIDADES (L3) ====
   const openCreateUnit = () => {
     setEditingUnitId(null);
-    setUnitFormData({ name: '', parentId: '', active: true });
+    setUnitFormData({ name: '', parent_id: '', active: true });
     setIsUnitFormOpen(true);
   };
 
   const openEditUnit = (item: OrgUnit) => {
     setEditingUnitId(item.id);
-    setUnitFormData({ name: item.name, parentId: item.parentId, active: item.active });
+    setUnitFormData({ name: item.name, parent_id: item.parent_id || '', active: item.active });
     setIsUnitFormOpen(true);
   };
 
-  const handleSaveUnit = (e: React.FormEvent) => {
+  const handleSaveUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = unitFormData.name.trim();
 
     if (!name) return toast.error('O Nome é obrigatório.');
-    if (lowestLevelConfig && !unitFormData.parentId) return toast.error(`Selecione a qual ${lowestLevelConfig.name} esta unidade pertence.`);
+    if (lowestLevelConfig && !unitFormData.parent_id) return toast.error(`Selecione a qual ${lowestLevelConfig.name} esta unidade pertence.`);
 
     const isDuplicate = companyUnits.some(o => o.name.toLowerCase() === name.toLowerCase() && o.id !== editingUnitId);
     if (isDuplicate) return toast.error(`Já existe uma ${l3Name.toLowerCase()} com este nome nesta empresa.`);
 
-    if (editingUnitId) {
-      updateOrgUnit(editingUnitId, { name, parentId: unitFormData.parentId, active: unitFormData.active });
-      toast.success(`${l3Name} atualizada!`);
-    } else {
-      addOrgUnit({ companyId: company.id, name, parentId: unitFormData.parentId, active: unitFormData.active });
-      toast.success(`${l3Name} cadastrada!`);
+    try {
+      setIsSubmitting(true);
+      if (editingUnitId) {
+        const { error } = await supabase.from('org_units').update({ 
+          name, 
+          parent_id: unitFormData.parent_id || null, 
+          active: unitFormData.active 
+        }).eq('id', editingUnitId);
+        if (error) throw error;
+        toast.success(`${l3Name} atualizada!`);
+      } else {
+        const { error } = await supabase.from('org_units').insert({ 
+          company_id: company.id, 
+          name, 
+          parent_id: unitFormData.parent_id || null, 
+          active: unitFormData.active 
+        });
+        if (error) throw error;
+        toast.success(`${l3Name} cadastrada!`);
+      }
+      mutateUnits();
+      handleCloseUnitForm();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao salvar unidade: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    handleCloseUnitForm();
+  };
+
+  const toggleOrgUnitStatus = async (id: string, active: boolean) => {
+    try {
+      const { error } = await supabase.from('org_units').update({ active: !active }).eq('id', id);
+      if (error) throw error;
+      mutateUnits();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao alterar status: ${error.message}`);
+    }
   };
 
   const confirmDelete = (id: string, name: string, type: 'TOP_LEVEL' | 'UNIT') => {
@@ -197,18 +287,39 @@ export const AdminStructure = () => {
     setIsDeleteOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
-      if (itemToDelete.type === 'TOP_LEVEL') {
-        deleteOrgTopLevel(itemToDelete.id);
-        toast.success(`Registro e seus dependentes foram excluídos.`);
-      } else {
-        deleteOrgUnit(itemToDelete.id);
-        toast.success(`Unidade excluída.`);
+      try {
+        setIsSubmitting(true);
+        if (itemToDelete.type === 'TOP_LEVEL') {
+          const { error } = await supabase.from('org_top_levels').delete().eq('id', itemToDelete.id);
+          if (error) throw error;
+          mutateTopLevels();
+          toast.success(`Registro excluído.`);
+        } else {
+          const { error } = await supabase.from('org_units').delete().eq('id', itemToDelete.id);
+          if (error) throw error;
+          mutateUnits();
+          toast.success(`Unidade excluída.`);
+        }
+      } catch (err) {
+        const error = err as Error;
+        toast.error(`Erro ao excluir: ${error.message}`);
+      } finally {
+        setIsSubmitting(false);
       }
     }
     handleCloseDelete();
   };
+
+  // Rendering Loading state se os Níveis Organizacionais estiverem carregando e ainda nao existirem
+  if (isLoading && companyTopLevels.length === 0 && companyUnits.length === 0 && !isSubmitting) {
+    return (
+      <div className="flex justify-center items-center h-48 text-slate-400">
+         <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto pb-12 space-y-8">
@@ -230,14 +341,14 @@ export const AdminStructure = () => {
             {/* Nível 1 */}
             <div className={`p-5 rounded-xl border transition-colors ${l1.active ? 'border-indigo-200 bg-indigo-50/40 shadow-sm' : 'border-slate-200 bg-slate-50 opacity-80'}`}>
                <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-slate-700">Nível 1 (Maior)</Label>
-                  <Switch checked={l1.active} onCheckedChange={(c) => setL1({...l1, active: c})} />
+                  <Label className="text-sm font-bold text-slate-700">Agrupamento Principal (Topo)</Label>
+                  <Switch checked={l1.active} onCheckedChange={(c) => setL1({...l1, active: c})} disabled={isSubmitting} />
                </div>
                <Input 
                  placeholder="Ex: Diretoria" 
                  value={l1.name} 
                  onChange={e => setL1({...l1, name: e.target.value})} 
-                 disabled={!l1.active} 
+                 disabled={!l1.active || isSubmitting} 
                  className={!l1.active ? 'bg-slate-100 text-slate-400' : 'bg-white'} 
                />
                <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Ex: Diretoria, Grupo, Operação</p>
@@ -246,14 +357,14 @@ export const AdminStructure = () => {
             {/* Nível 2 */}
             <div className={`p-5 rounded-xl border transition-colors ${l2.active ? 'border-indigo-200 bg-indigo-50/40 shadow-sm' : 'border-slate-200 bg-slate-50 opacity-80'}`}>
                <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-slate-700">Nível 2 (Interm.)</Label>
-                  <Switch checked={l2.active} onCheckedChange={(c) => setL2({...l2, active: c})} />
+                  <Label className="text-sm font-bold text-slate-700">Agrupamento Secundário (Interm.)</Label>
+                  <Switch checked={l2.active} onCheckedChange={(c) => setL2({...l2, active: c})} disabled={isSubmitting} />
                </div>
                <Input 
                  placeholder="Ex: Regional" 
                  value={l2.name} 
                  onChange={e => setL2({...l2, name: e.target.value})} 
-                 disabled={!l2.active} 
+                 disabled={!l2.active || isSubmitting} 
                  className={!l2.active ? 'bg-slate-100 text-slate-400' : 'bg-white'} 
                />
                <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Ex: Regional, Estado, Cidade</p>
@@ -262,13 +373,14 @@ export const AdminStructure = () => {
             {/* Nível 3 */}
             <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50/30 shadow-sm">
                <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-emerald-800">Nível 3 (Base)</Label>
+                  <Label className="text-sm font-bold text-emerald-800">Unidade Operacional (Base)</Label>
                   <span className="text-[9px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Obrigatório</span>
                </div>
                <Input 
                  placeholder="Ex: Loja, Filial" 
                  value={l3Name} 
                  onChange={e => setL3Name(e.target.value)} 
+                 disabled={isSubmitting}
                  className="bg-white border-emerald-200 focus-visible:ring-emerald-500"
                />
                <p className="text-[10px] text-emerald-600/80 mt-2.5 font-medium">Onde os usuários finais são vinculados</p>
@@ -276,8 +388,8 @@ export const AdminStructure = () => {
           </div>
         </div>
         <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end">
-          <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 px-6">
-            <Save size={16} /> Salvar Nomenclaturas
+          <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 px-6">
+            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Salvar Nomenclaturas
           </Button>
         </div>
       </form>
@@ -326,7 +438,7 @@ export const AdminStructure = () => {
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                       {currentGroups.map(item => {
-                         const parent = activePreviousLevelConfig ? companyTopLevels.find(t => t.id === item.parentId) : null;
+                         const parent = activePreviousLevelConfig ? companyTopLevels.find(t => t.id === item.parent_id) : null;
                          return (
                          <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${!item.active ? 'opacity-60 bg-slate-50/50' : ''}`}>
                             <td className="p-3 text-center">
@@ -338,7 +450,7 @@ export const AdminStructure = () => {
                             </td>
                             <td className="p-3 text-right">
                                <div className="flex items-center justify-end gap-1">
-                                 <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id)} title="Ativar/Inativar" />
+                                 <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} title="Ativar/Inativar" />
                                  <div className="h-4 w-px bg-slate-200 mx-1"></div>
                                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={14} /></Button>
                                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={14} /></Button>
@@ -400,7 +512,7 @@ export const AdminStructure = () => {
                </thead>
                <tbody className="divide-y divide-slate-100">
                   {companyUnits.map(unit => {
-                     const parent = lowestLevelConfig ? companyTopLevels.find(t => t.id === unit.parentId) : null;
+                     const parent = lowestLevelConfig ? companyTopLevels.find(t => t.id === unit.parent_id) : null;
                      return (
                        <tr key={unit.id} className={`hover:bg-slate-50 transition-colors ${!unit.active ? 'opacity-60 bg-slate-50/50' : ''}`}>
                           <td className="p-3 text-center">
@@ -414,7 +526,7 @@ export const AdminStructure = () => {
                           </td>
                           <td className="p-3 text-right">
                              <div className="flex items-center justify-end gap-1">
-                               <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id)} title="Ativar/Inativar" />
+                               <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id, unit.active)} title="Ativar/Inativar" />
                                <div className="h-4 w-px bg-slate-200 mx-1"></div>
                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={14} /></Button>
                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={14} /></Button>
@@ -438,7 +550,7 @@ export const AdminStructure = () => {
       </div>
 
       {/* Modal Níveis Intermediários */}
-      <Dialog open={isTopLevelFormOpen} onOpenChange={(open) => { if (!open) handleCloseTopLevelForm(); }}>
+      <Dialog open={isTopLevelFormOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseTopLevelForm(); }}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingTopLevelId ? `Editar ${currentActiveLevel?.name}` : `Novo(a) ${currentActiveLevel?.name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveTopLevel} className="space-y-4 mt-4">
@@ -448,12 +560,17 @@ export const AdminStructure = () => {
                <div className="space-y-2">
                  <Label>Pertence a qual {l1.name}? *</Label>
                  <select 
-                   value={topLevelFormData.parentId} 
-                   onChange={(e) => setTopLevelFormData({...topLevelFormData, parentId: e.target.value})}
-                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                   value={topLevelFormData.parent_id} 
+                   onChange={(e) => setTopLevelFormData({...topLevelFormData, parent_id: e.target.value})}
+                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-500"
+                   disabled={parentOptionsForL2.length === 0 || isSubmitting}
                  >
-                    <option value="" disabled>Selecione...</option>
-                    {companyTopLevels.filter(t => t.levelId === l1.id || t.id === topLevelFormData.parentId).map(t => (
+                    {parentOptionsForL2.length === 0 ? (
+                      <option value="" disabled>Nenhum(a) {l1.name} cadastrado(a). Cadastre primeiro.</option>
+                    ) : (
+                      <option value="" disabled>Selecione...</option>
+                    )}
+                    {parentOptionsForL2.map(t => (
                        <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                  </select>
@@ -462,22 +579,24 @@ export const AdminStructure = () => {
 
             <div className="space-y-2">
               <Label>Nome do(a) {currentActiveLevel?.name} *</Label>
-              <Input placeholder={`Ex: Sudeste / Operação Alpha`} value={topLevelFormData.name} onChange={(e) => setTopLevelFormData({...topLevelFormData, name: e.target.value})} autoFocus />
+              <Input placeholder={`Ex: Sudeste / Operação Alpha`} value={topLevelFormData.name} onChange={(e) => setTopLevelFormData({...topLevelFormData, name: e.target.value})} autoFocus disabled={isSubmitting} />
             </div>
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
               <div className="space-y-0.5"><Label>Status</Label><p className="text-xs text-slate-500">Ativo no sistema</p></div>
-              <Switch checked={topLevelFormData.active} onCheckedChange={(checked) => setTopLevelFormData({...topLevelFormData, active: checked})} />
+              <Switch checked={topLevelFormData.active} onCheckedChange={(checked) => setTopLevelFormData({...topLevelFormData, active: checked})} disabled={isSubmitting} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-              <Button type="button" variant="outline" onClick={handleCloseTopLevelForm}>Cancelar</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseTopLevelForm} disabled={isSubmitting}>Cancelar</Button>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Modal Unidade (Nível Final) */}
-      <Dialog open={isUnitFormOpen} onOpenChange={(open) => { if (!open) handleCloseUnitForm(); }}>
+      <Dialog open={isUnitFormOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseUnitForm(); }}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader><DialogTitle>{editingUnitId ? `Editar ${l3Name}` : `Nova ${l3Name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveUnit} className="space-y-4 mt-4">
@@ -487,12 +606,17 @@ export const AdminStructure = () => {
               <div className="space-y-2">
                 <Label>Pertence a qual {lowestLevelConfig.name}? *</Label>
                 <select 
-                  value={unitFormData.parentId} 
-                  onChange={(e) => setUnitFormData({...unitFormData, parentId: e.target.value})}
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                  value={unitFormData.parent_id} 
+                  onChange={(e) => setUnitFormData({...unitFormData, parent_id: e.target.value})}
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:bg-slate-50 disabled:text-slate-500"
+                  disabled={parentOptionsForUnit.length === 0 || isSubmitting}
                 >
-                   <option value="" disabled>Selecione...</option>
-                   {companyTopLevels.filter(t => t.levelId === lowestLevelConfig.id || t.id === unitFormData.parentId).map(t => (
+                   {parentOptionsForUnit.length === 0 ? (
+                     <option value="" disabled>Nenhum(a) {lowestLevelConfig.name} cadastrado(a). Volte ao Passo 2.</option>
+                   ) : (
+                     <option value="" disabled>Selecione...</option>
+                   )}
+                   {parentOptionsForUnit.map(t => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                    ))}
                 </select>
@@ -501,21 +625,23 @@ export const AdminStructure = () => {
 
             <div className="space-y-2">
               <Label>Nome da {l3Name} *</Label>
-              <Input placeholder="Ex: Loja Matriz" value={unitFormData.name} onChange={(e) => setUnitFormData({...unitFormData, name: e.target.value})} />
+              <Input placeholder="Ex: Loja Matriz" value={unitFormData.name} onChange={(e) => setUnitFormData({...unitFormData, name: e.target.value})} disabled={isSubmitting} />
             </div>
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
               <div className="space-y-0.5"><Label>Status</Label><p className="text-xs text-slate-500">Ativa no sistema</p></div>
-              <Switch checked={unitFormData.active} onCheckedChange={(checked) => setUnitFormData({...unitFormData, active: checked})} />
+              <Switch checked={unitFormData.active} onCheckedChange={(checked) => setUnitFormData({...unitFormData, active: checked})} disabled={isSubmitting} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
-              <Button type="button" variant="outline" onClick={handleCloseUnitForm}>Cancelar</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white">Salvar</Button>
+              <Button type="button" variant="outline" onClick={handleCloseUnitForm} disabled={isSubmitting}>Cancelar</Button>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open) handleCloseDelete(); }}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseDelete(); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader><DialogTitle className="text-red-600">Excluir Registro</DialogTitle></DialogHeader>
           <div className="py-4">
@@ -525,8 +651,10 @@ export const AdminStructure = () => {
              )}
           </div>
           <div className="flex justify-end gap-3">
-             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
-             <Button type="button" variant="destructive" onClick={handleDelete}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete} disabled={isSubmitting}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDelete} disabled={isSubmitting}>
+               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Sim, excluir'}
+             </Button>
           </div>
         </DialogContent>
       </Dialog>

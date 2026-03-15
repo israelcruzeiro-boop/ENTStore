@@ -9,7 +9,9 @@ const generateId = () => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-  } catch (e) {}
+  } catch {
+    // Ignore error
+  }
   return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
 };
 
@@ -17,33 +19,33 @@ const generateId = () => {
 export const checkRepoAccess = (repo: Repository, user: User | null | undefined, orgUnits: OrgUnit[], orgTopLevels: OrgTopLevel[]): boolean => {
   if (!user) return false;
   if (user.role !== 'USER') return true; 
-  if (repo.accessType !== 'RESTRICTED') return true; 
+  if (repo.access_type !== 'RESTRICTED') return true; 
   
   // 1. Verifica exceções (bloqueado)
-  if (repo.excludedUserIds?.includes(user.id)) return false; 
+  if (repo.excluded_user_ids?.includes(user.id)) return false; 
   
   // 2. Permissões diretas
-  const hasUserPerm = repo.allowedUserIds?.includes(user.id);
-  const hasUnitPerm = user.orgUnitId && repo.allowedStoreIds?.includes(user.orgUnitId);
+  const hasUserPerm = repo.allowed_user_ids?.includes(user.id);
+  const hasUnitPerm = user.org_unit_id && repo.allowed_store_ids?.includes(user.org_unit_id);
   
   // 3. Permissão por grupo/nível (Varredura recursiva na árvore)
   let hasTopLevelPerm = false;
-  if (user.orgUnitId && repo.allowedRegionIds && repo.allowedRegionIds.length > 0) {
-    const unit = orgUnits.find(u => u.id === user.orgUnitId);
-    let currentParent = orgTopLevels.find(t => t.id === unit?.parentId);
+  if (user.org_unit_id && repo.allowed_region_ids && repo.allowed_region_ids.length > 0) {
+    const unit = orgUnits.find(u => u.id === user.org_unit_id);
+    let currentParent = orgTopLevels.find(t => t.id === unit?.parent_id);
     
     // Sobe a árvore verificando se o repositório foi liberado para algum dos pais (Ex: Regional -> Diretoria)
     while (currentParent) {
-      if (repo.allowedRegionIds.includes(currentParent.id)) {
+      if (repo.allowed_region_ids.includes(currentParent.id)) {
         hasTopLevelPerm = true;
         break;
       }
-      currentParent = orgTopLevels.find(t => t.id === currentParent?.parentId);
+      currentParent = orgTopLevels.find(t => t.id === currentParent?.parent_id);
     }
   }
   
   // Fallback legado caso seja dado antigo não migrado na árvore
-  if (!hasTopLevelPerm && user.orgTopLevelId && repo.allowedRegionIds?.includes(user.orgTopLevelId)) {
+  if (!hasTopLevelPerm && user.org_top_level_id && repo.allowed_region_ids?.includes(user.org_top_level_id)) {
     hasTopLevelPerm = true;
   }
   
@@ -62,43 +64,43 @@ interface AppState {
   orgTopLevels: OrgTopLevel[];
   orgUnits: OrgUnit[];
   
-  addCompany: (company: Omit<Company, 'id' | 'slug' | 'createdAt' | 'updatedAt'>) => void;
+  addCompany: (company: Omit<Company, 'id' | 'slug' | 'created_at' | 'updated_at'>) => void;
   updateCompany: (id: string, data: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
   toggleCompanyStatus: (id: string) => void;
-  updateCompanyTheme: (id: string, theme: any) => void;
+  updateCompanyTheme: (id: string, theme: Record<string, string>) => void;
 
-  addUser: (user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addUser: (user: Omit<User, 'id' | 'created_at' | 'updated_at'>) => void;
   updateUser: (id: string, data: Partial<User>) => void;
   deleteUser: (id: string) => void;
   toggleUserStatus: (id: string) => void;
 
-  addRepository: (repo: Omit<Repository, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addRepository: (repo: Omit<Repository, 'id' | 'created_at' | 'updated_at'>) => void;
   updateRepository: (id: string, data: Partial<Repository>) => void;
   deleteRepository: (id: string) => void;
 
-  addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addCategory: (category: Omit<Category, 'id' | 'created_at' | 'updated_at'>) => void;
   updateCategory: (id: string, data: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-  reorderCategories: (repositoryId: string, orderedIds: string[]) => void;
+  reorderCategories: (repository_id: string, orderedIds: string[]) => void;
 
-  addContent: (content: Omit<Content, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addContent: (content: Omit<Content, 'id' | 'created_at' | 'updated_at'>) => void;
   updateContent: (id: string, data: Partial<Content>) => void;
   deleteContent: (id: string) => void;
 
-  addSimpleLink: (link: Omit<SimpleLink, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addSimpleLink: (link: Omit<SimpleLink, 'id' | 'created_at' | 'updated_at'>) => void;
   updateSimpleLink: (id: string, data: Partial<SimpleLink>) => void;
   deleteSimpleLink: (id: string) => void;
 
-  addContentView: (metric: Omit<ContentViewMetric, 'id' | 'viewedAt'>) => void;
-  rateContent: (metric: Omit<ContentRating, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addContentView: (metric: Omit<ContentViewMetric, 'id' | 'viewed_at'>) => void;
+  rateContent: (metric: Omit<ContentRating, 'id' | 'created_at' | 'updated_at'>) => void;
 
-  addOrgTopLevel: (data: Omit<OrgTopLevel, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addOrgTopLevel: (data: Omit<OrgTopLevel, 'id' | 'created_at' | 'updated_at'>) => void;
   updateOrgTopLevel: (id: string, data: Partial<OrgTopLevel>) => void;
   deleteOrgTopLevel: (id: string) => void;
   toggleOrgTopLevelStatus: (id: string) => void;
 
-  addOrgUnit: (data: Omit<OrgUnit, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addOrgUnit: (data: Omit<OrgUnit, 'id' | 'created_at' | 'updated_at'>) => void;
   updateOrgUnit: (id: string, data: Partial<OrgUnit>) => void;
   deleteOrgUnit: (id: string) => void;
   toggleOrgUnitStatus: (id: string) => void;
@@ -107,11 +109,11 @@ interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      companies: MOCK_COMPANIES,
-      users: MOCK_USERS.map(u => ({ ...u, active: true, createdAt: new Date().toISOString() })),
-      repositories: MOCK_REPOSITORIES.map(r => ({ ...r, type: r.type || 'FULL', createdAt: new Date().toISOString() })),
-      categories: MOCK_CATEGORIES.map(c => ({ ...c, order: 0 })),
-      contents: MOCK_CONTENTS.map(c => ({ ...c, createdAt: new Date().toISOString() })),
+      companies: [],
+      users: [],
+      repositories: [],
+      categories: [],
+      contents: [],
       simpleLinks: [],
       contentViews: [],
       contentRatings: [],
@@ -126,20 +128,20 @@ export const useAppStore = create<AppState>()(
           ...companyData,
           id,
           slug,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
 
         const adminUser: User = {
           id: generateId(),
           name: `Admin ${companyData.name}`,
-          email: `admin@${companyData.linkName}.com`,
+          email: `admin@${companyData.link_name}.com`,
           password: '123456',
           role: 'ADMIN',
-          companyId: id,
+          company_id: id,
           active: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         };
 
         return { 
@@ -149,47 +151,47 @@ export const useAppStore = create<AppState>()(
       }),
 
       updateCompany: (id, data) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, ...data, updated_at: new Date().toISOString() } : c)
       })),
 
       deleteCompany: (id) => set((state) => {
-        const reposToDelete = state.repositories.filter(r => r.companyId === id).map(r => r.id);
+        const reposToDelete = state.repositories.filter(r => r.company_id === id).map(r => r.id);
         return {
           companies: state.companies.filter(c => c.id !== id),
-          users: state.users.filter(u => u.companyId !== id),
-          repositories: state.repositories.filter(r => r.companyId !== id),
-          categories: state.categories.filter(c => !reposToDelete.includes(c.repositoryId)),
-          contents: state.contents.filter(c => !reposToDelete.includes(c.repositoryId)),
-          simpleLinks: state.simpleLinks.filter(l => !reposToDelete.includes(l.repositoryId)),
-          contentViews: state.contentViews.filter(v => v.companyId !== id),
-          contentRatings: state.contentRatings.filter(r => r.companyId !== id),
-          orgTopLevels: state.orgTopLevels.filter(o => o.companyId !== id),
-          orgUnits: state.orgUnits.filter(u => u.companyId !== id),
+          users: state.users.filter(u => u.company_id !== id),
+          repositories: state.repositories.filter(r => r.company_id !== id),
+          categories: state.categories.filter(c => !reposToDelete.includes(c.repository_id)),
+          contents: state.contents.filter(c => !reposToDelete.includes(c.repository_id)),
+          simpleLinks: state.simpleLinks.filter(l => !reposToDelete.includes(l.repository_id)),
+          contentViews: state.contentViews.filter(v => v.company_id !== id),
+          contentRatings: state.contentRatings.filter(r => r.company_id !== id),
+          orgTopLevels: state.orgTopLevels.filter(o => o.company_id !== id),
+          orgUnits: state.orgUnits.filter(u => u.company_id !== id),
         };
       }),
 
       toggleCompanyStatus: (id) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, active: !c.active, updatedAt: new Date().toISOString() } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, active: !c.active, updated_at: new Date().toISOString() } : c)
       })),
 
       updateCompanyTheme: (id, theme) => set((state) => ({
-        companies: state.companies.map(c => c.id === id ? { ...c, theme: { ...c.theme, ...theme }, updatedAt: new Date().toISOString() } : c)
+        companies: state.companies.map(c => c.id === id ? { ...c, theme: { ...c.theme, ...theme }, updated_at: new Date().toISOString() } : c)
       })),
 
       addUser: (userData) => set((state) => {
-        let orgTopLevelId = userData.orgTopLevelId;
-        if (userData.orgUnitId) {
-          const unit = state.orgUnits.find(u => u.id === userData.orgUnitId);
-          if (unit) orgTopLevelId = unit.parentId;
+        let org_top_level_id = userData.org_top_level_id;
+        if (userData.org_unit_id) {
+          const unit = state.orgUnits.find(u => u.id === userData.org_unit_id);
+          if (unit) org_top_level_id = unit.parent_id;
         }
 
         return {
           users: [...state.users, { 
             ...userData, 
-            orgTopLevelId, 
+            org_top_level_id, 
             id: generateId(), 
-            createdAt: new Date().toISOString(), 
-            updatedAt: new Date().toISOString() 
+            created_at: new Date().toISOString(), 
+            updated_at: new Date().toISOString() 
           }]
         };
       }),
@@ -197,13 +199,13 @@ export const useAppStore = create<AppState>()(
       updateUser: (id, data) => set((state) => {
         const newUsers = state.users.map(u => {
           if (u.id === id) {
-            const updatedUser = { ...u, ...data, updatedAt: new Date().toISOString() };
-            if ('orgUnitId' in data) {
-              if (data.orgUnitId) {
-                const unit = state.orgUnits.find(org => org.id === data.orgUnitId);
-                updatedUser.orgTopLevelId = unit ? unit.parentId : undefined;
+            const updatedUser = { ...u, ...data, updated_at: new Date().toISOString() };
+            if ('org_unit_id' in data) {
+              if (data.org_unit_id) {
+                const unit = state.orgUnits.find(org => org.id === data.org_unit_id);
+                updatedUser.org_top_level_id = unit ? unit.parent_id : undefined;
               } else {
-                updatedUser.orgTopLevelId = undefined;
+                updatedUser.org_top_level_id = undefined;
               }
             }
             return updatedUser;
@@ -215,48 +217,48 @@ export const useAppStore = create<AppState>()(
 
       deleteUser: (id) => set((state) => ({ 
         users: state.users.filter(u => u.id !== id),
-        contentRatings: state.contentRatings.filter(r => r.userId !== id),
+        contentRatings: state.contentRatings.filter(r => r.user_id !== id),
       })),
 
       toggleUserStatus: (id) => set((state) => ({
-        users: state.users.map(u => u.id === id ? { ...u, active: u.active === false ? true : false, updatedAt: new Date().toISOString() } : u)
+        users: state.users.map(u => u.id === id ? { ...u, active: u.active === false ? true : false, updated_at: new Date().toISOString() } : u)
       })),
 
       addRepository: (repoData) => set((state) => ({
-        repositories: [...state.repositories, { ...repoData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        repositories: [...state.repositories, { ...repoData, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateRepository: (id, data) => set((state) => ({
-        repositories: state.repositories.map(r => r.id === id ? { ...r, ...data, updatedAt: new Date().toISOString() } : r)
+        repositories: state.repositories.map(r => r.id === id ? { ...r, ...data, updated_at: new Date().toISOString() } : r)
       })),
 
       deleteRepository: (id) => set((state) => ({
         repositories: state.repositories.filter(r => r.id !== id),
-        categories: state.categories.filter(c => c.repositoryId !== id),
-        contents: state.contents.filter(c => c.repositoryId !== id),
-        simpleLinks: state.simpleLinks.filter(l => l.repositoryId !== id),
-        contentViews: state.contentViews.filter(v => v.repositoryId !== id),
-        contentRatings: state.contentRatings.filter(r => r.repositoryId !== id),
+        categories: state.categories.filter(c => c.repository_id !== id),
+        contents: state.contents.filter(c => c.repository_id !== id),
+        simpleLinks: state.simpleLinks.filter(l => l.repository_id !== id),
+        contentViews: state.contentViews.filter(v => v.repository_id !== id),
+        contentRatings: state.contentRatings.filter(r => r.repository_id !== id),
       })),
 
       addCategory: (catData) => set((state) => ({
-        categories: [...state.categories, { ...catData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        categories: [...state.categories, { ...catData, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateCategory: (id, data) => set((state) => ({
-        categories: state.categories.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
+        categories: state.categories.map(c => c.id === id ? { ...c, ...data, updated_at: new Date().toISOString() } : c)
       })),
 
       deleteCategory: (id) => set((state) => ({
         categories: state.categories.filter(c => c.id !== id),
-        contents: state.contents.map(c => c.categoryId === id ? { ...c, categoryId: undefined } : c)
+        contents: state.contents.map(c => c.category_id === id ? { ...c, category_id: undefined } : c)
       })),
 
-      reorderCategories: (repositoryId, orderedIds) => set((state) => {
+      reorderCategories: (repository_id, orderedIds) => set((state) => {
          const newCategories = state.categories.map(c => {
-            if (c.repositoryId === repositoryId) {
+            if (c.repository_id === repository_id) {
                const index = orderedIds.indexOf(c.id);
-               return { ...c, order: index >= 0 ? index : c.order };
+               return { ...c, order_index: index >= 0 ? index : c.order_index };
             }
             return c;
          });
@@ -264,97 +266,97 @@ export const useAppStore = create<AppState>()(
       }),
 
       addContent: (contentData) => set((state) => ({
-        contents: [...state.contents, { ...contentData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        contents: [...state.contents, { ...contentData, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateContent: (id, data) => set((state) => ({
-        contents: state.contents.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)
+        contents: state.contents.map(c => c.id === id ? { ...c, ...data, updated_at: new Date().toISOString() } : c)
       })),
 
       deleteContent: (id) => set((state) => ({ 
         contents: state.contents.filter(c => c.id !== id),
-        contentViews: state.contentViews.filter(v => v.contentId !== id),
-        contentRatings: state.contentRatings.filter(r => r.contentId !== id),
+        contentViews: state.contentViews.filter(v => v.content_id !== id),
+        contentRatings: state.contentRatings.filter(r => r.content_id !== id),
       })),
 
       addSimpleLink: (linkData) => set((state) => ({
-        simpleLinks: [...state.simpleLinks, { ...linkData, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        simpleLinks: [...state.simpleLinks, { ...linkData, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateSimpleLink: (id, data) => set((state) => ({
-        simpleLinks: state.simpleLinks.map(l => l.id === id ? { ...l, ...data, updatedAt: new Date().toISOString() } : l)
+        simpleLinks: state.simpleLinks.map(l => l.id === id ? { ...l, ...data, updated_at: new Date().toISOString() } : l)
       })),
 
       deleteSimpleLink: (id) => set((state) => ({ 
         simpleLinks: state.simpleLinks.filter(l => l.id !== id),
-        contentViews: state.contentViews.filter(v => v.contentId !== id),
-        contentRatings: state.contentRatings.filter(r => r.contentId !== id),
+        contentViews: state.contentViews.filter(v => v.content_id !== id),
+        contentRatings: state.contentRatings.filter(r => r.content_id !== id),
       })),
 
       addContentView: (metricData) => set((state) => {
-        const user = state.users.find(u => u.id === metricData.userId);
+        const user = state.users.find(u => u.id === metricData.user_id);
         return {
           contentViews: [...state.contentViews, {
             ...metricData,
-            orgUnitId: user?.orgUnitId,
-            orgTopLevelId: user?.orgTopLevelId,
+            org_unit_id: user?.org_unit_id,
+            org_top_level_id: user?.org_top_level_id,
             id: generateId(),
-            viewedAt: new Date().toISOString()
+            viewed_at: new Date().toISOString()
           }]
         };
       }),
 
       rateContent: (ratingData) => set((state) => {
-        const user = state.users.find(u => u.id === ratingData.userId);
-        const existingIndex = state.contentRatings.findIndex(r => r.userId === ratingData.userId && r.contentId === ratingData.contentId);
+        const user = state.users.find(u => u.id === ratingData.user_id);
+        const existingIndex = state.contentRatings.findIndex(r => r.user_id === ratingData.user_id && r.content_id === ratingData.content_id);
         
         if (existingIndex >= 0) {
           const newRatings = [...state.contentRatings];
           newRatings[existingIndex] = { 
             ...newRatings[existingIndex], 
             rating: ratingData.rating, 
-            orgUnitId: user?.orgUnitId,
-            orgTopLevelId: user?.orgTopLevelId,
-            updatedAt: new Date().toISOString() 
+            org_unit_id: user?.org_unit_id,
+            org_top_level_id: user?.org_top_level_id,
+            updated_at: new Date().toISOString() 
           };
           return { contentRatings: newRatings };
         } else {
           return {
             contentRatings: [...state.contentRatings, {
               ...ratingData,
-              orgUnitId: user?.orgUnitId,
-              orgTopLevelId: user?.orgTopLevelId,
+              org_unit_id: user?.org_unit_id,
+              org_top_level_id: user?.org_top_level_id,
               id: generateId(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
             }]
           };
         }
       }),
 
       addOrgTopLevel: (data) => set((state) => ({
-        orgTopLevels: [...state.orgTopLevels, { ...data, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        orgTopLevels: [...state.orgTopLevels, { ...data, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateOrgTopLevel: (id, data) => set((state) => ({
-        orgTopLevels: state.orgTopLevels.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o)
+        orgTopLevels: state.orgTopLevels.map(o => o.id === id ? { ...o, ...data, updated_at: new Date().toISOString() } : o)
       })),
 
       deleteOrgTopLevel: (id) => set((state) => ({
         orgTopLevels: state.orgTopLevels.filter(o => o.id !== id),
-        orgUnits: state.orgUnits.filter(u => u.parentId !== id) 
+        orgUnits: state.orgUnits.filter(u => u.parent_id !== id) 
       })),
 
       toggleOrgTopLevelStatus: (id) => set((state) => ({
-        orgTopLevels: state.orgTopLevels.map(o => o.id === id ? { ...o, active: !o.active, updatedAt: new Date().toISOString() } : o)
+        orgTopLevels: state.orgTopLevels.map(o => o.id === id ? { ...o, active: !o.active, updated_at: new Date().toISOString() } : o)
       })),
 
       addOrgUnit: (data) => set((state) => ({
-        orgUnits: [...state.orgUnits, { ...data, id: generateId(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+        orgUnits: [...state.orgUnits, { ...data, id: generateId(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]
       })),
 
       updateOrgUnit: (id, data) => set((state) => ({
-        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, ...data, updatedAt: new Date().toISOString() } : o)
+        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, ...data, updated_at: new Date().toISOString() } : o)
       })),
 
       deleteOrgUnit: (id) => set((state) => ({
@@ -362,7 +364,7 @@ export const useAppStore = create<AppState>()(
       })),
 
       toggleOrgUnitStatus: (id) => set((state) => ({
-        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, active: !o.active, updatedAt: new Date().toISOString() } : o)
+        orgUnits: state.orgUnits.map(o => o.id === id ? { ...o, active: !o.active, updated_at: new Date().toISOString() } : o)
       })),
 
     }),

@@ -1,29 +1,38 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useAppStore } from '../store/useAppStore';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu } from 'lucide-react';
+import { useCompanies } from '../hooks/useSupabaseData';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) => {
   const { user, logout } = useAuth();
-  const { companies } = useAppStore();
+  const { companies, isLoading } = useCompanies();
   const navigate = useNavigate();
   const location = useLocation();
-  const { linkName } = useParams();
+  const { link_name } = useParams();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
   // 1. Identifica a empresa alvo a partir da URL
-  const targetCompany = linkName ? companies.find(c => c.linkName === linkName) : undefined;
+  const targetCompany = link_name ? companies.find(c => c.link_name === link_name) : undefined;
 
-  // 2. Validações e Bloqueios
+  // 2. Estado de Carregamento (Apenas se não hover dados e estiver carregando)
+  if (isLoading && companies.length === 0) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="animate-spin text-blue-600" size={32} />
+      </div>
+    );
+  }
+
+  // 3. Validações e Bloqueios
   if (!superAdmin) {
     if (!targetCompany) {
       return (
@@ -45,7 +54,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         </div>
       );
     }
-    if (user?.role === 'ADMIN' && user.companyId !== targetCompany.id) {
+    if (user?.role === 'ADMIN' && user.company_id !== targetCompany.id) {
       return (
          <div className="flex flex-col h-screen items-center justify-center p-4 bg-slate-50 text-center">
            <ShieldAlert size={48} className="text-amber-400 mb-4" />
@@ -60,29 +69,29 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   const navItems = superAdmin ? [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/super-admin' },
   ] : [
-    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${linkName}` },
-    { label: 'Repositórios', icon: FolderTree, path: `/admin/${linkName}/repos` },
-    { label: 'Usuários', icon: Users, path: `/admin/${linkName}/users` },
-    { label: 'Estrutura Org.', icon: Network, path: `/admin/${linkName}/structure` },
-    { label: 'Aparência', icon: Palette, path: `/admin/${linkName}/appearance` },
-    { label: 'Configurações', icon: Settings, path: `/admin/${linkName}/settings` },
+    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${link_name}` },
+    { label: 'Repositórios', icon: FolderTree, path: `/admin/${link_name}/repos` },
+    { label: 'Usuários', icon: Users, path: `/admin/${link_name}/users` },
+    { label: 'Estrutura Org.', icon: Network, path: `/admin/${link_name}/structure` },
+    { label: 'Aparência', icon: Palette, path: `/admin/${link_name}/appearance` },
+    { label: 'Configurações', icon: Settings, path: `/admin/${link_name}/settings` },
   ];
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white">
       <div className="p-6 border-b border-slate-100 flex flex-col">
           {user?.role === 'SUPER_ADMIN' && !superAdmin && (
-             <Link to="/super-admin" onClick={() => setIsMobileMenuOpen(false)} className="text-xs text-indigo-600 flex items-center gap-1 mb-4 hover:underline font-medium">
-               <ArrowLeft size={12} /> Voltar p/ Super Admin
-             </Link>
+            <Link to="/super-admin" onClick={() => setIsMobileMenuOpen(false)} className="text-xs text-blue-600 flex items-center gap-1 mb-4 hover:underline font-medium">
+              <ArrowLeft size={12} /> Voltar p/ Super Admin
+            </Link>
           )}
           
           {!superAdmin && targetCompany ? (
             <div className="flex items-center gap-3">
-              {targetCompany.logoUrl ? (
-                <img src={targetCompany.logoUrl} alt={targetCompany.name} className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0" />
+              {targetCompany.logo_url ? (
+                <img src={targetCompany.logo_url} alt={targetCompany.name} className="w-8 h-8 rounded-md object-cover border border-slate-200 shrink-0" />
               ) : (
-                <div className="w-8 h-8 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shrink-0">
+                <div className="w-8 h-8 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
                    {targetCompany.name.charAt(0)}
                 </div>
               )}
@@ -101,14 +110,14 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (location.pathname === `/admin/${linkName}` && item.path === `/admin/${linkName}`);
+            const isActive = location.pathname === item.path || (location.pathname === `/admin/${link_name}` && item.path === `/admin/${link_name}`);
             const Icon = item.icon;
             return (
               <Link 
                 key={item.path} 
                 to={item.path}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
               >
                 <Icon size={18} />
                 {item.label}
@@ -119,8 +128,8 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
 
         <div className="p-4 border-t border-slate-100">
            <div className="flex items-center gap-3 mb-4 px-3">
-              {user?.avatarUrl ? (
-                 <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
+              {user?.avatar_url ? (
+                 <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200" />
               ) : (
                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold shrink-0">
                     {user?.name.charAt(0)}
@@ -152,7 +161,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Header with Hamburger Menu */}
         <header className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 overflow-hidden">
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button variant="ghost" size="icon" className="text-slate-600 -ml-2">

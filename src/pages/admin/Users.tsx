@@ -1,15 +1,41 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useAppStore } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
+import { 
+  useCompanies, 
+  useUsers, 
+  useOrgStructure, 
+  useContents, 
+  useSimpleLinks, 
+  useRepositories,
+  useUserActivity
+} from '../../hooks/useSupabaseData';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, Shield, User as UserIcon, Users, Activity, Eye, BookOpen, Calendar, Store, Upload, FileSpreadsheet, AlertCircle, Download } from 'lucide-react';
-import { User } from '../../types';
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Edit2, 
+  Trash2, 
+  Shield, 
+  User as UserIcon, 
+  Activity, 
+  Eye, 
+  BookOpen, 
+  Calendar, 
+  Store, 
+  Upload, 
+  FileSpreadsheet, 
+  AlertCircle, 
+  Download,
+  Loader2
+} from 'lucide-react';
+import { User, Content, SimpleLink, Repository } from '../../types';
 import * as XLSX from 'xlsx';
 
 const isValidCPF = (cpf: string) => {
@@ -29,21 +55,24 @@ const isValidCPF = (cpf: string) => {
 };
 
 export const AdminUsers = () => {
-  const { linkName } = useParams();
+  const { link_name } = useParams();
   const { user: currentUser } = useAuth();
-  const { companies, users, addUser, updateUser, deleteUser, toggleUserStatus, contentViews, contents, simpleLinks, repositories, orgUnits } = useAppStore();
   
-  const company = companies.find(c => c.linkName === linkName);
-  const companyUsers = users.filter(u => u.companyId === company?.id)
-                            .sort((a, b) => new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime());
+  const { companies } = useCompanies();
+  const company = companies.find(c => c.link_name === link_name);
 
-  const companyUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
-  const unitLabel = company?.orgUnitName || 'Unidade';
+  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(company?.id);
+  const { orgUnits } = useOrgStructure(company?.id);
+  const { contents } = useContents({ companyId: company?.id });
+  const { simpleLinks } = useSimpleLinks({ companyId: company?.id });
+  const { repositories } = useRepositories(company?.id);
+
+  const unitLabel = company?.org_unit_name || 'Unidade';
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '', email: '', cpf: '', password: '', role: 'USER' as 'ADMIN' | 'USER', active: true, orgUnitId: ''
+    name: '', email: '', cpf: '', password: '', role: 'USER' as 'ADMIN' | 'USER', active: true, org_unit_id: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -51,44 +80,53 @@ export const AdminUsers = () => {
 
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const { activity: userViews, isLoading: loadingActivity } = useUserActivity(selectedUser?.id);
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importStep, setImportStep] = useState<'upload' | 'preview'>('upload');
-  const [parsedData, setParsedData] = useState<any[]>([]);
+  const [parsedData, setParsedData] = useState<{ nome: string; cpf: string; valid: boolean; errors: string[]; isDuplicate: boolean; rowNum: number; }[]>([]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const userMetrics = useMemo(() => {
-    if (!selectedUser) return null;
-    const views = contentViews.filter(v => v.userId === selectedUser.id);
+    if (!selectedUser || !userViews) return null;
+    
     let lastAccess = '';
-    const contentMap = new Map<string, any>();
+    const contentMap = new Map<string, { viewCount: number, lastView: string, repoId: string, type: string }>();
 
-    views.forEach(v => {
-      if (!lastAccess || new Date(v.viewedAt) > new Date(lastAccess)) lastAccess = v.viewedAt;
-      const existing = contentMap.get(v.contentId);
+    userViews.forEach(v => {
+      if (!lastAccess || new Date(v.viewed_at) > new Date(lastAccess)) lastAccess = v.viewed_at;
+      const existing = contentMap.get(v.content_id);
       if (existing) {
         existing.viewCount += 1;
-        if (new Date(v.viewedAt) > new Date(existing.lastView)) existing.lastView = v.viewedAt;
+        if (new Date(v.viewed_at) > new Date(existing.lastView)) existing.lastView = v.viewed_at;
       } else {
-        contentMap.set(v.contentId, { viewCount: 1, lastView: v.viewedAt, repoId: v.repositoryId, type: v.contentType });
+        contentMap.set(v.content_id, { viewCount: 1, lastView: v.viewed_at, repoId: v.repository_id, type: v.content_type || '' });
       }
     });
 
-    const history = Array.from(contentMap.entries()).map(([contentId, data]) => {
+    const history = Array.from(contentMap.entries()).map(([content_id, data]) => {
       let title = 'Conteúdo Excluído ou Desconhecido';
-      const fullC = contents.find(c => c.id === contentId);
+      const fullC = (contents as Content[]).find(c => c.id === content_id);
       if (fullC) title = fullC.title;
       else {
-         const sLink = simpleLinks.find(l => l.id === contentId);
+         const sLink = (simpleLinks as SimpleLink[]).find(l => l.id === content_id);
          if (sLink) title = sLink.name;
       }
-      const repo = repositories.find(r => r.id === data.repoId);
-      return { id: contentId, title, type: data.type, repoName: repo ? repo.name : 'Repositório Excluído', viewCount: data.viewCount, lastView: data.lastView };
+      const repo = (repositories as Repository[]).find(r => r.id === data.repoId);
+      return { id: content_id, title, type: data.type, repoName: repo ? repo.name : 'Repositório Excluído', viewCount: data.viewCount, lastView: data.lastView };
     }).sort((a, b) => new Date(b.lastView).getTime() - new Date(a.lastView).getTime());
 
-    return { totalViews: views.length, uniqueContents: contentMap.size, lastAccess, history };
-  }, [selectedUser, contentViews, contents, simpleLinks, repositories]);
+    return { totalViews: userViews.length, uniqueContents: contentMap.size, lastAccess, history };
+  }, [selectedUser, userViews, contents, simpleLinks, repositories]);
 
-  if (!company) return null;
+  if (!company) {
+    return (
+      <div className="flex justify-center items-center h-48 text-slate-400">
+         <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
@@ -115,72 +153,126 @@ export const AdminUsers = () => {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, orgUnitId: '' });
+    setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, org_unit_id: '' });
     setIsFormOpen(true);
   };
 
   const openEdit = (user: User) => {
     setEditingId(user.id);
-    setFormData({ name: user.name, email: user.email || '', cpf: user.cpf || '', password: '', role: user.role as 'ADMIN' | 'USER', active: user.active !== false, orgUnitId: user.orgUnitId || '' });
+    setFormData({ 
+      name: user.name, 
+      email: user.email || '', 
+      cpf: user.cpf || '', 
+      password: '', 
+      role: user.role as 'ADMIN' | 'USER', 
+      active: user.active !== false, 
+      org_unit_id: user.org_unit_id || '' 
+    });
     setIsFormOpen(true);
   };
 
-  const openActivity = (user: User) => { setSelectedUser(user); setIsActivityOpen(true); };
+  const openActivity = (user: User) => { 
+    setSelectedUser(user); 
+    setIsActivityOpen(true); 
+  };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) return toast.error('Nome é obrigatório.');
     if (!editingId && !formData.password) return toast.error('A senha é obrigatória para novos usuários.');
+
+    const cleanCpf = formData.cpf.replace(/\D/g, '');
+
+    if (!formData.email && !cleanCpf) {
+       return toast.error('É obrigatório informar o E-mail ou o CPF.');
+    }
 
     if (formData.email) {
        const emailExists = users.some(u => u.email && u.email === formData.email && u.id !== editingId);
        if (emailExists) return toast.error('Este e-mail já está em uso por outro usuário.');
     }
 
-    let cleanCpf = formData.cpf.replace(/\D/g, '');
     if (cleanCpf) {
        if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
        const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== editingId);
        if (cpfExists) return toast.error('Este CPF já está cadastrado no sistema.');
     }
 
-    const payload = {
+    const generatedEmail = formData.email || `${cleanCpf}@entstore.com`;
+
+    const payload: Partial<User> & { password?: string } = {
       name: formData.name,
-      email: formData.email || undefined,
-      cpf: cleanCpf || undefined,
+      email: generatedEmail,
+      cpf: cleanCpf || null,
       role: formData.role,
       active: formData.active,
-      orgUnitId: formData.orgUnitId || undefined,
-      status: 'ACTIVE' as const
+      org_unit_id: formData.org_unit_id || null,
     };
 
-    if (editingId) {
-      updateUser(editingId, { ...payload, ...(formData.password ? { password: formData.password } : {}) });
-      toast.success('Usuário atualizado com sucesso!');
-    } else {
-      addUser({ companyId: company.id, password: formData.password, ...payload });
-      toast.success('Usuário criado com sucesso!');
+    try {
+      setIsSubmitting(true);
+      if (editingId) {
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+        const { error } = await supabase.from('users').update(payload).eq('id', editingId);
+        if (error) throw error;
+        toast.success('Usuário atualizado com sucesso!');
+      } else {
+        const { error } = await supabase.from('users').insert({
+          ...payload,
+          company_id: company.id,
+          password: formData.password,
+          status: 'ACTIVE'
+        });
+        if (error) throw error;
+        toast.success('Usuário criado com sucesso!');
+      }
+      mutateUsers();
+      handleCloseForm();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao salvar usuário: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    handleCloseForm();
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (userToDelete) {
       if (userToDelete.id === currentUser?.id) {
          toast.error('Você não pode excluir a sua própria conta.');
       } else {
-         deleteUser(userToDelete.id);
-         toast.success('Usuário excluído.');
+         try {
+           setIsSubmitting(true);
+           const { error } = await supabase.from('users').delete().eq('id', userToDelete.id);
+           if (error) throw error;
+           mutateUsers();
+           toast.success('Usuário excluído.');
+         } catch (err) {
+           const error = err as Error;
+           toast.error(`Erro ao excluir usuário: ${error.message}`);
+         } finally {
+           setIsSubmitting(false);
+         }
       }
     }
     handleCloseDelete();
   };
 
-  const toggleStatus = (user: User) => {
+  const toggleStatus = async (user: User) => {
     if (user.id === currentUser?.id) return toast.error('Você não pode inativar a sua própria conta.');
-    toggleUserStatus(user.id);
-    toast.success(`Status alterado para ${user.active === false ? 'Ativo' : 'Inativo'}.`);
+    
+    try {
+      const newStatus = !(user.active !== false);
+      const { error } = await supabase.from('users').update({ active: newStatus }).eq('id', user.id);
+      if (error) throw error;
+      mutateUsers();
+      toast.success(`Status alterado para ${newStatus ? 'Ativo' : 'Inativo'}.`);
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro ao alterar status: ${error.message}`);
+    }
   };
 
   const handleDownloadTemplate = () => {
@@ -203,13 +295,13 @@ export const AdminUsers = () => {
         const wb = XLSX.read(data, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }); // defval garante que colunas vazias não quebrem as keys
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
         const cpfSet = new Set<string>();
-        // Pega os usuários no exato momento para evitar stale state caso usuários tenham acabado de ser criados
-        const allUsers = useAppStore.getState().users;
+        const allUsers = users;
 
-        const processed = rows.map((row: any, index: number) => {
+        const processed = rows.map((rowItem: unknown, index: number) => {
+          const row = rowItem as Record<string, unknown>;
           const keys = Object.keys(row);
           const nomeKey = keys.find(k => k.toLowerCase().includes('nome'));
           const cpfKey = keys.find(k => k.toLowerCase().includes('cpf'));
@@ -217,7 +309,6 @@ export const AdminUsers = () => {
           const nome = nomeKey ? String(row[nomeKey]).trim() : '';
           let cpfRaw = cpfKey ? row[cpfKey] : '';
           
-          // Previne formato numérico tirando zeros a esquerda do excel
           if (typeof cpfRaw === 'number') cpfRaw = cpfRaw.toString().padStart(11, '0');
           const cpf = String(cpfRaw).replace(/\D/g, '');
 
@@ -228,21 +319,17 @@ export const AdminUsers = () => {
           if (!cpf) {
              errors.push('CPF vazio');
           } else {
-             // 1. Checa se já existe no banco (Mais importante!)
              if (allUsers.some(u => u.cpf === cpf)) {
                errors.push('CPF já cadastrado no sistema');
                isDuplicate = true;
              } 
-             // 2. Checa se tá duplicado dentro do próprio arquivo excel
              else if (cpfSet.has(cpf)) {
                errors.push('CPF duplicado nesta planilha');
                isDuplicate = true;
              } 
-             // 3. Valida matemática do CPF apenas se for novo
              else if (!isValidCPF(cpf)) {
                errors.push('CPF inválido');
              } 
-             // Se passou, adiciona no set de validação atual
              else {
                cpfSet.add(cpf);
              }
@@ -261,25 +348,36 @@ export const AdminUsers = () => {
     e.target.value = ''; 
   };
 
-  const handleConfirmImport = () => {
+  const handleConfirmImport = async () => {
     const validRows = parsedData.filter(r => r.valid);
     if (validRows.length === 0) return toast.error('Nenhuma linha válida para importar.');
 
-    validRows.forEach(row => {
-      addUser({
-        companyId: company.id,
+    try {
+      setIsSubmitting(true);
+      const newUsers = validRows.map(row => ({
+        company_id: company.id,
         name: row.nome,
         cpf: row.cpf,
+        email: `${row.cpf}@entstore.com`,
         password: '123456',
-        role: 'USER',
+        role: 'USER' as const,
         status: 'PENDING_SETUP',
-        firstAccess: true,
+        first_access: true,
         active: true,
-      });
-    });
+      }));
 
-    toast.success(`${validRows.length} usuários importados com sucesso!`);
-    handleCloseImport();
+      const { error } = await supabase.from('users').insert(newUsers);
+      if (error) throw error;
+
+      toast.success(`${validRows.length} usuários importados com sucesso!`);
+      mutateUsers();
+      handleCloseImport();
+    } catch (err) {
+      const error = err as Error;
+      toast.error(`Erro na importação: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalRows = parsedData.length;
@@ -317,19 +415,19 @@ export const AdminUsers = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
-                {companyUsers.map(user => {
-                   const userUnit = orgUnits.find(u => u.id === user.orgUnitId);
+                {users.map(user => {
+                   const userUnit = orgUnits.find(u => u.id === user.org_unit_id);
                    return (
                    <tr key={user.id} className={`hover:bg-slate-50 transition-colors ${user.active === false ? 'opacity-70 bg-slate-50/50' : ''}`}>
                       <td className="p-4 text-center">
                          <div className="flex justify-center">
-                            {user.active !== false ? <CheckCircle2 className="text-emerald-500" size={20} title="Ativo" /> : <XCircle className="text-slate-400" size={20} title="Inativo" />}
+                            {user.active !== false ? <CheckCircle2 className="text-emerald-500" size={20} /> : <XCircle className="text-slate-400" size={20} />}
                          </div>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          {user.avatarUrl ? (
-                             <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                          {user.avatar_url ? (
+                             <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" />
                           ) : (
                              <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-bold shrink-0">
                                {user.name.charAt(0).toUpperCase()}
@@ -360,7 +458,7 @@ export const AdminUsers = () => {
                             {userUnit && (
                                <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md" title={unitLabel}>
                                   <Store size={10} /> {userUnit.name}
-                               </div>
+                                </div>
                             )}
                          </div>
                       </td>
@@ -379,6 +477,14 @@ export const AdminUsers = () => {
                       </td>
                    </tr>
                 )})}
+                {loadingUsers && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-slate-400">
+                      <Loader2 className="animate-spin mx-auto mb-2" />
+                      Carregando usuários...
+                    </td>
+                  </tr>
+                )}
              </tbody>
           </table>
         </div>
@@ -484,8 +590,8 @@ export const AdminUsers = () => {
              {importStep === 'preview' && <Button type="button" variant="outline" onClick={() => setImportStep('upload')}>Nova Planilha</Button>}
              <Button type="button" variant="outline" onClick={handleCloseImport}>Cancelar</Button>
              {importStep === 'preview' && validRows.length > 0 && (
-                <Button type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleConfirmImport}>
-                   Importar {validRows.length} Usuários
+                <Button type="button" className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleConfirmImport} disabled={isSubmitting}>
+                   {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : `Importar ${validRows.length} Usuários`}
                 </Button>
              )}
           </div>
@@ -499,7 +605,11 @@ export const AdminUsers = () => {
              <p className="text-sm text-slate-500 mt-1">Histórico de consumo e métricas de <strong>{selectedUser?.name}</strong>.</p>
           </DialogHeader>
 
-          {userMetrics && (
+          {loadingActivity ? (
+            <div className="flex-1 flex items-center justify-center p-12 text-slate-400">
+               <Loader2 className="animate-spin mr-2" /> Carregando atividade...
+            </div>
+          ) : userMetrics ? (
             <div className="flex-1 overflow-y-auto mt-4 space-y-6 px-1 pb-2">
                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -568,6 +678,10 @@ export const AdminUsers = () => {
                   )}
                </div>
             </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center p-12 text-slate-400">
+              Nenhuma métrica disponível.
+            </div>
           )}
           
           <div className="shrink-0 flex justify-end gap-3 pt-4 border-t border-slate-100 mt-2">
@@ -582,23 +696,23 @@ export const AdminUsers = () => {
           <form onSubmit={handleSaveUser} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Nome Completo *</Label>
-              <Input placeholder="Ex: Maria Silva" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus />
+              <Input placeholder="Ex: Maria Silva" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} autoFocus disabled={isSubmitting} />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
                <div className="space-y-2">
                  <Label>CPF (Opcional)</Label>
-                 <Input type="text" placeholder="Apenas números" value={formData.cpf} onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} maxLength={11} />
+                 <Input type="text" placeholder="Apenas números" value={formData.cpf} onChange={(e) => setFormData({...formData, cpf: e.target.value.replace(/\D/g, '')})} maxLength={11} disabled={isSubmitting} />
                </div>
                <div className="space-y-2">
                  <Label>E-mail (Opcional)</Label>
-                 <Input type="email" placeholder="maria@empresa.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                 <Input type="email" placeholder="maria@empresa.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} disabled={isSubmitting} />
                </div>
             </div>
 
             <div className="space-y-2">
               <Label>{editingId ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha *'}</Label>
-              <Input type="text" placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+              <Input type="text" placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} disabled={isSubmitting} />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -607,7 +721,8 @@ export const AdminUsers = () => {
                  <select 
                    value={formData.role} 
                    onChange={(e) => setFormData({...formData, role: e.target.value as 'ADMIN' | 'USER'})}
-                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:opacity-50"
+                   disabled={isSubmitting}
                  >
                     <option value="USER">Usuário Final</option>
                     <option value="ADMIN">Administrador</option>
@@ -616,12 +731,13 @@ export const AdminUsers = () => {
               <div className="space-y-2">
                  <Label>{unitLabel}</Label>
                  <select 
-                   value={formData.orgUnitId} 
-                   onChange={(e) => setFormData({...formData, orgUnitId: e.target.value})}
-                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+                   value={formData.org_unit_id} 
+                   onChange={(e) => setFormData({...formData, org_unit_id: e.target.value})}
+                   className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:opacity-50"
+                   disabled={isSubmitting}
                  >
                     <option value="">Nenhuma</option>
-                    {companyUnits.map(unit => (
+                    {orgUnits.map(unit => (
                       <option key={unit.id} value={unit.id}>{unit.name}</option>
                     ))}
                  </select>
@@ -633,12 +749,14 @@ export const AdminUsers = () => {
                 <Label>Usuário Ativo</Label>
                 <p className="text-xs text-slate-500">Se desmarcado, ele não poderá fazer login.</p>
               </div>
-              <Switch checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} />
+              <Switch checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} disabled={isSubmitting} />
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
-              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">{editingId ? 'Salvar Alterações' : 'Criar Usuário'}</Button>
+              <Button type="button" variant="outline" onClick={handleCloseForm} disabled={isSubmitting}>Cancelar</Button>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : (editingId ? 'Salvar Alterações' : 'Criar Usuário')}
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -652,8 +770,10 @@ export const AdminUsers = () => {
              <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não poderá ser desfeita e revogará o acesso imediatamente.</p>
           </div>
           <div className="flex justify-end gap-3">
-             <Button type="button" variant="outline" onClick={handleCloseDelete}>Cancelar</Button>
-             <Button type="button" variant="destructive" onClick={handleDeleteUser}>Sim, excluir</Button>
+             <Button type="button" variant="outline" onClick={handleCloseDelete} disabled={isSubmitting}>Cancelar</Button>
+             <Button type="button" variant="destructive" onClick={handleDeleteUser} disabled={isSubmitting}>
+               {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Sim, excluir'}
+             </Button>
           </div>
         </DialogContent>
       </Dialog>

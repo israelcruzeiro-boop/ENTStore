@@ -1,25 +1,30 @@
 import { Play, Eye, Star, Image as ImageIcon } from 'lucide-react';
-import { Content } from '../../types';
+import { Content, ContentViewMetric, ContentRating } from '../../types';
 import { Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
-import { useAppStore } from '../../store/useAppStore';
 
-export const ContentCard = ({ content, fullWidth = false }: { content: Content, fullWidth?: boolean }) => {
-  const { contentViews, contentRatings } = useAppStore();
+interface ContentCardProps {
+  content: Content;
+  fullWidth?: boolean;
+  views?: ContentViewMetric[];
+  ratings?: ContentRating[];
+}
+
+export const ContentCard = ({ content, fullWidth = false, views: viewsProp, ratings: ratingsProp }: ContentCardProps) => {
   const { slug } = useTenant();
   
-  const views = contentViews.filter(v => v.contentId === content.id).length;
+  const viewCount = viewsProp ? viewsProp.filter(v => v.content_id === content.id).length : 0;
   
-  const ratings = contentRatings.filter(r => r.contentId === content.id);
-  const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
+  const contentRatings = ratingsProp ? ratingsProp.filter(r => r.content_id === content.id) : [];
+  const avgRating = contentRatings.length > 0 ? (contentRatings.reduce((acc, curr) => acc + curr.rating, 0) / contentRatings.length).toFixed(1) : '-';
 
-  // Lógica para extrair Thumbnail do YouTube se não houver imagem personalizada
   const getDisplayThumbnail = () => {
-    if (content.thumbnailUrl) return content.thumbnailUrl;
+    if (content.thumbnail_url) return content.thumbnail_url;
     
-    if (content.type === 'VIDEO') {
-      const url = content.embedUrl || content.url;
-      const ytMatch = url?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+    if (content.type === 'VIDEO' || content.type === 'MUSIC') {
+      const url = content.embed_url || content.url;
+      // Regex aprimorada para incluir Shorts
+      const ytMatch = url?.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([^&?]+)/);
       if (ytMatch && ytMatch[1]) {
          return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`;
       }
@@ -30,8 +35,8 @@ export const ContentCard = ({ content, fullWidth = false }: { content: Content, 
   const displayThumbnail = getDisplayThumbnail();
 
   return (
-    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start transition-transform duration-300 hover:scale-105 hover:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-80'}`}>
-      <div className="aspect-video w-full overflow-hidden rounded-md bg-zinc-800 relative shadow-md flex items-center justify-center">
+    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start outline-none transition-all duration-300 hover:scale-105 focus-visible:scale-105 hover:z-10 focus-visible:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-[320px]'}`}>
+      <div className="aspect-video w-full overflow-hidden rounded-xl bg-[#111] relative shadow-lg flex items-center justify-center group-hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] group-hover:ring-1 group-hover:ring-white/30 group-focus-visible:ring-2 group-focus-visible:ring-white transition-all transform-gpu">
         {displayThumbnail ? (
           <img 
             src={displayThumbnail} 
@@ -42,10 +47,10 @@ export const ContentCard = ({ content, fullWidth = false }: { content: Content, 
           <ImageIcon size={32} className="text-zinc-600 opacity-50" />
         )}
         
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-          <div className="w-full flex items-center justify-between">
-            <span className="text-white font-medium truncate pr-2">{content.title}</span>
-            <div className="w-8 h-8 rounded-full bg-[var(--c-primary)] text-white flex items-center justify-center shrink-0 shadow-lg shadow-[var(--c-primary)]/40">
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/95 via-[#050505]/20 to-transparent flex items-end p-4">
+          <div className="w-full flex items-center justify-between opacity-90 group-hover:opacity-100 transition-opacity">
+            <span className="text-white font-bold tracking-tight truncate pr-2 drop-shadow-md text-sm md:text-base">{content.title}</span>
+            <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md text-white flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110 shadow-xl border border-white/10">
               <Play size={16} fill="currentColor" className="ml-0.5" />
             </div>
           </div>
@@ -58,14 +63,14 @@ export const ContentCard = ({ content, fullWidth = false }: { content: Content, 
             {content.type}
           </span>
           <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
-            <Eye size={12} /> {views}
+            <Eye size={12} /> {viewCount}
           </span>
         </div>
         
         <div className="flex items-center gap-1 font-medium text-amber-400 text-xs">
           <Star size={12} fill="currentColor" /> {avgRating} 
           <span className="text-zinc-500 font-normal ml-0.5">
-            ({ratings.length} {ratings.length === 1 ? 'avaliação' : 'avaliações'})
+            ({contentRatings.length} {contentRatings.length === 1 ? 'avaliação' : 'avaliações'})
           </span>
         </div>
       </div>

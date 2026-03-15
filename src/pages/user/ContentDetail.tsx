@@ -1,53 +1,101 @@
 import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
-import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRepositories, useContents, useOrgStructure, useRepositoryMetrics, addContentView, rateContent } from '../../hooks/useSupabaseData';
+import { checkRepoAccess } from '../../lib/permissions';
 import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const ContentDetail = () => {
   const { id } = useParams();
   const { slug } = useTenant();
-  const { user } = useAuth();
-  const { contents, repositories, contentViews, addContentView, contentRatings, rateContent, orgUnits, orgTopLevels } = useAppStore();
+  const { company, user } = useAuth();
   const hasTrackedView = useRef(false);
 
+  // SWR Hooks para dados do Supabase
+  const { contents, isLoading: loadingContents } = useContents({ contentId: id });
   const content = contents.find(c => c.id === id);
-  const repo = content ? repositories.find(r => r.id === content.repositoryId) : null;
 
-  // Métricas
-  const viewsCount = contentViews.filter(v => v.contentId === content?.id).length;
-  const ratings = contentRatings.filter(r => r.contentId === content?.id);
+  const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
+  const repo = content ? repositories.find(r => r.id === content.repository_id) : null;
+
+  const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
+  const { contentViews, contentRatings, isLoading: loadingMetrics, mutate: mutateMetrics } = useRepositoryMetrics(repo?.id);
+
+  const isLoading = loadingContents || loadingRepos || loadingOrg || loadingMetrics;
+
+  // Métricas específicas do conteúdo
+  const contentViewsList = contentViews.filter(v => v.content_id === content?.id);
+  const viewsCount = contentViewsList.length;
+  const ratings = contentRatings.filter(r => r.content_id === content?.id);
   const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
-  const userRating = contentRatings.find(r => r.contentId === content?.id && r.userId === user?.id)?.rating;
+  const userRating = contentRatings.find(r => r.content_id === content?.id && r.user_id === user?.id)?.rating;
 
   // Regra de Acesso Recursiva e Completa
-  const isAuthorized = checkRepoAccess(repo as any, user, orgUnits, orgTopLevels);
+  const isAuthorized = repo ? checkRepoAccess(repo, user, orgUnits, orgTopLevels) : false;
 
   useEffect(() => {
     if (content && repo && isAuthorized && user && !hasTrackedView.current) {
       addContentView({
-        userId: user.id,
-        contentId: content.id,
-        companyId: content.companyId,
-        repositoryId: content.repositoryId,
-        contentType: content.type
+        user_id: user.id,
+        content_id: content.id,
+        company_id: content.company_id,
+        repository_id: content.repository_id,
+        content_type: content.type
+      }).then(() => {
+        hasTrackedView.current = true;
+      }).catch(err => {
+        console.error('Erro ao registrar visualização:', err);
       });
-      hasTrackedView.current = true;
     }
-  }, [content, repo, isAuthorized, user, addContentView]);
+  }, [content, repo, isAuthorized, user]);
 
-  const handleRate = (rating: number) => {
+  const handleRate = async (rating: number) => {
     if (!user || !content) return;
-    rateContent({
-      userId: user.id,
-      contentId: content.id,
-      companyId: content.companyId,
-      repositoryId: content.repositoryId,
-      rating
+    
+    const promise = rateContent({
+        user_id: user.id,
+        content_id: content.id,
+        company_id: content.company_id,
+        repository_id: content.repository_id,
+        rating
     });
+
+    toast.promise(promise, {
+      loading: 'Enviando sua avaliação...',
+      success: 'Avaliação registrada com sucesso!',
+      error: (err) => `Erro ao avaliar: ${err.message || 'Verifique sua conexão'}`
+    });
+
+    try {
+      await promise;
+      // Recarregar métricas para atualizar a média na tela
+      mutateMetrics();
+    } catch (err) {
+      console.error('Erro ao registrar avaliação:', err);
+    }
   };
+
+  const getRatingColor = (val: number, isSelected: boolean) => {
+    if (!isSelected) return 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white';
+    
+    if (val <= 6) return 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]';
+    if (val <= 8) return 'bg-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]';
+    return 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]';
+  };
+
+  if (isLoading) {
+    return (
+      <div 
+        className="flex items-center justify-center min-h-screen"
+        style={{ backgroundColor: company?.theme?.background || '#050505' }}
+      >
+        <div className="w-12 h-12 border-4 border-[var(--c-primary)] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   if (!content || !repo || content.status !== 'ACTIVE') {
       return <div className="p-12 text-center text-white mt-20">Conteúdo não encontrado ou inativo.</div>;
@@ -82,7 +130,7 @@ export const ContentDetail = () => {
                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-[var(--c-primary)]">
                  {content.type}
                </span>
-               <h1 className="text-2xl md:text-3xl font-bold text-white">{content.title}</h1>
+               <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">{content.title}</h1>
             </div>
             
             <div className="flex items-center gap-4 mb-2">
@@ -95,19 +143,19 @@ export const ContentDetail = () => {
               </span>
             </div>
 
-            <p className="text-zinc-400 text-sm md:text-base mt-2">{content.description}</p>
+            <p className="text-zinc-300 text-base md:text-lg mt-4 max-w-4xl leading-relaxed">{content.description}</p>
             
-            <div className="mt-6 p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/80 w-fit">
+            <div className="mt-8 p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/80 w-fit backdrop-blur-sm">
               <p className="text-sm text-zinc-400 mb-3 font-medium">Avalie este conteúdo (0 a 10)</p>
               <div className="flex flex-wrap gap-2">
                 {[0,1,2,3,4,5,6,7,8,9,10].map(val => (
-                  <button 
-                    key={val} 
-                    onClick={() => handleRate(val)}
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all ${userRating === val ? 'bg-[var(--c-primary)] text-white shadow-[0_0_15px_var(--c-primary)] shadow-[var(--c-primary)]/40 scale-110' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white hover:scale-105'}`}
-                  >
-                    {val}
-                  </button>
+                   <button 
+                     key={val} 
+                     onClick={() => handleRate(val)}
+                     className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all hover:scale-110 ${getRatingColor(val, userRating === val)} ${userRating === val ? 'ring-2 ring-white scale-110 shadow-xl' : 'opacity-80'}`}
+                   >
+                     {val}
+                   </button>
                 ))}
               </div>
             </div>

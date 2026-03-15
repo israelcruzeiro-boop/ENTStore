@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 
 export const UserLayout = () => {
-  const { user } = useAuth();
+  const { user, company } = useAuth();
   const { slug } = useTenant();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
@@ -27,8 +27,14 @@ export const UserLayout = () => {
   };
 
   return (
-    <div className="min-h-screen text-[var(--c-text)] pb-20 md:pb-0" style={{ backgroundColor: 'var(--c-bg)' }}>
-      {user?.firstAccess && <FirstAccessModal />}
+    <div 
+      className="min-h-screen pb-20 md:pb-0 selection:bg-[var(--c-primary)] selection:text-white transition-colors duration-300"
+      style={{ 
+        backgroundColor: company?.theme?.background || '#050505',
+        color: company?.theme?.text || '#e2e8f0'
+      }}
+    >
+      {user?.first_access && <FirstAccessModal />}
       
       <style>{`
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -36,10 +42,11 @@ export const UserLayout = () => {
       `}</style>
       
       {/* Navbar Transparente (escurece no scroll) */}
-      <header className={`fixed top-0 w-full z-50 transition-colors duration-300 px-4 md:px-12 py-4 flex justify-between items-center ${scrolled ? 'bg-black/90 backdrop-blur-sm' : 'bg-gradient-to-b from-black/80 to-transparent'}`}>
+      <header className={`fixed top-0 w-full z-50 transition-colors duration-300 ${scrolled ? 'bg-black/90 backdrop-blur-sm shadow-lg' : 'bg-gradient-to-b from-black/80 to-transparent'}`}>
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
         <div className="flex items-center gap-8">
-          <Link to={`${basePath}/home`} className="text-2xl font-bold tracking-tighter" style={{ color: 'var(--c-primary)' }}>
-             ENT<span className="text-white">Store</span>
+          <Link to={`${basePath}/home`} className="flex items-center">
+            <img src="/assets/logo.png" alt="ENTStore" className="h-8 md:h-10 w-auto" />
           </Link>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
             <Link to={`${basePath}/home`} className={`transition-colors hover:text-white ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>
@@ -50,12 +57,13 @@ export const UserLayout = () => {
         
         <div className="flex items-center gap-4 md:gap-6 text-zinc-400">
           <Link to={`${basePath}/perfil`} className={`flex items-center gap-2 cursor-pointer group hover:text-white transition-colors ${isActive('/perfil') ? 'text-white' : ''}`} title="Perfil">
-            {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
+            {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
             ) : (
                 <UserCircle size={26} />
             )}
           </Link>
+        </div>
         </div>
       </header>
 
@@ -78,8 +86,8 @@ export const UserLayout = () => {
             <span className="text-[10px] font-medium">Hub</span>
          </Link>
          <Link to={`${basePath}/perfil`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/perfil') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            {user?.avatarUrl ? (
-               <img src={user.avatarUrl} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
+            {user?.avatar_url ? (
+               <img src={user.avatar_url} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
             ) : (
                <UserCircle size={22} />
             )}

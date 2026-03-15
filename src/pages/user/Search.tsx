@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useAppStore, checkRepoAccess } from '../../store/useAppStore';
+import { useRepositories, useContents, useSimpleLinks, useOrgStructure } from '../../hooks/useSupabaseData';
+import { checkRepoAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library } from 'lucide-react';
@@ -11,42 +12,71 @@ export const UserBusca = () => {
   const { company, user } = useAuth();
   const { slug } = useTenant();
   const [searchParams] = useSearchParams();
-  const { repositories, contents, simpleLinks, orgUnits, orgTopLevels } = useAppStore();
+
+  // SWR Hooks para dados do Supabase
+  const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
+  const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
+  const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
+  const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
+
+  const isLoading = loadingRepos || loadingContents || loadingLinks || loadingOrg;
   
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
 
-  const companyRepos = repositories.filter(r => {
-     if (r.companyId !== company?.id || r.status !== 'ACTIVE') return false;
-     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
-  });
+  const companyRepos = useMemo(() => {
+    return repositories.filter(r => {
+      if (r.company_id !== company?.id || r.status !== 'ACTIVE') return false;
+      return checkRepoAccess(r, user, orgUnits, orgTopLevels);
+    });
+  }, [repositories, company, user, orgUnits, orgTopLevels]);
   
-  const repoIds = companyRepos.map(r => r.id);
+  const repoIds = useMemo(() => companyRepos.map(r => r.id), [companyRepos]);
 
-  const filteredRepos = companyRepos.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+  const filteredRepos = useMemo(() => {
+    if (!query) return [];
+    return companyRepos.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+  }, [companyRepos, query]);
   
-  const filteredContents = contents.filter(c => 
-    repoIds.includes(c.repositoryId) && 
-    c.status === 'ACTIVE' && 
-    (c.title.toLowerCase().includes(query.toLowerCase()) || c.description.toLowerCase().includes(query.toLowerCase()))
-  );
+  const filteredContents = useMemo(() => {
+    if (!query) return [];
+    return contents.filter(c => 
+      repoIds.includes(c.repository_id) && 
+      c.status === 'ACTIVE' && 
+      (c.title.toLowerCase().includes(query.toLowerCase()) || (c.description && c.description.toLowerCase().includes(query.toLowerCase())))
+    );
+  }, [contents, repoIds, query]);
 
-  const filteredLinks = simpleLinks.filter(l => 
-    repoIds.includes(l.repositoryId) && 
-    l.status === 'ACTIVE' && 
-    (l.name.toLowerCase().includes(query.toLowerCase()) || l.url.toLowerCase().includes(query.toLowerCase()))
-  );
+  const filteredLinks = useMemo(() => {
+    if (!query) return [];
+    return simpleLinks.filter(l => 
+      repoIds.includes(l.repository_id) && 
+      l.status === 'ACTIVE' && 
+      (l.name.toLowerCase().includes(query.toLowerCase()) || (l.url && l.url.toLowerCase().includes(query.toLowerCase())))
+    );
+  }, [simpleLinks, repoIds, query]);
+
+  if (isLoading) {
+    return (
+      <div 
+        className="flex items-center justify-center min-h-screen"
+        style={{ backgroundColor: company?.theme?.background || '#050505' }}
+      >
+        <div className="w-12 h-12 border-4 border-[var(--c-primary)] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="pt-24 pb-12 px-4 md:px-12 max-w-7xl mx-auto min-h-screen">
       <div className="relative mb-10 max-w-2xl mx-auto">
-        <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400" size={24} />
+        <SearchIcon className="absolute left-5 top-1/2 -translate-y-1/2 text-white/50" size={24} />
         <input 
           type="text"
           placeholder="Buscar conteúdos, hubs, links..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-full py-4 pl-14 pr-6 text-white text-lg focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all shadow-lg"
+          className="w-full bg-white/5 backdrop-blur-xl border border-white/10 hover:border-white/20 rounded-full py-3 pl-14 pr-6 text-white text-base focus:outline-none focus:ring-1 focus:ring-white/50 transition-all shadow-2xl placeholder:text-white/40"
           autoFocus
         />
       </div>
@@ -67,7 +97,7 @@ export const UserBusca = () => {
                 <Library size={20} className="text-[var(--c-primary)]" />
                 <h2 className="text-xl font-bold text-white">Hubs e Bibliotecas</h2>
               </div>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3 md:gap-5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6">
                 {filteredRepos.map(repo => (
                    <RepoCard key={repo.id} repo={repo} fullWidth />
                 ))}
@@ -97,7 +127,7 @@ export const UserBusca = () => {
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 {filteredLinks.map(link => (
-                  <Link key={link.id} to={`/${slug}/repo/${link.repositoryId}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
+                  <Link key={link.id} to={`/${slug}/repo/${link.repository_id}`} className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800 flex justify-between items-center group transition-all">
                     <div className="overflow-hidden">
                       <h3 className="text-white font-medium group-hover:text-[var(--c-primary)] transition-colors truncate">{link.name}</h3>
                       <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1.5 truncate">

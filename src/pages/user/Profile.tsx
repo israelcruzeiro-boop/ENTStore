@@ -1,46 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useOrgStructure, updateSupabaseUser, useUsers } from '../../hooks/useSupabaseData';
 import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-const isValidCPF = (cpf: string) => {
-  cpf = cpf.replace(/[^\d]+/g, '');
-  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
-  let sum = 0, rest;
-  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (11 - i);
-  rest = (sum * 10) % 11;
-  if ((rest === 10) || (rest === 11)) rest = 0;
-  if (rest !== parseInt(cpf.substring(9, 10))) return false;
-  sum = 0;
-  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (12 - i);
-  rest = (sum * 10) % 11;
-  if ((rest === 10) || (rest === 11)) rest = 0;
-  if (rest !== parseInt(cpf.substring(10, 11))) return false;
-  return true;
-};
+import { isValidCPF } from '../../utils/validators';
+import { uploadToSupabase } from '../../lib/storage';
 
 export const UserProfile = () => {
-  const { user, company, logout } = useAuth();
+  const { user, company, logout, refreshUser } = useAuth();
   const { slug } = useTenant();
   const navigate = useNavigate();
-  const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
+  
+  // SWR Hooks para dados do Supabase
+  const { users, mutate: mutateUsers } = useUsers(company?.id);
+  const { orgUnits, orgTopLevels } = useOrgStructure(company?.id);
 
-  const unitLabel = company?.orgUnitName || 'Unidade';
-  const orgLevels = company?.orgLevels?.length ? company.orgLevels : [{ id: 'legacy', name: company?.orgTopLevelName || 'Regional' }];
+  const unitLabel = company?.org_unit_name || 'Unidade';
+  const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }];
 
-  const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
-  const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
+  const activeTopLevels = orgTopLevels.filter(t => t.company_id === company?.id && t.active);
+  const activeUnits = orgUnits.filter(u => u.company_id === company?.id && u.active);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     cpf: '',
-    avatarUrl: '',
-    orgUnitId: ''
+    avatar_url: '',
+    org_unit_id: ''
   });
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -48,35 +38,40 @@ export const UserProfile = () => {
         name: user.name || '',
         email: user.email || '',
         cpf: user.cpf || '',
-        avatarUrl: user.avatarUrl || '',
-        orgUnitId: user.orgUnitId || ''
+        avatar_url: user.avatar_url || '',
+        org_unit_id: user.org_unit_id || ''
       });
     }
   }, [user]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('A imagem deve ter no máximo 2MB.');
+    if (file && company?.id) {
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error('A imagem deve ter no máximo 20MB.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, avatarUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      
+      try {
+        toast.loading('Otimizando e enviando imagem...', { id: 'upload' });
+        const url = await uploadToSupabase(file, 'assets', `companies/${company.id}/avatars`, 'avatar');
+        setFormData(prev => ({ ...prev, avatar_url: url }));
+        toast.success('Imagem preparada!', { id: 'upload' });
+      } catch (error) {
+        console.error('Erro no upload:', error);
+        toast.error('Falha ao enviar imagem.', { id: 'upload' });
+      }
     }
   };
 
-  const handleSaveChanges = (e: React.FormEvent) => {
+  const handleSaveChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !company?.id) return;
 
     if (!formData.name.trim() || !formData.email.trim()) {
       return toast.error('Nome e E-mail são obrigatórios.');
@@ -92,30 +87,40 @@ export const UserProfile = () => {
        if (cpfExists) return toast.error('Este CPF já está sendo usado por outro usuário.');
     }
 
-    updateUser(user.id, {
-      name: formData.name,
-      email: formData.email,
-      cpf: cleanCpf || undefined,
-      avatarUrl: formData.avatarUrl,
-      orgUnitId: formData.orgUnitId
-    });
+    try {
+      setIsSaving(true);
+      await updateSupabaseUser(user.id, {
+        name: formData.name,
+        email: formData.email,
+        cpf: cleanCpf || undefined,
+        avatar_url: formData.avatar_url,
+        org_unit_id: formData.org_unit_id || undefined // Se vazio, não envia para não quebrar UUID
+      });
 
-    toast.success('Perfil atualizado com sucesso!');
-    navigate(`/${slug}/home`);
+      await refreshUser(); // Atualiza o estado global do AuthContext
+      await mutateUsers();
+      toast.success('Perfil atualizado com sucesso!');
+      navigate(`/${slug}/home`);
+    } catch (error) {
+      console.error('Erro ao salvar perfil:', error);
+      toast.error('Ocorreu um erro ao salvar as alterações.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getHierarchyPath = () => {
-    if (!formData.orgUnitId) return [];
-    const unit = activeUnits.find(u => u.id === formData.orgUnitId);
+    if (!formData.org_unit_id) return [];
+    const unit = activeUnits.find(u => u.id === formData.org_unit_id);
     if (!unit) return [];
     
     const path: { label: string, name: string }[] = [];
-    let currentParent = activeTopLevels.find(t => t.id === unit.parentId);
+    let currentParent = activeTopLevels.find(t => t.id === unit.parent_id);
     
     while (currentParent) {
-      const parentDef = orgLevels.find(l => l.id === currentParent?.levelId) || orgLevels[0];
+      const parentDef = org_levels.find(l => l.id === currentParent?.level_id) || org_levels[0];
       path.unshift({ label: parentDef.name, name: currentParent.name });
-      currentParent = activeTopLevels.find(t => t.id === currentParent?.parentId);
+      currentParent = activeTopLevels.find(t => t.id === currentParent?.parent_id);
     }
     
     path.push({ label: unitLabel, name: unit.name });
@@ -124,13 +129,13 @@ export const UserProfile = () => {
   };
 
   const hierarchyPath = getHierarchyPath();
-  const currentUnit = activeUnits.find(u => u.id === formData.orgUnitId);
+  const currentUnit = activeUnits.find(u => u.id === formData.org_unit_id);
 
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 max-w-3xl mx-auto min-h-screen">
-       <div className="bg-zinc-900/80 backdrop-blur-sm border border-zinc-800 rounded-3xl p-6 md:p-10 shadow-xl relative overflow-hidden">
+    <div className="pt-24 pb-12 px-4 md:px-12 max-w-4xl mx-auto min-h-screen">
+       <div className="bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 md:p-12 shadow-2xl relative overflow-hidden">
           
-          <div className="absolute inset-0 bg-gradient-to-br from-[var(--c-primary)]/5 to-transparent pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-[var(--c-primary)]/10 via-transparent to-transparent pointer-events-none"></div>
 
           <form onSubmit={handleSaveChanges} className="relative z-10 flex flex-col items-center w-full">
             
@@ -140,11 +145,11 @@ export const UserProfile = () => {
               onClick={() => document.getElementById('avatar-upload')?.click()}
               title="Clique para alterar a foto"
             >
-              {formData.avatarUrl ? (
-                 <img src={formData.avatarUrl} alt="avatar" className="w-28 h-28 rounded-full border-4 border-zinc-800 shadow-2xl object-cover" />
+              {formData.avatar_url ? (
+                 <img src={formData.avatar_url} alt="avatar" className="w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] shadow-2xl object-cover transition-transform group-hover:scale-105" style={{ borderColor: company?.theme?.background || '#050505' }} />
               ) : (
-                 <div className="w-28 h-28 rounded-full bg-zinc-950 text-zinc-600 flex items-center justify-center border-4 border-zinc-800 shadow-2xl">
-                   <UserCircle size={56} />
+                 <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-[#111] text-zinc-600 flex items-center justify-center border-[6px] border-[#050505] shadow-2xl transition-transform group-hover:scale-105">
+                   <UserCircle size={64} />
                  </div>
               )}
               <div className="absolute inset-0 bg-black/60 rounded-full flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -160,8 +165,8 @@ export const UserProfile = () => {
               />
             </div>
 
-            <div className="text-center mb-8">
-               <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 flex items-center justify-center gap-2">
+            <div className="text-center mb-10">
+               <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight flex items-center justify-center gap-2 drop-shadow-lg">
                  {user?.name}
                </h1>
                <div className="flex items-center justify-center gap-2 mt-2">
@@ -169,7 +174,7 @@ export const UserProfile = () => {
                     {company?.name}
                  </span>
                  {user?.role === 'ADMIN' && (
-                    <span className="flex items-center gap-1 text-[10px] bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full font-bold uppercase border border-indigo-500/20">
+                    <span className="flex items-center gap-1 text-[10px] bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-bold uppercase border border-blue-500/20">
                        <Shield size={12} /> Admin
                     </span>
                  )}
@@ -177,98 +182,98 @@ export const UserProfile = () => {
             </div>
 
             {/* 2. Dados Pessoais */}
-            <div className="w-full bg-zinc-950/50 rounded-2xl p-6 mb-6 border border-zinc-800/80 shadow-inner">
-               <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider flex items-center gap-2">
+            <div className="w-full bg-white/5 backdrop-blur-md rounded-2xl p-6 md:p-8 mb-6 border border-white/5 shadow-inner">
+               <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-widest flex items-center gap-2 opacity-80">
                   Dados Pessoais
                </h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4">
-                  <div className="space-y-1.5 text-left">
-                     <label className="text-xs text-zinc-500 font-medium">Nome Completo</label>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
+                   <div className="space-y-2 text-left">
+                     <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase">Nome Completo</label>
                      <input 
                        type="text" 
                        value={formData.name} 
                        onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                       className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                       className="w-full bg-[#050505]/50 border border-white/10 rounded-xl p-3.5 text-white text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-white/30 focus:border-white/30 transition-all hover:border-white/20"
                        placeholder="Seu nome"
                      />
                   </div>
-                  <div className="space-y-1.5 text-left">
-                     <label className="text-xs text-zinc-500 font-medium">E-mail</label>
+                  <div className="space-y-2 text-left">
+                     <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase">E-mail</label>
                      <input 
                        type="email" 
                        value={formData.email} 
                        onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                       className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all"
+                       className="w-full bg-[#050505]/50 border border-white/10 rounded-xl p-3.5 text-white text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-white/30 focus:border-white/30 transition-all hover:border-white/20"
                        placeholder="seu@email.com"
                      />
                   </div>
                </div>
-               <div className="space-y-1.5 text-left">
-                  <label className="text-xs text-zinc-500 font-medium flex justify-between items-center">
+               <div className="space-y-2 text-left">
+                  <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase flex justify-between items-center">
                     CPF
-                    <span className="text-[10px] text-zinc-600 font-normal">Não editável</span>
+                    <span className="text-[10px] text-zinc-500/80 font-normal normal-case">Não editável</span>
                   </label>
                   <input 
                     type="text" 
                     value={formData.cpf ? formData.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : ''} 
                     readOnly
-                    className="w-full bg-zinc-950 border border-zinc-800/50 rounded-xl p-3 text-zinc-500 text-sm cursor-not-allowed focus:outline-none"
+                    className="w-full bg-black/30 border border-transparent rounded-xl p-3.5 text-zinc-500 text-sm md:text-base cursor-not-allowed focus:outline-none"
                     placeholder="Não cadastrado"
                   />
                </div>
             </div>
 
             {/* 3. Vínculo Organizacional */}
-            <div className="w-full bg-zinc-950/50 rounded-2xl p-6 mb-8 border border-zinc-800/80 shadow-inner">
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <div className="w-full bg-white/5 backdrop-blur-md rounded-2xl p-6 md:p-8 mb-8 border border-white/5 shadow-inner">
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2 opacity-80">
                     Vínculo Organizacional
                  </h3>
                </div>
 
-               <div className="mb-6 bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
+               <div className="mb-6 bg-[#050505]/40 border border-transparent rounded-xl p-5 flex flex-col gap-5">
                   {hierarchyPath.length > 0 ? (
                     hierarchyPath.map((pathItem, idx) => {
                       const isLast = idx === hierarchyPath.length - 1;
                       return (
-                        <div key={idx} className="flex items-center gap-3 relative">
-                           {idx > 0 && <div className="absolute -top-4 left-5 w-px h-4 bg-zinc-800"></div>}
+                        <div key={idx} className="flex items-center gap-4 relative">
+                           {idx > 0 && <div className="absolute -top-5 left-[1.35rem] w-px h-6 bg-white/10"></div>}
                            
-                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isLast ? 'bg-zinc-950 border border-zinc-800 shadow-inner text-[var(--c-primary)]' : 'bg-zinc-950 border border-zinc-800 text-zinc-400'}`}>
-                              {isLast ? <Store size={18} /> : <Building2 size={18} />}
+                           <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-lg ${isLast ? 'bg-[#111] border border-[var(--c-primary)]/50 text-[var(--c-primary)]' : 'bg-[#050505] border border-white/5 text-zinc-500'}`}>
+                              {isLast ? <Store size={20} /> : <Building2 size={20} />}
                            </div>
                            <div>
-                              <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-wider">{pathItem.label}</p>
-                              <p className="text-sm font-bold text-white">{pathItem.name}</p>
+                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">{pathItem.label}</p>
+                              <p className="text-sm md:text-base font-bold text-white">{pathItem.name}</p>
                            </div>
                         </div>
                       )
                     })
                   ) : (
-                    <div className="text-zinc-500 text-sm text-center py-2 font-medium">Nenhum vínculo organizacional definido.</div>
+                    <div className="text-zinc-500 text-sm text-center py-4 font-medium">Nenhum vínculo organizacional definido.</div>
                   )}
                </div>
                
-               <div className="space-y-1.5 text-left border-t border-zinc-800/50 pt-5">
-                  <label className="text-xs text-zinc-500 font-medium flex justify-between items-center">
+               <div className="space-y-2 text-left border-t border-white/5 pt-6">
+                  <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase flex justify-between items-center">
                     {unitLabel} Atual
-                    <span className="text-[10px] text-zinc-600 font-normal">Apenas admin pode alterar</span>
+                    <span className="text-[10px] text-zinc-500/80 font-normal normal-case">Apenas admin pode alterar</span>
                   </label>
                   <input 
                     type="text" 
                     value={currentUnit ? currentUnit.name : ''} 
                     readOnly
-                    className="w-full bg-zinc-950 border border-zinc-800/50 rounded-xl p-3 text-zinc-500 text-sm cursor-not-allowed focus:outline-none"
+                    className="w-full bg-black/20 border border-transparent rounded-xl p-3.5 text-zinc-500 text-sm md:text-base cursor-not-allowed focus:outline-none"
                     placeholder={`Nenhuma ${unitLabel.toLowerCase()} vinculada`}
                   />
                </div>
             </div>
 
-            <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-zinc-800/50">
+            <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-white/10">
                <button 
                  type="button"
                  onClick={handleLogout}
-                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-zinc-900 text-red-400 hover:bg-red-500/10 hover:text-red-300 border border-zinc-800 hover:border-red-500/30 font-semibold transition-all"
+                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 font-semibold transition-all shadow-lg"
                >
                  <LogOut size={18} />
                  Sair da Conta
@@ -276,11 +281,16 @@ export const UserProfile = () => {
 
                <button 
                  type="submit"
-                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-white hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] font-bold transition-all shadow-lg"
+                 disabled={isSaving}
+                 className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl text-white hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] font-bold transition-all shadow-xl shadow-[var(--c-primary)]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                  style={{ backgroundColor: 'var(--c-primary)' }}
                >
-                 <Save size={18} />
-                 Salvar Alterações
+                 {isSaving ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                 ) : (
+                    <Save size={18} />
+                 )}
+                 {isSaving ? 'Salvando...' : 'Salvar Alterações'}
                </button>
             </div>
 

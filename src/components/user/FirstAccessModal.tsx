@@ -1,63 +1,59 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useAppStore } from '../../store/useAppStore';
+import { useOrgStructure, useUsers, updateSupabaseUser } from '../../hooks/useSupabaseData';
+import { uploadToSupabase } from '../../lib/storage';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Camera, Save, UserCircle, KeyRound, CreditCard } from 'lucide-react';
-
-const isValidCPF = (cpf: string) => {
-  cpf = cpf.replace(/[^\d]+/g, '');
-  if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) return false;
-  let sum = 0, rest;
-  for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (11 - i);
-  rest = (sum * 10) % 11;
-  if ((rest === 10) || (rest === 11)) rest = 0;
-  if (rest !== parseInt(cpf.substring(9, 10))) return false;
-  sum = 0;
-  for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i-1, i)) * (12 - i);
-  rest = (sum * 10) % 11;
-  if ((rest === 10) || (rest === 11)) rest = 0;
-  if (rest !== parseInt(cpf.substring(10, 11))) return false;
-  return true;
-};
+import { Camera, Save, UserCircle, KeyRound, CreditCard, Loader2 } from 'lucide-react';
+import { isValidCPF } from '../../utils/validators';
 
 export const FirstAccessModal = () => {
-  const { user, company } = useAuth();
+  const { user, company, refreshUser } = useAuth();
   const { slug } = useTenant();
-  const { orgUnits, orgTopLevels, updateUser, users } = useAppStore();
+  const { users, mutate: mutateUsers } = useUsers(company?.id);
+  const { orgUnits, orgTopLevels } = useOrgStructure(company?.id);
   const navigate = useNavigate();
 
   const [isVisible, setIsVisible] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   const [formData, setFormData] = useState({
     email: user?.email || '',
     cpf: user?.cpf || '',
-    orgUnitId: user?.orgUnitId || '',
-    avatarUrl: user?.avatarUrl || '',
+    org_unit_id: user?.org_unit_id || '',
+    avatar_url: user?.avatar_url || '',
     password: '',
     confirmPassword: ''
   });
 
-  const activeUnits = orgUnits.filter(u => u.companyId === company?.id && u.active);
-  const activeTopLevels = orgTopLevels.filter(t => t.companyId === company?.id && t.active);
+  const activeUnits = orgUnits.filter(u => u.company_id === company?.id && u.active);
+  const activeTopLevels = orgTopLevels.filter(t => t.company_id === company?.id && t.active);
   
-  const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parentId === t.id));
-  const orphanUnits = activeUnits.filter(u => !u.parentId || !activeTopLevels.some(t => t.id === u.parentId));
+  const parentGroups = activeTopLevels.filter(t => activeUnits.some(u => u.parent_id === t.id));
+  const orphanUnits = activeUnits.filter(u => !u.parent_id || !activeTopLevels.some(t => t.id === u.parent_id));
 
-  const unitLabel = company?.orgUnitName || 'Unidade';
+  const unitLabel = company?.org_unit_name || 'Unidade';
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) return toast.error('A imagem deve ter no máximo 2MB.');
-      const reader = new FileReader();
-      reader.onloadend = () => setFormData(prev => ({ ...prev, avatarUrl: reader.result as string }));
-      reader.readAsDataURL(file);
+    if (file && company?.id) {
+      if (file.size > 20 * 1024 * 1024) return toast.error('A imagem deve ter no máximo 20MB.');
+      
+      try {
+        toast.loading('Otimizando e enviando foto...', { id: 'setup-upload' });
+        const url = await uploadToSupabase(file, 'assets', `companies/${company.id}/avatars`, 'avatar');
+        if (url) {
+          setFormData(prev => ({ ...prev, avatar_url: url }));
+          toast.success('Foto carregada!', { id: 'setup-upload' });
+        }
+      } catch (error) {
+        toast.error('Erro ao enviar foto.', { id: 'setup-upload' });
+      }
     }
   };
 
-  const handleCompleteSetup = (e: React.FormEvent) => {
+  const handleCompleteSetup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !company) return;
 
@@ -76,25 +72,39 @@ export const FirstAccessModal = () => {
     if (formData.password.length < 6) return toast.error('A nova senha deve ter pelo menos 6 caracteres.');
     if (formData.password !== formData.confirmPassword) return toast.error('As senhas não coincidem. Tente novamente.');
 
-    if (activeUnits.length > 0 && !formData.orgUnitId) {
+    if (activeUnits.length > 0 && !formData.org_unit_id) {
       return toast.error(`Selecione sua ${unitLabel} para continuar.`);
     }
 
-    // Força o fechamento visual imediato
-    setIsVisible(false);
+    try {
+      setIsSaving(true);
+      
+      // 1. Atualiza no Supabase (Postgres)
+      await updateSupabaseUser(user.id, {
+        email: formData.email.trim(),
+        cpf: cleanCpf || undefined,
+        password: formData.password,
+        org_unit_id: formData.org_unit_id || undefined,
+        avatar_url: formData.avatar_url,
+        first_access: false,
+        status: 'ACTIVE',
+        active: true
+      });
 
-    updateUser(user.id, {
-      email: formData.email.trim(),
-      cpf: cleanCpf || undefined,
-      password: formData.password,
-      orgUnitId: formData.orgUnitId || undefined,
-      avatarUrl: formData.avatarUrl,
-      firstAccess: false,
-      status: 'ACTIVE'
-    });
+      // 2. Atualiza o estado global e o cache do SWR
+      await refreshUser();
+      await mutateUsers();
 
-    toast.success('Perfil configurado! Bem-vindo(a).');
-    navigate(`/${slug}/home`);
+      toast.success('Perfil configurado! Bem-vindo(a).');
+      setIsVisible(false); // Fecha o modal
+      navigate(`/${slug}/home`);
+    } catch (err) {
+      const error = err as Error;
+      console.error('Setup error:', error);
+      toast.error(`Erro ao salvar perfil: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!isVisible) return null;
@@ -111,8 +121,8 @@ export const FirstAccessModal = () => {
 
           <form onSubmit={handleCompleteSetup} className="flex flex-col items-center">
             <div className="relative mb-6 group cursor-pointer" onClick={() => document.getElementById('avatar-upload-setup')?.click()} title="Adicionar foto de perfil">
-              {formData.avatarUrl ? (
-                 <img src={formData.avatarUrl} alt="avatar" className="w-24 h-24 rounded-full border-4 border-zinc-800 shadow-xl object-cover" />
+              {formData.avatar_url ? (
+                 <img src={formData.avatar_url} alt="avatar" className="w-24 h-24 rounded-full border-4 border-zinc-800 shadow-xl object-cover" />
               ) : (
                  <div className="w-24 h-24 rounded-full bg-zinc-950 text-[var(--c-primary)] flex items-center justify-center border-4 border-zinc-800 shadow-xl">
                    <UserCircle size={48} />
@@ -180,14 +190,14 @@ export const FirstAccessModal = () => {
                 <div className="space-y-1.5 text-left pt-2 border-t border-zinc-800/50">
                    <label className="text-xs text-zinc-400 font-medium ml-1">Sua {unitLabel} Base *</label>
                    <select 
-                      value={formData.orgUnitId} 
-                      onChange={(e) => setFormData({...formData, orgUnitId: e.target.value})}
+                      value={formData.org_unit_id} 
+                      onChange={(e) => setFormData({...formData, org_unit_id: e.target.value})}
                       className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all cursor-pointer"
                       required
                    >
                       <option value="">Selecione...</option>
                       {parentGroups.map(parentGroup => {
-                         const unitsInThisGroup = activeUnits.filter(u => u.parentId === parentGroup.id);
+                         const unitsInThisGroup = activeUnits.filter(u => u.parent_id === parentGroup.id);
                          return (
                            <optgroup key={parentGroup.id} label={parentGroup.name} className="bg-zinc-800 text-zinc-300 font-bold">
                              {unitsInThisGroup.map(unit => (
@@ -214,10 +224,12 @@ export const FirstAccessModal = () => {
 
             <button 
                type="submit"
-               className="w-full mt-8 flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold transition-all shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+               disabled={isSaving}
+               className="w-full mt-8 flex items-center justify-center gap-2 py-3.5 rounded-xl text-white font-bold transition-all shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                style={{ backgroundColor: 'var(--c-primary)' }}
             >
-               <Save size={18} /> Salvar e Acessar Plataforma
+               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+               {isSaving ? 'Configurando...' : 'Salvar e Acessar Plataforma'}
             </button>
           </form>
        </div>
