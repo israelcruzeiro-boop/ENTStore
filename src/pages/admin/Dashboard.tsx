@@ -3,11 +3,11 @@ import { useCompanies, useRepositories, useContents, useUsers } from '../../hook
 import { Users, FolderTree, FileVideo, ArrowRight, Loader2 } from 'lucide-react';
 
 export const AdminDashboard = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   const { companies, isLoading: loadingCompanies } = useCompanies();
   
   // 1. Identifica a empresa atual pela URL
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
   
   // 2. Busca os dados filtrados por empresa
   const { repositories: companyRepos, isLoading: loadingRepos } = useRepositories(company?.id);
@@ -90,7 +90,7 @@ export const AdminDashboard = () => {
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <FolderTree size={18} className="text-slate-400" /> Seus Repositórios
             </h2>
-            <Link to={`/admin/${link_name}/repos`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+            <Link to={`/admin/${companySlug}/repos`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
               Ver todos <ArrowRight size={16} />
             </Link>
           </div>
@@ -104,7 +104,7 @@ export const AdminDashboard = () => {
                         <p className="text-xs text-slate-500">{repo.status === 'ACTIVE' ? 'Ativo' : 'Rascunho'}</p>
                       </div>
                   </div>
-                  <Link to={`/admin/${link_name}/repos`} className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0">
+                  <Link to={`/admin/${companySlug}/repos`} className="px-3 py-1.5 bg-white border border-slate-200 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0">
                     Gerenciar
                   </Link>
                 </div>
@@ -123,7 +123,7 @@ export const AdminDashboard = () => {
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <Users size={18} className="text-slate-400" /> Usuários da Empresa
             </h2>
-            <Link to={`/admin/${link_name}/users`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+            <Link to={`/admin/${companySlug}/users`} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
               Ver todos <ArrowRight size={16} />
             </Link>
           </div>

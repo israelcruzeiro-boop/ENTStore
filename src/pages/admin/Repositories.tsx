@@ -15,10 +15,10 @@ import { uploadToSupabase } from '../../lib/storage';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 
 export const AdminRepositories = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   
   const { companies, isLoading: loadingCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
   
   const { users, isLoading: loadingUsers } = useUsers(company?.id);
   const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories(company?.id);
@@ -351,7 +351,7 @@ export const AdminRepositories = () => {
                         <td className="p-4 text-right">
                            <div className="flex items-center justify-end gap-1 md:gap-2">
                              <Button asChild variant="default" size="sm" className="hidden sm:flex items-center gap-1.5 h-8 mr-2 bg-indigo-600 hover:bg-indigo-700 text-white">
-                                <Link to={`/admin/${link_name}/repos/${repo.id}`}>
+                                <Link to={`/admin/${companySlug}/repos/${repo.id}`}>
                                    <FolderOpen size={14} /> Abrir
                                 </Link>
                              </Button>

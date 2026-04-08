@@ -1,9 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { Content } from '../../types';
-import { ExternalLink, Maximize, Minimize, FileText, Music, Pause, Play, Volume2 } from 'lucide-react';
+import { ExternalLink, Maximize, Minimize, FileText, Music, Pause, Play, Volume2, Loader2 } from 'lucide-react';
+import { QuizPlayer } from './QuizPlayer';
+import { useQuiz, useQuizQuestions } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
+
+// YouTube API Types
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    YT: any;
+    onYouTubeIframeAPIReady: () => void;
+  }
+}
 
 // Detecta se a URL é um YouTube Short
-const isYouTubeShorts = (url: string): boolean => {
+export const isYouTubeShorts = (url: string): boolean => {
   return /youtube\.com\/shorts\//i.test(url) || /youtu\.be\/shorts\//i.test(url);
 };
 
@@ -169,6 +182,26 @@ export const MusicPlayer = ({
     };
   }, [youtubeId]); // Re-executa quando o youtubeId muda
 
+  const toggleMute = () => {
+    if (!playerRef.current) return;
+    const isMuted = playerRef.current.isMuted();
+    if (isMuted) {
+      playerRef.current.unMute();
+      playerRef.current.setVolume(volume);
+    } else {
+      playerRef.current.mute();
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseInt(e.target.value);
+    setVolume(v);
+    if (playerRef.current) {
+        playerRef.current.setVolume(v);
+        playerRef.current.unMute();
+    }
+  };
+
   const togglePlay = () => {
     if (!playerRef.current) return;
     if (isPlaying) {
@@ -303,6 +336,21 @@ export const MusicPlayer = ({
             </svg>
           </button>
         </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center gap-3 mt-6 px-4">
+           <button onClick={toggleMute} className="text-zinc-400 hover:text-white transition-colors">
+              <Volume2 size={18} />
+           </button>
+           <input 
+              type="range" 
+              min="0" 
+              max="100" 
+              value={volume} 
+              onChange={handleVolumeChange}
+              className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[var(--c-primary)]"
+           />
+        </div>
       </div>
 
       {/* Container Oculto do Player */}
@@ -343,6 +391,27 @@ export const VideoPlayer = ({
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
+  const [volume, setVolume] = useState(100);
+
+  const toggleMute = () => {
+    if (!playerRef.current) return;
+    const isMuted = playerRef.current.isMuted();
+    if (isMuted) {
+      playerRef.current.unMute();
+      playerRef.current.setVolume(volume);
+    } else {
+      playerRef.current.mute();
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseInt(e.target.value);
+    setVolume(v);
+    if (playerRef.current) {
+        playerRef.current.setVolume(v);
+        playerRef.current.unMute();
+    }
+  };
 
   useEffect(() => {
     if (!youtubeId) return;
@@ -372,7 +441,7 @@ export const VideoPlayer = ({
           playsinline: 1,
         },
         events: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           onReady: () => {
             setIsReady(true);
           },
@@ -408,7 +477,7 @@ export const VideoPlayer = ({
   }, [youtubeId]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col items-center">
+    <div className="w-full mx-auto flex flex-col items-center">
       {/* Container do Vídeo */}
       <div
         className={`w-full mx-auto bg-black overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 relative ${
@@ -452,6 +521,21 @@ export const VideoPlayer = ({
             </svg>
           </button>
         </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center gap-3 mt-4 px-4 max-w-xs mx-auto">
+           <button onClick={toggleMute} className="text-zinc-400 hover:text-white transition-colors">
+              <Volume2 size={16} />
+           </button>
+           <input 
+              type="range" 
+              min="0" 
+              max="100" 
+              value={volume} 
+              onChange={handleVolumeChange}
+              className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-[var(--c-primary)]"
+           />
+        </div>
       </div>
     </div>
   );
@@ -459,6 +543,24 @@ export const VideoPlayer = ({
 
 export const Viewer = ({ content }: { content: Content }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showQuiz, setShowQuiz] = useState(false);
+  const { user } = useAuth();
+  
+  // Quiz specific data - Detecta se é conteúdo de curso ou repositório legado
+  const quizParams = (content as Record<string, unknown>).module_id 
+    ? { courseContentId: content.id } 
+    : { contentId: content.id };
+
+  const { quiz, isLoading: isQuizLoading } = useQuiz(quizParams);
+  const { questions, isLoading: isQuestionsLoading } = useQuizQuestions(quiz?.id);
+
+  // Reset state when content change
+  const contentUrl = (content as Record<string, unknown>).url;
+  useEffect(() => {
+    setIsLoading(true);
+    setShowQuiz(false);
+  }, [content.id, contentUrl]);
 
   useEffect(() => {
     if (isFullscreen) {
@@ -471,6 +573,53 @@ export const Viewer = ({ content }: { content: Content }) => {
     };
   }, [isFullscreen]);
 
+  const QuizButton = () => {
+    if (!quiz || questions.length === 0) return null;
+    return (
+      <div className="fixed bottom-8 right-8 z-[100] animate-in slide-in-from-bottom-10 duration-500">
+        <button
+          onClick={() => setShowQuiz(!showQuiz)}
+          className={`flex items-center gap-3 px-6 py-3 rounded-full font-black shadow-[0_10px_30px_rgba(0,0,0,0.3)] transition-all duration-300 hover:scale-110 active:scale-95 ${
+            showQuiz 
+              ? 'bg-zinc-800 text-white border border-white/10' 
+              : 'bg-gradient-to-r from-[var(--c-primary)] to-[#FF0080] text-white shadow-[0_0_20px_var(--c-primary)]'
+          }`}
+        >
+          {showQuiz ? (
+            <>
+              <Maximize size={20} />
+              <span>Voltar para Mídia</span>
+            </>
+          ) : (
+            <>
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+              </span>
+              <span>Iniciar Quiz</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  // Se o usuário clicou para mostrar o quiz e ele existe
+  if (showQuiz && quiz && questions.length > 0) {
+    return (
+      <div className="w-full relative">
+        <QuizPlayer 
+          quiz={quiz} 
+          questions={questions} 
+          userId={user?.id || ''} 
+          companyId={content.company_id}
+          onBack={() => setShowQuiz(false)}
+        />
+        <QuizButton />
+      </div>
+    );
+  }
+
   // ============================================================
   // RENDERIZADOR: MÚSICA (YouTube como áudio, com visual premium)
   // ============================================================
@@ -479,7 +628,43 @@ export const Viewer = ({ content }: { content: Content }) => {
     const youtubeId = extractYouTubeId(videoUrl);
     const thumbnailUrl = content.thumbnail_url || (youtubeId ? `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg` : null);
 
-    return <MusicPlayer youtubeId={youtubeId} thumbnailUrl={thumbnailUrl} title={content.title} />;
+    return (
+      <div className="w-full relative">
+        <MusicPlayer youtubeId={youtubeId} thumbnailUrl={thumbnailUrl} title={content.title} />
+        <QuizButton />
+      </div>
+    );
+  }
+
+  // ============================================================
+  // RENDERIZADOR: QUIZ (Legacy - Se o tipo for explicitamente QUIZ)
+  // ============================================================
+  if (content.type === 'QUIZ') {
+    if (isQuizLoading || isQuestionsLoading) {
+      return (
+        <div className="w-full flex flex-col items-center justify-center p-20 bg-zinc-900/40 rounded-3xl border border-white/5">
+          <Loader2 className="w-12 h-12 text-[var(--c-primary)] animate-spin mb-4" />
+          <p className="text-white/60 font-medium animate-pulse uppercase tracking-widest text-xs">Preparando seu Quiz...</p>
+        </div>
+      );
+    }
+
+    if (!quiz || questions.length === 0) {
+      return (
+        <div className="w-full p-12 text-center bg-zinc-900/40 rounded-3xl border border-white/5">
+          <p className="text-white/60">Este quiz ainda não possui perguntas configuradas.</p>
+        </div>
+      );
+    }
+
+    return (
+      <QuizPlayer 
+        quiz={quiz} 
+        questions={questions} 
+        userId={user?.id || ''} 
+        companyId={content.company_id}
+      />
+    );
   }
 
 
@@ -507,28 +692,37 @@ export const Viewer = ({ content }: { content: Content }) => {
     // YouTube Shorts: renderiza em formato vertical 9:16
     if (isShorts) {
       return (
-        <div className="flex justify-center w-full">
-          <div className="w-full max-w-sm mx-auto bg-black rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative" style={{ aspectRatio: '9/16' }}>
-            <iframe 
-              src={videoSrc} 
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowFullScreen
-            />
-          </div>
+        <div className="w-full relative">
+          <VideoPlayer 
+            youtubeId={extractYouTubeId(rawUrl)} 
+            title={content.title} 
+            isShorts={true}
+            onEnded={() => {
+              if (quiz && questions.length > 0) {
+                setShowQuiz(true);
+                toast.info('Vídeo concluído! Iniciando o quiz para testar seu conhecimento.');
+              }
+            }}
+          />
+          <QuizButton />
         </div>
       );
     }
 
     // Vídeo padrão: formato 16:9 widescreen
     return (
-      <div className="aspect-video w-full max-w-6xl mx-auto bg-black rounded-xl overflow-hidden shadow-2xl border border-zinc-800 relative group">
-        <iframe 
-          src={videoSrc} 
-          className="w-full h-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowFullScreen
+      <div className="w-full relative">
+        <VideoPlayer 
+          youtubeId={extractYouTubeId(rawUrl)} 
+          title={content.title} 
+          onEnded={() => {
+            if (quiz && questions.length > 0) {
+              setShowQuiz(true);
+              toast.info('Vídeo concluído! Iniciando o quiz para testar seu conhecimento.');
+            }
+          }}
         />
+        <QuizButton />
       </div>
     );
   }
@@ -552,11 +746,60 @@ export const Viewer = ({ content }: { content: Content }) => {
       }
     }
     else if (content.type === 'DOCUMENT' && !iframeUrl.includes('google.com')) {
-      iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
+      // Forçar o modo de visualização caso a URL já seja do Drive mas sem preview
+      if (iframeUrl.includes('drive.google.com/')) {
+        const driveIdMatch = iframeUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (driveIdMatch && driveIdMatch[1]) {
+           iframeUrl = `https://drive.google.com/file/d/${driveIdMatch[1]}/preview`;
+        } else {
+           iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
+        }
+      } else {
+        iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
+      }
+    }
+
+    // NOVA LÓGICA: Converter YouTube/Vimeo mesmo se o tipo for LINK
+    const ytId = extractYouTubeId(iframeUrl);
+    if (ytId) {
+      iframeUrl = `https://www.youtube.com/embed/${ytId}`;
+    } else if (iframeUrl.includes('vimeo.com/') && !iframeUrl.includes('player.vimeo.com')) {
+      const vId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
+      if (vId) iframeUrl = `https://player.vimeo.com/video/${vId}`;
     }
   } catch (e) {
     console.error("Erro ao formatar URL do documento", e);
   }
+
+  const isExternalLink = content.type === 'LINK' && !content.url.includes('google.com') && !content.url.includes('youtube.com');
+
+  const IframeContent = ({ full }: { full?: boolean }) => (
+    <div className="relative w-full h-full bg-white group/iframe">
+        {isLoading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm animate-in fade-in duration-300">
+                <div className="w-12 h-12 border-4 border-zinc-300 border-t-[var(--c-primary)] rounded-full animate-spin mb-4" />
+                <p className="text-zinc-500 font-bold text-sm uppercase tracking-widest animate-pulse">Carregando conteúdo...</p>
+            </div>
+        )}
+        
+        {isExternalLink && !isLoading && (
+            <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 ${full ? 'opacity-100' : 'opacity-0 group-hover/iframe:opacity-100'}`}>
+                <div className="bg-amber-500/90 backdrop-blur-md text-black px-4 py-2 rounded-full text-xs font-bold shadow-2xl border border-amber-400/50 flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-black animate-ping" />
+                    Se o site não carregar, use o botão "Nova aba" acima.
+                </div>
+            </div>
+        )}
+
+        <iframe 
+            src={iframeUrl} 
+            className="w-full h-full border-0 absolute inset-0 z-10"
+            title={content.title}
+            onLoad={() => setIsLoading(false)}
+            allowFullScreen
+        />
+    </div>
+  );
 
   return (
     <>
@@ -596,13 +839,9 @@ export const Viewer = ({ content }: { content: Content }) => {
         
         {/* Container do Iframe Inline */}
         <div className="flex-1 w-full bg-white relative">
-          <iframe 
-            src={iframeUrl} 
-            className="w-full h-full border-0 absolute inset-0"
-            title={content.title}
-            allowFullScreen
-          />
+          <IframeContent />
         </div>
+        <QuizButton />
       </div>
 
       {/* MODAL DE TELA CHEIA (POPUP OVERLAY) */}
@@ -636,13 +875,9 @@ export const Viewer = ({ content }: { content: Content }) => {
            </div>
            
            <div className="flex-1 w-full bg-white relative">
-              <iframe 
-                src={iframeUrl} 
-                className="w-full h-full border-0 absolute inset-0"
-                title={content.title}
-                allowFullScreen
-              />
+              <IframeContent full />
            </div>
+           <QuizButton />
         </div>
       )}
     </>

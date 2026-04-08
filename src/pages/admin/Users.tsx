@@ -55,11 +55,11 @@ const isValidCPF = (cpf: string) => {
 };
 
 export const AdminUsers = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   const { user: currentUser } = useAuth();
   
   const { companies } = useCompanies();
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
 
   const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(company?.id);
   const { orgUnits } = useOrgStructure(company?.id);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
 import { useOrgStructure, updateSupabaseUser, useUsers } from '../../hooks/useSupabaseData';
-import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store } from 'lucide-react';
+import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store, Trophy, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { isValidCPF } from '../../utils/validators';
@@ -178,6 +178,18 @@ export const UserProfile = () => {
                        <Shield size={12} /> Admin
                     </span>
                  )}
+               </div>
+
+               {/* Gamificação - XP e Coins */}
+               <div className="flex items-center justify-center gap-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-xl transition-all hover:scale-105 cursor-default group" title="Sua experiência total">
+                     <Trophy size={14} className="text-yellow-500 group-hover:rotate-12 transition-transform" />
+                     <span className="text-sm font-black text-yellow-500">{user?.xp_total || 0} XP</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5 rounded-xl transition-all hover:scale-105 cursor-default group" title="Suas moedas acumuladas">
+                     <Coins size={14} className="text-emerald-500 group-hover:rotate-12 transition-transform" />
+                     <span className="text-sm font-black text-emerald-500">{user?.coins_total || 0} MOEDAS</span>
+                  </div>
                </div>
             </div>
 

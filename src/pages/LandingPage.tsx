@@ -331,7 +331,7 @@ export const LandingPage = () => {
           <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl shadow-orange-500/10">
             <img
               src={IMAGES.heroShowcase}
-              alt="ENTStore — Plataforma de treinamento corporativo com hubs de conteúdo"
+              alt="ENTStore — Plataforma de armazenamento de mídias"
               className="w-full h-auto object-cover"
               loading="eager"
             />

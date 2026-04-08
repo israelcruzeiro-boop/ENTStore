@@ -12,10 +12,10 @@ import { Network, Save, Building2, Store, CheckCircle2, XCircle, Edit2, Trash2, 
 import { OrgTopLevel, OrgUnit } from '../../types';
 
 export const AdminStructure = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   
   const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
 
   const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutateTopLevels, mutateUnits, isLoading } = useOrgStructure(company?.id);
 

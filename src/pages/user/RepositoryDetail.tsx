@@ -5,11 +5,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useRepositoryMetrics } from '../../hooks/useSupabaseData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
-import { MusicPlayer, VideoPlayer, extractYouTubeId } from '../../components/user/Viewer';
-import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, Image as ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star, Music, Play, Pause, PlaySquare } from 'lucide-react';
+import { MusicPlayer, VideoPlayer, extractYouTubeId, isYouTubeShorts } from '../../components/user/Viewer';
+import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star, Music, Play, Pause, PlaySquare, Download } from 'lucide-react';
 import { SimpleLink } from '../../types';
 import { toast } from 'sonner';
 import { HeaderLayout } from '../../components/user/HeaderLayout';
+import { downloadFile } from '../../utils/download';
 
 
 const getPremiumLinkConfig = (type: string) => {
@@ -22,7 +23,7 @@ const getPremiumLinkConfig = (type: string) => {
     return { icon: FileSpreadsheet, gradient: 'from-emerald-400 to-emerald-600', glow: 'group-hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]', text: 'text-emerald-400', bg: 'bg-emerald-500/10', border_index: 'border-emerald-500/20' };
   } else if (t === 'documento') {
     return { icon: FileText, gradient: 'from-blue-500 to-cyan-500', glow: 'group-hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]', text: 'text-blue-400', bg: 'bg-blue-500/10', border_index: 'border-blue-500/20' };
-  } else if (t === 'imagem') {
+  } else if (t === 'imagem' || t === 'image') {
     return { icon: ImageIcon, gradient: 'from-blue-500 to-sky-600', glow: 'group-hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]', text: 'text-blue-400', bg: 'bg-blue-500/10', border_index: 'border-blue-500/20' };
   } else if (t === 'apresentação' || t === 'apresentacao') {
     return { icon: Presentation, gradient: 'from-amber-400 to-orange-500', glow: 'group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)]', text: 'text-amber-400', bg: 'bg-amber-500/10', border_index: 'border-amber-500/20' };
@@ -143,7 +144,6 @@ export const RepositoryDetail = () => {
 
   const handleNextVideo = () => { if (currentVideoIndex < videoContents.length - 1) setCurrentVideoIndex(currentVideoIndex + 1); };
   const handlePrevVideo = () => { if (currentVideoIndex > 0) setCurrentVideoIndex(currentVideoIndex - 1); };
-  // Reinicia a lista de videos quando termina (solicitado pelo usuário)
   const handleVideoEnded = () => { if (currentVideoIndex < videoContents.length - 1) handleNextVideo(); else setCurrentVideoIndex(0); };
 
   const handleNextItem = isPlaylist ? handleNextMusic : isVideoPlaylist ? handleNextVideo : () => {};
@@ -246,31 +246,24 @@ export const RepositoryDetail = () => {
         subtitle={repo.description}
         position={repo.banner_position}
         brightness={repo.banner_brightness}
+        badge={isSimple ? 'Lista de Links' : isPlaylist ? 'Playlist' : 'Repositório'}
       >
-        <div className="absolute top-24 left-4 md:left-12 flex items-center gap-2 text-zinc-300 hover:text-white transition-colors z-10 font-medium">
-           <ArrowLeft size={20} /> <Link to={`/${slug}/home`}>Voltar</Link>
-        </div>
-         <div className="absolute bottom-0 left-4 md:left-12 pb-8 pr-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
-                {isSimple ? 'Lista de Links' : isPlaylist ? 'Playlist' : 'Repositório'}
-              </span>
-            </div>
-            <h1 className="text-3xl md:text-5xl font-black text-white mb-4 leading-tight tracking-tighter drop-shadow-2xl max-w-4xl">{repo.name}</h1>
-            <p className="text-base md:text-lg text-zinc-400 max-w-3xl line-clamp-3 md:line-clamp-none font-medium leading-relaxed drop-shadow-lg">{repo.description}</p>
-             
-              {isPlaylist && musicContents.length > 0 && currentMusicIndex === -1 && (
-                <button 
-                  onClick={() => { setCurrentMusicIndex(0); setIsPlaylistPlaying(true); }}
-                  className="mt-4 flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full font-black text-[10px] hover:scale-105 transition-transform shadow-[0_10px_20px_rgba(255,255,255,0.15)] group"
-                >
-                  <PlayCircle className="fill-black group-hover:scale-110 transition-transform" size={16} /> OUVIR AGORA
-                </button>
-              )}
-         </div>
+        {isPlaylist && musicContents.length > 0 && currentMusicIndex === -1 && (
+          <button 
+            onClick={() => { setCurrentMusicIndex(0); setIsPlaylistPlaying(true); }}
+            className="mt-8 flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full font-black text-[10px] hover:scale-105 transition-transform shadow-[0_10px_20px_rgba(255,255,255,0.15)] group relative z-10"
+          >
+            <PlayCircle className="fill-black group-hover:scale-110 transition-transform" size={16} /> OUVIR AGORA
+          </button>
+        )}
       </HeaderLayout>
 
-      <div className="px-4 md:px-12 max-w-7xl mx-auto">
+      <div className="px-0 md:px-12 max-w-7xl mx-auto relative z-20">
+        <div className="pt-8 mb-4 flex">
+           <Link to={`/${slug}/home`} className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors font-medium text-sm">
+              <ArrowLeft size={18} /> Voltar
+           </Link>
+        </div>
         
         {isSimple ? (
           <div className="space-y-6">
@@ -306,7 +299,7 @@ export const RepositoryDetail = () => {
              </div>
           </div>
         ) : isAnyPlaylist ? (
-          <div className="relative -mt-6 md:-mt-10">
+          <div className="relative mb-20">
              {currentItem && (
                <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
                  <img 
@@ -318,22 +311,22 @@ export const RepositoryDetail = () => {
                </div>
              )}
 
-             <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 rounded-[2.5rem] md:rounded-[3.5rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] relative z-10">
-                <div className="px-6 md:px-12 pt-6 md:pt-10 border-b border-white/5">
-                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+              <div className="bg-white/[0.02] backdrop-blur-2xl md:border border-white/10 rounded-none md:rounded-3xl overflow-hidden shadow-2xl relative z-10">
+                <div className="px-0 md:px-8 py-6 border-b border-white/5">
+                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                         <h2 className="text-2xl md:text-4xl font-black text-white italic tracking-tighter uppercase leading-none drop-shadow-2xl">
-                           {isPlaylist ? 'MÚSICA' : 'VÍDEOS'} <span className="text-[var(--c-primary)]">.</span>
+                         <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight uppercase leading-none">
+                            {isPlaylist ? 'PLAYLIST' : 'VÍDEOS'} <span className="text-[var(--c-primary)]">.</span>
                          </h2>
-                         <p className="text-zinc-500 font-bold uppercase tracking-[0.2em] text-[9px] mt-2 flex items-center gap-2">
-                           {isPlaylist ? <PlayCircle size={12} /> : <PlaySquare size={12} />} {isPlaylist ? 'Áudio Selection' : 'Video Selection'}
+                         <p className="text-zinc-500 font-medium uppercase tracking-widest text-[10px] mt-1.5 flex items-center gap-2">
+                           {isPlaylist ? <PlayCircle size={12} /> : <PlaySquare size={12} />} {isPlaylist ? 'Audio Selection' : 'Video Selection'}
                          </p>
                       </div>
                       
-                      <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-1">
+                      <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
                         <button 
                           onClick={() => setActiveCategory(null)}
-                          className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${!activeCategory ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                          className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${!activeCategory ? 'bg-white text-black' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'}`}
                         >
                           Tudo
                         </button>
@@ -341,7 +334,7 @@ export const RepositoryDetail = () => {
                             <button 
                               key={cat.id} 
                               onClick={() => setActiveCategory(cat.id)}
-                              className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${activeCategory === cat.id ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10'}`}
+                              className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${activeCategory === cat.id ? 'bg-white text-black' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'}`}
                             >
                                 {cat.name}
                             </button>
@@ -350,77 +343,82 @@ export const RepositoryDetail = () => {
                    </div>
                 </div>
 
-                <div className="flex flex-col xl:flex-row p-6 md:p-12 gap-12 items-start">
-                   <div className="w-full xl:w-[55%] xl:sticky xl:top-12">
+                <div className="flex flex-col xl:flex-row p-0 md:p-8 gap-8 items-start">
+                   <div className="w-full xl:w-[75%] xl:sticky xl:top-8">
                       {currentItem ? (
-                         <div className="animate-in fade-in slide-in-from-left-8 duration-700">
-                            <div className="relative group/player rounded-[2.5rem] lg:rounded-[3.5rem] overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.6)] border border-white/10 ring-1 ring-white/5">
-                               {isPlaylist ? (
-                                 <MusicPlayer 
-                                   youtubeId={extractYouTubeId(currentItem.url)} 
-                                   thumbnailUrl={currentItem.thumbnail_url || (extractYouTubeId(currentItem.url) ? `https://img.youtube.com/vi/${extractYouTubeId(currentItem.url)}/hqdefault.jpg` : null)}
-                                   title={currentItem.title}
-                                   onEnded={handleItemEnded}
-                                   onNext={handleNextItem}
-                                   onPrevious={handlePrevItem}
-                                   hasNext={currentIndex < activeContents.length - 1}
-                                   hasPrevious={currentIndex > 0}
-                                 />
-                               ) : (
-                                 <VideoPlayer
-                                   youtubeId={extractYouTubeId(currentItem.url)} 
-                                   title={currentItem.title}
-                                   isShorts={currentItem.url?.includes('/shorts/')}
-                                   onEnded={handleItemEnded}
-                                   onNext={handleNextItem}
-                                   onPrevious={handlePrevItem}
-                                   hasNext={currentIndex < activeContents.length - 1}
-                                   hasPrevious={currentIndex > 0}
-                                 />
-                               )}
-                            </div>
+                         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {(() => {
+                              const isShorts = currentItem.url ? isYouTubeShorts(currentItem.url) : false;
+                              return (
+                                <div className={`relative group/player md:rounded-2xl overflow-hidden shadow-2xl md:border border-white/10 ring-1 ring-white/5 bg-black mx-auto transition-all duration-500 ${isShorts ? 'aspect-[9/16] max-w-[380px]' : 'aspect-video w-full'}`}>
+                                   {isPlaylist ? (
+                                     <MusicPlayer 
+                                       youtubeId={extractYouTubeId(currentItem.url)} 
+                                       thumbnailUrl={currentItem.thumbnail_url || (extractYouTubeId(currentItem.url) ? `https://img.youtube.com/vi/${extractYouTubeId(currentItem.url)}/hqdefault.jpg` : null)}
+                                       title={currentItem.title}
+                                       onEnded={handleItemEnded}
+                                       onNext={handleNextItem}
+                                       onPrevious={handlePrevItem}
+                                       hasNext={currentIndex < activeContents.length - 1}
+                                       hasPrevious={currentIndex > 0}
+                                     />
+                                   ) : (
+                                     <VideoPlayer
+                                       youtubeId={extractYouTubeId(currentItem.url)} 
+                                       title={currentItem.title}
+                                       isShorts={isShorts}
+                                       onEnded={handleItemEnded}
+                                       onNext={handleNextItem}
+                                       onPrevious={handlePrevItem}
+                                       hasNext={currentIndex < activeContents.length - 1}
+                                       hasPrevious={currentIndex > 0}
+                                     />
+                                   )}
+                                </div>
+                              );
+                            })()}
                             
-                            <div className="mt-10 md:mt-12 group">
-                               <div className="flex items-center gap-3 mb-4">
-                                  <div className="w-10 h-[2px] bg-[var(--c-primary)] rounded-full"></div>
-                                  <span className="text-zinc-500 font-black uppercase tracking-[0.2em] text-[10px]">Informações {isPlaylist ? 'da Faixa' : 'do Vídeo'}</span>
+                            <div className="mt-8 group px-6 md:px-0">
+                               <div className="flex items-center gap-2 mb-3">
+                                  <div className="w-8 h-[1px] bg-[var(--c-primary)] rounded-full"></div>
+                                  <span className="text-zinc-500 font-bold uppercase tracking-widest text-[9px]">Informações {isPlaylist ? 'da Faixa' : 'do Vídeo'}</span>
                                </div>
-                               <h3 className="text-white text-3xl font-black mb-4 tracking-tighter leading-tight group-hover:text-[var(--c-primary)] transition-colors">{currentItem.title}</h3>
-                               <p className="text-zinc-400 text-lg leading-relaxed font-medium max-w-2xl">{currentItem.description || (isPlaylist ? 'Esta faixa faz parte da seleção exclusiva do repositório.' : 'Este vídeo faz parte da seleção exclusiva do repositório.')}</p>
+                               <h3 className="text-white text-2xl font-bold mb-3 tracking-tight leading-tight group-hover:text-[var(--c-primary)] transition-colors">{currentItem.title}</h3>
+                               <p className="text-zinc-400 text-base leading-relaxed font-normal max-w-2xl">{currentItem.description || (isPlaylist ? 'Esta faixa faz parte da seleção exclusiva do repositório.' : 'Este vídeo faz parte da seleção exclusiva do repositório.')}</p>
                             </div>
                          </div>
                       ) : (
-                         <div className="w-full aspect-square bg-white/5 rounded-[3rem] border border-white/10 flex flex-col items-center justify-center text-zinc-500 backdrop-blur-sm group hover:border-[var(--c-primary)]/30 transition-all duration-500">
-                            <div className="relative mb-8">
-                               <div className="absolute inset-0 bg-[var(--c-primary)] blur-3xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                               <div className="w-32 h-32 bg-zinc-900/80 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 relative z-10 group-hover:scale-110 transition-transform">
-                                  {isPlaylist ? <Music size={50} className="text-[var(--c-primary)]" strokeWidth={1.5} /> : <PlaySquare size={50} className="text-[var(--c-primary)]" strokeWidth={1.5} />}
+                         <div className="w-full aspect-video bg-white/[0.03] rounded-2xl border border-white/10 flex flex-col items-center justify-center text-zinc-500 backdrop-blur-sm group hover:border-[var(--c-primary)]/30 transition-all duration-300">
+                            <div className="relative mb-6">
+                               <div className="absolute inset-0 bg-[var(--c-primary)] blur-3xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                               <div className="w-20 h-20 bg-zinc-900/80 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 relative z-10">
+                                  {isPlaylist ? <Music size={32} className="text-[var(--c-primary)]" strokeWidth={1.5} /> : <PlaySquare size={32} className="text-[var(--c-primary)]" strokeWidth={1.5} />}
                                </div>
                             </div>
-                            <h3 className="text-2xl font-black text-white/90 uppercase tracking-tighter">Inicie sua Imersão</h3>
-                            <p className="text-sm mt-3 opacity-50 font-bold uppercase tracking-widest">{isPlaylist ? 'Selecione uma faixa para começar' : 'Selecione um vídeo para começar'}</p>
+                            <h3 className="text-xl font-bold text-white/90 uppercase tracking-tight">Inicie sua Imersão</h3>
+                            <p className="text-[10px] mt-2 opacity-50 font-bold uppercase tracking-widest">{isPlaylist ? 'Selecione uma faixa para começar' : 'Selecione um vídeo para começar'}</p>
                          </div>
                       )}
                    </div>
 
-                   <div className="w-full xl:w-[45%]">
-                      <div className="flex items-center justify-between mb-10 pb-4 border-b border-white/5">
-                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-[var(--c-primary)] rounded-2xl flex items-center justify-center text-white shadow-[0_10px_20px_rgba(var(--c-primary-rgb),0.3)]">
-                               <Play size={22} fill="currentColor" />
+                   <div className="w-full xl:w-[40%]">
+                      <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                         <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center text-white border border-white/5">
+                               <Play size={18} fill="currentColor" />
                             </div>
                             <div>
-                               <h3 className="text-xl font-black text-white leading-none">PRÓXIMAS</h3>
-                               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Fila de Reprodução</p>
+                               <h3 className="text-sm font-bold text-white leading-none uppercase tracking-wide">PRÓXIMAS</h3>
+                               <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Fila de Reprodução</p>
                             </div>
                          </div>
                          <div className="text-right">
-                            <span className="block text-2xl font-black text-white leading-none tracking-tighter">{activeContents.length}</span>
-                            <span className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">Itens</span>
+                            <span className="block text-lg font-bold text-white leading-none tracking-tight">{activeContents.length}</span>
+                            <span className="text-[8px] text-zinc-600 font-bold uppercase tracking-widest">itens</span>
                          </div>
                       </div>
 
-                      <div className="space-y-3 max-h-[80vh] overflow-y-auto pr-4 custom-scrollbar">
+                      <div className="space-y-1.5 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
                          {activeContents.length > 0 ? activeContents.map((item, idx) => {
                             const isActive = currentIndex === idx;
                             const trackNumber = (idx + 1).toString().padStart(2, '0');
@@ -428,50 +426,50 @@ export const RepositoryDetail = () => {
                               <button
                                 key={item.id}
                                 onClick={() => { setCurrentIndex(idx); setIsPlaying(true); }}
-                                className={`w-full group flex items-center gap-5 p-4 rounded-3xl transition-all duration-500 border relative overflow-hidden ${isActive ? 'bg-white/[0.08] border-white/20 shadow-2xl scale-[1.02]' : 'bg-transparent border-transparent hover:bg-white/5 hover:border-white/5'}`}
+                                className={`w-full group flex items-center gap-4 p-2.5 rounded-xl transition-all duration-300 border relative overflow-hidden ${isActive ? 'bg-white/[0.06] border-white/10 shadow-lg' : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'}`}
                               >
                                 {isActive && (
                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--c-primary)]"></div>
                                 )}
                                 
-                                <div className="w-8 shrink-0 flex items-center justify-center">
+                                <div className="w-6 shrink-0 flex items-center justify-center">
                                    {isActive ? (
-                                      <div className="flex items-end gap-1 h-3 pb-1">
-                                         <div className="w-1 h-2 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.5s_infinite_alternate]" />
-                                         <div className="w-1 h-3.5 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.7s_infinite_alternate]" />
-                                         <div className="w-1 h-2.5 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.4s_infinite_alternate]" />
+                                      <div className="flex items-end gap-0.5 h-3 pb-0.5">
+                                         <div className="w-0.5 h-1.5 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.5s_infinite_alternate]" />
+                                         <div className="w-0.5 h-3 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.7s_infinite_alternate]" />
+                                         <div className="w-0.5 h-2 bg-[var(--c-primary)] rounded-full animate-[musicBar_0.4s_infinite_alternate]" />
                                       </div>
                                    ) : (
-                                      <span className="text-sm font-black text-zinc-700 group-hover:text-zinc-400 transition-colors uppercase italic">{trackNumber}</span>
+                                      <span className="text-[10px] font-bold text-zinc-600 group-hover:text-zinc-400 transition-colors">{trackNumber}</span>
                                    )}
                                 </div>
 
-                                <div className={`relative w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-2xl transition-all duration-500 ${isActive ? 'ring-2 ring-[var(--c-primary)]/50' : 'group-hover:scale-110'}`}>
+                                <div className={`relative w-12 h-12 rounded-lg overflow-hidden shrink-0 transition-all duration-300 ${isActive ? 'ring-2 ring-[var(--c-primary)]/30' : ''}`}>
                                    <img src={item.thumbnail_url || `https://img.youtube.com/vi/${extractYouTubeId(item.url)}/hqdefault.jpg`} className="w-full h-full object-cover" alt={item.title} />
                                    {!isActive && (
                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                        <Play size={20} className="text-white fill-white" />
+                                        <Play size={16} className="text-white fill-white" />
                                      </div>
                                    )}
                                 </div>
 
-                                <div className="flex-1 min-w-0 text-left relative z-10 py-1">
-                                   <h4 className={`font-black text-base transition-colors leading-tight truncate ${isActive ? 'text-[var(--c-primary)]' : 'text-zinc-200 group-hover:text-white'}`}>{item.title}</h4>
-                                   <p className={`text-xs mt-1.5 truncate font-bold uppercase tracking-widest ${isActive ? 'text-white/40' : 'text-zinc-600 group-hover:text-zinc-500'}`}>{item.description || (isPlaylist ? 'Áudio' : 'Vídeo')}</p>
+                                <div className="flex-1 min-w-0 text-left py-0.5">
+                                   <h4 className={`font-medium text-xs md:text-sm transition-colors leading-tight truncate ${isActive ? 'text-[var(--c-primary)]' : 'text-zinc-300 group-hover:text-white'}`}>{item.title}</h4>
+                                   <p className={`text-[10px] mt-1 truncate font-medium uppercase tracking-wider ${isActive ? 'text-white/30' : 'text-zinc-600 group-hover:text-zinc-500'}`}>{item.description || (isPlaylist ? 'Áudio' : 'Vídeo')}</p>
                                 </div>
                                 
                                 <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                   <div className="p-2 rounded-full hover:bg-white/10">
-                                      {isActive ? <Pause size={20} className="text-[var(--c-primary)]" /> : (isPlaylist ? <PlayCircle size={20} className="text-zinc-400" /> : <PlaySquare size={20} className="text-zinc-400" />)}
+                                   <div className="p-1.5 rounded-lg hover:bg-white/5">
+                                      {isActive ? <Pause size={16} className="text-[var(--c-primary)]" /> : (isPlaylist ? <PlayCircle size={16} className="text-zinc-500" /> : <PlaySquare size={16} className="text-zinc-500" />)}
                                    </div>
                                 </div>
                               </button>
                             );
                          }) : (
-                           <div className="py-24 text-center text-zinc-700 bg-white/[0.02] rounded-[3rem] border border-dashed border-white/5 backdrop-blur-sm">
-                              <PlayCircle size={50} className="mx-auto mb-6 opacity-20" />
-                              <p className="font-black text-xl text-white/20 uppercase tracking-tighter italic">Silêncio Absoluto</p>
-                              <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-2 opacity-30">Nenhum conteúdo nesta fase</p>
+                           <div className="py-16 text-center text-zinc-700 bg-white/[0.01] rounded-2xl border border-dashed border-white/5">
+                              <PlayCircle size={32} className="mx-auto mb-4 opacity-10" />
+                              <p className="font-bold text-sm text-white/20 uppercase tracking-wide">Nenhum conteúdo</p>
+                              <p className="text-[9px] font-bold uppercase tracking-widest mt-1.5 opacity-20">Nesta fase ou categoria</p>
                            </div>
                          )}
                       </div>
@@ -549,6 +547,13 @@ export const RepositoryDetail = () => {
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-3">
+                    <button 
+                      onClick={() => downloadFile(activeLink.url, activeLink.name)}
+                      className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-[var(--c-primary)] hover:bg-opacity-90 px-3 py-2 rounded-md transition-colors font-bold shadow-lg"
+                      title="Baixar arquivo para o seu dispositivo"
+                    >
+                        <Download size={16} /> <span className="hidden sm:inline">Baixar</span>
+                    </button>
                     <a 
                       href={activeLink.url} 
                       target="_blank" 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { User, Company } from '../types';
+import { User, Company, UserRole } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 
@@ -63,8 +63,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
+      const rawRole = (userData.role || 'USER').toUpperCase();
+      const finalRole = (rawRole === 'MAESTRO' ? 'SUPER_ADMIN' : rawRole) as UserRole;
+
       return { 
-        user: userData as User, 
+        user: { ...userData, role: finalRole } as User, 
         company: companyData as Company 
       };
     } catch (err) {

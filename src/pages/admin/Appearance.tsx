@@ -12,9 +12,9 @@ import { Play, Search, UserCircle, ChevronRight, Loader2, Save, ExternalLink, La
 import { Link } from 'react-router-dom';
 
 export const AdminAppearance = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
   
   const [activeThemeKey, setActiveThemeKey] = useState('custom');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,7 +171,7 @@ export const AdminAppearance = () => {
                  <div className={`transition-all duration-300 ${!landingPageActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                    <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-semibold text-slate-700">Bio Descritiva</label>
-                      <Link to={`/${company.slug || company.link_name}/landing`} target="_blank" className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors">
+                      <Link to={`/${company.slug || company.companySlug}/landing`} target="_blank" className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors">
                          <ExternalLink size={14} /> Acessar Landing Page
                       </Link>
                    </div>
@@ -195,7 +195,7 @@ export const AdminAppearance = () => {
                           <button 
                             key={layout.id}
                             type="button"
-                            onClick={() => setLandingPageLayout(layout.id as any)}
+                            onClick={() => setLandingPageLayout(layout.id as 'classic' | 'gradient' | 'immersive' | 'solid')}
                             disabled={isSubmitting || !landingPageActive}
                             className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${landingPageLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 disabled:opacity-50'}`}
                           >

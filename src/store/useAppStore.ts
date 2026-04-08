@@ -135,7 +135,7 @@ export const useAppStore = create<AppState>()(
         const adminUser: User = {
           id: generateId(),
           name: `Admin ${companyData.name}`,
-          email: `admin@${companyData.link_name}.com`,
+          email: `admin@${slug}.com`,
           password: '123456',
           role: 'ADMIN',
           company_id: id,

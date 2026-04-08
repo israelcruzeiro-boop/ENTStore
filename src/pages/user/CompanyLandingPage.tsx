@@ -135,7 +135,7 @@ export const CompanyLandingPage = () => {
             </div>
             <h3 className="text-2xl font-bold mb-3 tracking-tight">Nenhum conteúdo público</h3>
             <p className="text-lg opacity-60 font-medium mb-8 max-w-md mx-auto">No momento não há repositórios abertos para visualização externa.</p>
-            <Link to={`/${company.slug || company.link_name}/login`} className="text-sm font-bold opacity-80 hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+            <Link to={`/${company.slug}/login`} className="text-sm font-bold opacity-80 hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
               Faça login para acessar o Hub <ArrowLeft className="rotate-180" size={16}/>
             </Link>
           </div>

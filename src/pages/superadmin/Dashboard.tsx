@@ -24,7 +24,7 @@ export const SuperAdminDashboard = () => {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
+  const [formData, setFormData] = useState({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
@@ -52,7 +52,7 @@ export const SuperAdminDashboard = () => {
       setActiveCompany(null);
       setAdminFormView(false);
       setEditingAdminId(null);
-      setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
+      setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
       setAdminFormData({ name: '', email: '', password: '', active: true });
       setActiveTab('details');
     }, 300);
@@ -97,7 +97,7 @@ export const SuperAdminDashboard = () => {
   const openCreate = () => {
     setEditingId(null);
     setActiveCompany(null);
-    setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true });
+    setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
     setActiveTab('details');
     setAdminFormView(false);
     setIsFormOpen(true);
@@ -106,7 +106,7 @@ export const SuperAdminDashboard = () => {
   const openEdit = (company: Company) => {
     setEditingId(company.id);
     setActiveCompany(company);
-    setFormData({ name: company.name, link_name: company.link_name, logo_url: company.logo_url || '', active: company.active !== false, landing_page_enabled: company.landing_page_enabled !== false });
+    setFormData({ name: company.name, link_name: company.link_name, logo_url: company.logo_url || '', active: company.active !== false, landing_page_enabled: company.landing_page_enabled !== false, checklists_enabled: company.checklists_enabled === true });
     setActiveTab('details');
     setActiveTab('details');
     setAdminFormView(false);
@@ -121,16 +121,16 @@ export const SuperAdminDashboard = () => {
     if (!name || !link_name) return toast.error('Nome e Link da Empresa são obrigatórios.');
 
     if (RESERVED_SLUGS.includes(link_name)) {
-      return toast.error(`"${link_name}" é um nome reservado pelo sistema e não pode ser utilizado.`);
+      return toast.error(`"${companySlug}" é um nome reservado pelo sistema e não pode ser utilizado.`);
     }
 
-    const isDuplicate = companies.some(c => c.link_name === link_name && c.id !== editingId);
+    const isDuplicate = companies.some(c => c.slug === companySlug && c.id !== editingId);
     if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
 
     setIsSubmitting(true);
     if (editingId) {
       const { error } = await supabase.from('companies').update({
-        name, link_name, logo_url: formData.logo_url, active: formData.active, landing_page_enabled: formData.landing_page_enabled
+        name, link_name, logo_url: formData.logo_url, active: formData.active, landing_page_enabled: formData.landing_page_enabled, checklists_enabled: formData.checklists_enabled
       }).eq('id', editingId);
       
       if (error) toast.error(`Erro ao atualizar empresa: ${error.message}`);
@@ -143,6 +143,7 @@ export const SuperAdminDashboard = () => {
         logo_url: formData.logo_url, 
         active: formData.active, 
         landing_page_enabled: formData.landing_page_enabled,
+        checklists_enabled: formData.checklists_enabled,
         theme: mockThemes.corporateBlue as Theme
       });
       
@@ -444,6 +445,14 @@ export const SuperAdminDashboard = () => {
                     <p className="text-xs text-slate-500">Se desativado, o admin da empresa não poderá gerenciar a landing page.</p>
                   </div>
                   <Switch checked={formData.landing_page_enabled} onCheckedChange={(checked) => setFormData({...formData, landing_page_enabled: checked})} />
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="space-y-0.5">
+                    <Label>Habilitar Módulo Checklist</Label>
+                    <p className="text-xs text-slate-500">Libera o acesso às listas de verificação e auditoria para esta empresa.</p>
+                  </div>
+                  <Switch checked={formData.checklists_enabled} onCheckedChange={(checked) => setFormData({...formData, checklists_enabled: checked})} />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">

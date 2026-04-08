@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompanies } from '../hooks/useSupabaseData';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2, BookOpen, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -11,7 +11,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   const { companies, isLoading } = useCompanies();
   const navigate = useNavigate();
   const location = useLocation();
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -21,7 +21,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   };
 
   // 1. Identifica a empresa alvo a partir da URL
-  const targetCompany = link_name ? companies.find(c => c.link_name === link_name) : undefined;
+  const targetCompany = companySlug ? companies.find(c => c.slug === companySlug) : undefined;
 
   // 2. Estado de Carregamento (Apenas se não hover dados e estiver carregando)
   if (isLoading && companies.length === 0) {
@@ -69,12 +69,14 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
   const navItems = superAdmin ? [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/super-admin' },
   ] : [
-    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${link_name}` },
-    { label: 'Repositórios', icon: FolderTree, path: `/admin/${link_name}/repos` },
-    { label: 'Usuários', icon: Users, path: `/admin/${link_name}/users` },
-    { label: 'Estrutura Org.', icon: Network, path: `/admin/${link_name}/structure` },
-    { label: 'Aparência', icon: Palette, path: `/admin/${link_name}/appearance` },
-    { label: 'Configurações', icon: Settings, path: `/admin/${link_name}/settings` },
+    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${companySlug}` },
+    { label: 'Repositórios', icon: FolderTree, path: `/admin/${companySlug}/repos` },
+    ...(targetCompany?.checklists_enabled ? [{ label: 'Checklists', icon: ClipboardCheck, path: `/admin/${companySlug}/checklists` }] : []),
+    { label: 'Cursos', icon: BookOpen, path: `/admin/${companySlug}/courses` },
+    { label: 'Usuários', icon: Users, path: `/admin/${companySlug}/users` },
+    { label: 'Estrutura Org.', icon: Network, path: `/admin/${companySlug}/structure` },
+    { label: 'Aparência', icon: Palette, path: `/admin/${companySlug}/appearance` },
+    { label: 'Configurações', icon: Settings, path: `/admin/${companySlug}/settings` },
   ];
 
   const SidebarContent = () => (
@@ -110,7 +112,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (location.pathname === `/admin/${link_name}` && item.path === `/admin/${link_name}`);
+            const isActive = location.pathname === item.path || (location.pathname === `/admin/${companySlug}` && item.path === `/admin/${companySlug}`);
             const Icon = item.icon;
             return (
               <Link 

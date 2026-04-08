@@ -1,7 +1,8 @@
-import { Play, Eye, Star, Image as ImageIcon } from 'lucide-react';
+import { Play, Eye, Star, Image as ImageIcon, Download } from 'lucide-react';
 import { Content, ContentViewMetric, ContentRating } from '../../types';
 import { Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
+import { downloadFile } from '../../utils/download';
 
 interface ContentCardProps {
   content: Content;
@@ -35,42 +36,55 @@ export const ContentCard = ({ content, fullWidth = false, views: viewsProp, rati
   const displayThumbnail = getDisplayThumbnail();
 
   return (
-    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start outline-none transition-all duration-300 hover:scale-105 focus-visible:scale-105 hover:z-10 focus-visible:z-10 ${fullWidth ? 'w-full' : 'w-64 md:w-[320px]'}`}>
-      <div className="aspect-video w-full overflow-hidden rounded-xl bg-[#111] relative shadow-lg flex items-center justify-center group-hover:shadow-[0_0_30px_rgba(255,255,255,0.1)] group-hover:ring-1 group-hover:ring-white/30 group-focus-visible:ring-2 group-focus-visible:ring-white transition-all transform-gpu">
+    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start outline-none transition-all duration-300 hover:z-10 focus-visible:z-10 ${fullWidth ? 'w-full' : 'w-56 md:w-[280px]'}`}>
+      <div className="aspect-video w-full overflow-hidden rounded-xl bg-zinc-900 relative flex items-center justify-center group-hover:ring-2 group-hover:ring-[var(--c-primary)]/50 group-focus-visible:ring-2 group-focus-visible:ring-white transition-all transform-gpu">
         {displayThumbnail ? (
           <img 
             src={displayThumbnail} 
             alt={content.title} 
-            className="w-full h-full object-cover transition-opacity group-hover:opacity-70"
+            className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105 group-hover:opacity-60"
           />
         ) : (
-          <ImageIcon size={32} className="text-zinc-600 opacity-50" />
+          <ImageIcon size={24} className="text-zinc-700 opacity-40" />
         )}
         
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/95 via-[#050505]/20 to-transparent flex items-end p-4">
-          <div className="w-full flex items-center justify-between opacity-90 group-hover:opacity-100 transition-opacity">
-            <span className="text-white font-bold tracking-tight truncate pr-2 drop-shadow-md text-sm md:text-base">{content.title}</span>
-            <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md text-white flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:scale-110 shadow-xl border border-white/10">
-              <Play size={16} fill="currentColor" className="ml-0.5" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity flex items-end p-3">
+          <div className="w-full flex items-center justify-between">
+            <span className="text-white font-medium tracking-tight truncate pr-2 text-xs md:text-sm">{content.title}</span>
+            <div className="flex gap-2 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  downloadFile(content.url, content.title);
+                }}
+                className="w-7 h-7 rounded-full bg-zinc-800 text-white flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-all shadow-lg hover:bg-[var(--c-primary)]"
+                title="Baixar agora"
+              >
+                <Download size={12} />
+              </button>
+              <div className="w-7 h-7 rounded-full bg-white text-black flex items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                <Play size={12} fill="currentColor" className="ml-0.5" />
+              </div>
             </div>
           </div>
         </div>
       </div>
       
-      <div className="mt-3 flex flex-col gap-2 px-1">
-        <div className="flex items-center justify-between text-xs text-zinc-400 group-hover:text-zinc-300 transition-colors">
-          <span className="px-2 py-0.5 rounded border border-zinc-700 bg-zinc-800/50 font-medium tracking-wide">
+      <div className="mt-2.5 flex flex-col gap-1.5 px-0.5">
+        <div className="flex items-center justify-between text-[10px] text-zinc-500">
+          <span className="px-1.5 py-0.5 rounded-md border border-zinc-800 bg-zinc-900/50 font-bold tracking-wider uppercase">
             {content.type}
           </span>
-          <span className="flex items-center gap-1.5 font-medium bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800/80 text-zinc-400">
-            <Eye size={12} /> {viewCount}
+          <span className="flex items-center gap-1 font-medium text-zinc-600">
+            <Eye size={10} /> {viewCount}
           </span>
         </div>
         
-        <div className="flex items-center gap-1 font-medium text-amber-400 text-xs">
-          <Star size={12} fill="currentColor" /> {avgRating} 
-          <span className="text-zinc-500 font-normal ml-0.5">
-            ({contentRatings.length} {contentRatings.length === 1 ? 'avaliação' : 'avaliações'})
+        <div className="flex items-center gap-1 font-bold text-amber-500/80 text-[10px] uppercase tracking-tighter">
+          <Star size={10} fill="currentColor" /> {avgRating} 
+          <span className="text-zinc-600 font-medium ml-0.5">
+            ({contentRatings.length})
           </span>
         </div>
       </div>

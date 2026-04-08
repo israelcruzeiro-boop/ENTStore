@@ -9,9 +9,9 @@ export const Login = () => {
   const { companies, isLoading: companiesLoading } = useCompanies();
   const navigate = useNavigate();
   const { companySlug } = useParams();
-  
+
   const tenantCompany = companySlug ? companies.find(c => c.link_name === companySlug || c.slug === companySlug) : null;
-  
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -37,10 +37,10 @@ export const Login = () => {
         navigate('/super-admin', { replace: true });
       } else if (user.role === 'ADMIN') {
         const adminCompany = companies.find(c => c.id === user.company_id);
-        if (adminCompany) navigate(`/admin/${adminCompany.link_name}`, { replace: true });
+        if (adminCompany) navigate(`/admin/${adminCompany.slug}`, { replace: true });
       } else {
         const userCompany = companies.find(c => c.id === user.company_id);
-        const slugPrefix = companySlug || tenantCompany?.link_name || userCompany?.link_name;
+        const slugPrefix = companySlug || tenantCompany?.slug || userCompany?.slug;
         if (slugPrefix) navigate(`/${slugPrefix}/home`, { replace: true });
       }
     }
@@ -50,16 +50,16 @@ export const Login = () => {
   if (companySlug && !tenantCompany) {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-center">
-         <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
-            <AlertTriangle size={36} className="text-zinc-500" />
-         </div>
-         <h1 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h1>
-         <p className="text-zinc-400 max-w-sm mb-8">
-            O endereço <strong>{companySlug}</strong> não corresponde a nenhuma empresa ativa no momento.
-         </p>
-         <button onClick={() => navigate('/login')} className="px-6 py-2.5 rounded-xl bg-zinc-800 text-white font-medium hover:bg-zinc-700 transition-colors">
-            Acessar Login Global
-         </button>
+        <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
+          <AlertTriangle size={36} className="text-zinc-500" />
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h1>
+        <p className="text-zinc-400 max-w-sm mb-8">
+          O endereço <strong>{companySlug}</strong> não corresponde a nenhuma empresa ativa no momento.
+        </p>
+        <button onClick={() => navigate('/login')} className="px-6 py-2.5 rounded-xl bg-zinc-800 text-white font-medium hover:bg-zinc-700 transition-colors">
+          Acessar Login Global
+        </button>
       </div>
     );
   }
@@ -68,24 +68,24 @@ export const Login = () => {
     e.preventDefault();
     setError('');
     setIsLoggingIn(true);
-    
+
     try {
       // Passa o ID da empresa alvo para blindar a autenticação no tenant correto
       const loggedUser = await login(identifier, password, tenantCompany?.id);
-      
+
       if (loggedUser) {
         if (loggedUser.role === 'SUPER_ADMIN') {
           navigate('/super-admin');
         } else if (loggedUser.role === 'ADMIN') {
           const adminCompany = companies.find(c => c.id === loggedUser.company_id);
           if (adminCompany) {
-             navigate(`/admin/${adminCompany.link_name}`);
+            navigate(`/admin/${adminCompany.slug}`);
           } else {
-             setError('Empresa não encontrada ou inativa.');
+            setError('Empresa não encontrada ou inativa.');
           }
         } else {
           const userCompany = companies.find(c => c.id === loggedUser.company_id);
-          const slugPrefix = companySlug || tenantCompany?.link_name || userCompany?.link_name;
+          const slugPrefix = companySlug || tenantCompany?.slug || userCompany?.slug;
           if (slugPrefix) navigate(`/${slugPrefix}/home`);
         }
       } else {
@@ -111,28 +111,28 @@ export const Login = () => {
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] blur-[120px] rounded-full pointer-events-none opacity-20" style={{ backgroundColor: 'var(--c-secondary, #9333ea)' }}></div>
 
       <div className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/5 p-8 md:p-10 relative z-10" style={{ backgroundColor: tenantCompany ? 'var(--c-card)' : 'rgba(24, 24, 27, 0.8)' }}>
-        
+
         <div className="flex flex-col items-center mb-8">
           {tenantCompany && (
             <div className="mb-6 flex flex-col items-center">
-               {tenantCompany.logo_url ? (
-                  <img src={tenantCompany.logo_url} alt={tenantCompany.name} className="w-24 h-24 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
-               ) : (
-                  <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
-                    {tenantCompany.name.charAt(0).toUpperCase()}
-                  </div>
-               )}
-               <h1 className="text-sm font-medium mt-3 opacity-60 uppercase tracking-widest" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
+              {tenantCompany.logo_url ? (
+                <img src={tenantCompany.logo_url} alt={tenantCompany.name} className="w-24 h-24 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
+              ) : (
+                <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                  {tenantCompany.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <h1 className="text-sm font-medium mt-3 opacity-60 uppercase tracking-widest" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
             </div>
           )}
-          
+
           <div className="mb-2">
             <img src="/assets/logo.png" alt="ENTStore" className="h-12 md:h-14 w-auto" />
           </div>
-          
-          <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de Treinamento</p>
+
+          <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de armazenamento de mídias</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (
             <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-500 text-sm text-center font-medium">
@@ -142,8 +142,8 @@ export const Login = () => {
 
           <div className="space-y-1">
             <label className="text-sm font-medium ml-1 opacity-80" style={{ color: 'var(--c-text, #d4d4d8)' }}>E-mail ou CPF</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="seu@email.com ou 000.000.000-00"
@@ -155,8 +155,8 @@ export const Login = () => {
 
           <div className="space-y-1">
             <label className="text-sm font-medium ml-1 opacity-80" style={{ color: 'var(--c-text, #d4d4d8)' }}>Senha</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -166,7 +166,7 @@ export const Login = () => {
             />
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={isLoggingIn}
             className="w-full flex justify-center items-center gap-2 font-medium py-3 rounded-xl shadow-lg transition-all active:scale-[0.98] mt-4 text-white disabled:opacity-70 disabled:cursor-not-allowed"

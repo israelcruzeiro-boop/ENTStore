@@ -13,6 +13,7 @@ interface HeaderLayoutProps {
   children?: React.ReactNode;
   isPublic?: boolean;
   align?: 'left' | 'center';
+  badge?: string;
 }
 
 export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
@@ -26,7 +27,8 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
   brightness = 100,
   children,
   isPublic = false,
-  align = isPublic ? 'center' : 'left'
+  align = isPublic ? 'center' : 'left',
+  badge
 }) => {
   const containerClasses = isPublic ? "relative w-full" : "relative w-full mb-8";
 
@@ -56,9 +58,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover rounded-xl" />
               </div>
             )}
-            <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white drop-shadow-lg mb-4 leading-tight">
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white drop-shadow-lg mb-4 leading-tight">
+                {title}
+              </h1>
+            )}
             {subtitle && (
               <p className="text-base md:text-lg text-white/90 max-w-2xl font-medium leading-relaxed drop-shadow-md mb-6">
                 {subtitle}
@@ -101,9 +112,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
               </div>
             )}
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight drop-shadow-sm mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/70">
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-3xl md:text-5xl font-black tracking-tight drop-shadow-sm mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/70">
+                {title}
+              </h1>
+            )}
             {subtitle && (
               <p className="text-base md:text-lg opacity-80 max-w-2xl font-medium leading-relaxed mb-6 text-white/90">
                 {subtitle}
@@ -149,9 +169,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
 
-            <h1 className="text-2xl md:text-4xl font-black tracking-tighter mb-3" style={{ color: theme.text }}>
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-2xl md:text-4xl font-black tracking-tighter mb-3" style={{ color: theme.text }}>
+                {title}
+              </h1>
+            )}
             
             {subtitle && (
               <p className="text-base opacity-80 font-medium leading-relaxed mb-6 max-w-2xl">
@@ -187,9 +216,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
               </div>
             )}
-            <h1 className="text-3xl md:text-6xl font-black tracking-tight mb-4 text-white">
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-3xl md:text-6xl font-black tracking-tight mb-4 text-white">
+                {title}
+              </h1>
+            )}
             {subtitle && (
               <p className="text-lg md:text-xl text-white/80 max-w-2xl font-medium leading-relaxed mb-8">
                 {subtitle}
@@ -211,9 +249,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
               </div>
             )}
-            <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 text-white leading-[0.9]">
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-3 text-left">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 text-white leading-[0.9]">
+                {title}
+              </h1>
+            )}
             {subtitle && (
               <p className="text-lg md:text-xl text-zinc-400 max-w-xl font-medium leading-relaxed mb-8">
                 {subtitle}
@@ -277,9 +324,18 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
 
-            <h1 className="text-2xl md:text-5xl font-black tracking-tighter mb-3 leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
-              {title}
-            </h1>
+            {badge && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[var(--c-primary)] text-white shadow-lg">
+                  {badge}
+                </span>
+              </div>
+            )}
+            {title && (
+              <h1 className="text-2xl md:text-5xl font-black tracking-tighter mb-3 leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
+                {title}
+              </h1>
+            )}
             
             {subtitle && (
               <p className="text-base md:text-lg opacity-80 font-medium leading-relaxed mb-6 max-w-3xl drop-shadow-lg">

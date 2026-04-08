@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext'; // Restaurado pois é necessário para o slug
-import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses } from '../../hooks/useSupabaseData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
-import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink, MonitorPlay } from 'lucide-react';
+import { Search, Library, PlayCircle, Link as LinkIcon, ExternalLink, MonitorPlay, BookOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { HeaderLayout } from '../../components/user/HeaderLayout';
+import { CourseCard } from '../../components/user/CourseCard';
 
 
 export const UserHome = () => {
@@ -21,10 +22,11 @@ export const UserHome = () => {
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
+  const { courses, isLoading: loadingCourses } = useCourses(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
   const { contentViews, contentRatings, isLoading: loadingMetrics } = useCompanyMetrics(company?.id);
 
-  const isLoading = loadingRepos || loadingContents || loadingLinks || loadingOrg || loadingMetrics;
+  const isLoading = loadingRepos || loadingContents || loadingLinks || loadingCourses || loadingOrg || loadingMetrics;
 
   // Filtra dados do Supabase usando a função global de validação
   const companyRepos = repositories.filter(r => {
@@ -66,6 +68,7 @@ export const UserHome = () => {
     { id: 'PLAYLIST', label: 'Playlists', icon: <PlayCircle size={14} /> },
     { id: 'VIDEO_PLAYLIST', label: 'Vídeos', icon: <PlayCircle size={14} /> },
     { id: 'SIMPLE', label: 'Links', icon: <Library size={14} /> },
+    { id: 'COURSE', label: 'Cursos', icon: <BookOpen size={14} /> },
   ];
 
   const handleSearchSubmit = (e: React.KeyboardEvent) => {
@@ -132,7 +135,6 @@ export const UserHome = () => {
 
       <div className="w-full mt-6 md:mt-8 px-4 md:px-8 relative z-10">
          {query ? (
-// ... resto do componente ...
            <div className="space-y-12 animate-in fade-in duration-300">
              {filteredHubs.length === 0 && filteredLibs.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 ? (
                 <div className="text-center text-zinc-500 py-12">
@@ -215,6 +217,14 @@ export const UserHome = () => {
            </div>
          ) : (
            <div className="animate-in fade-in duration-300">
+             {courses.length > 0 && !activeFilter && (
+                <ContentRow title="Seus Treinamentos">
+                  {courses.slice(0, 6).map(course => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </ContentRow>
+             )}
+
              {featuredHubs.length > 0 && !activeFilter && (
                <ContentRow title="Hubs em Destaque">
                  {featuredHubs.map(repo => (
@@ -255,7 +265,7 @@ export const UserHome = () => {
                </ContentRow>
              )}
 
-             {companyRepos.length === 0 && (
+             {companyRepos.length === 0 && courses.length === 0 && (
                 <div className="py-20 flex items-center justify-center flex-col text-zinc-500">
                   <h2 className="text-2xl font-bold text-white mb-2">Sem conteúdo</h2>
                   <p>Nenhum hub ou biblioteca disponível para o seu acesso no momento.</p>

@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { supabase } from '../lib/supabaseClient';
-import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating } from '../types';
+import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent } from '../types';
 
 /**
  * Fetcher genérico para queries do Supabase com SWR.
@@ -381,4 +381,140 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
     isLoading,
     isError: error,
   };
+}
+
+
+/**
+ * Hook para buscar Cursos de uma Empresa
+ */
+export function useCourses(companyId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<Course[]>(
+    companyId ? `courses_${companyId}` : null,
+    () => fetcher(() => supabase.from('courses').select('*').eq('company_id', companyId).order('created_at', { ascending: false }))
+  );
+
+  return {
+    courses: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar Módulos de um Curso
+ */
+export function useCourseModules(courseId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<CourseModule[]>(
+    courseId ? `course_modules_${courseId}` : null,
+    () => fetcher(() => supabase.from('course_modules').select('*').eq('course_id', courseId).order('order_index', { ascending: true }))
+  );
+
+  return {
+    modules: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar Conteúdos de um Módulo
+ */
+export function useCourseContents(moduleId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<(CourseContent & { has_quiz?: boolean })[]>(
+    moduleId ? `course_contents_${moduleId}` : null,
+    async () => {
+      const { data: contents, error } = await supabase
+        .from('course_contents')
+        .select('*, quizzes(id)')
+        .eq('module_id', moduleId)
+        .order('order_index', { ascending: true });
+        
+      if (error) throw error;
+      
+      return contents.map(c => ({
+        ...c,
+        has_quiz: (c.quizzes as unknown[]).length > 0
+      }));
+    }
+  );
+
+  return {
+    contents: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar dados mestre de um Quiz (suporta conteúdo legado ou curso)
+ */
+export function useQuiz(params: { contentId?: string; courseContentId?: string }) {
+  const key = params.courseContentId ? `quiz_course_${params.courseContentId}` : params.contentId ? `quiz_content_${params.contentId}` : null;
+  const { data, error, isLoading, mutate } = useSWR<Quiz>(
+    key,
+    () => fetcher(() => {
+      let query = supabase.from('quizzes').select('*');
+      if (params.courseContentId) query = query.eq('course_content_id', params.courseContentId);
+      else if (params.contentId) query = query.eq('content_id', params.contentId);
+      return query.maybeSingle();
+    })
+  );
+
+  return {
+    quiz: data,
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar Perguntas e Opções de um Quiz
+ */
+export function useQuizQuestions(quizId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<QuizQuestion[]>(
+    quizId ? `quiz_questions_${quizId}` : null,
+    () => fetcher(() => supabase
+      .from('quiz_questions')
+      .select('*, quiz_options(*)')
+      .eq('quiz_id', quizId)
+      .order('order_index', { ascending: true })
+    )
+  );
+
+  return {
+    questions: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Função para registrar uma tentativa de quiz
+ */
+export async function submitQuizAttempt(attempt: Omit<QuizAttempt, 'id' | 'completed_at'>) {
+  const { error } = await supabase.from('quiz_attempts').insert({
+    ...attempt,
+    completed_at: new Date().toISOString()
+  });
+  if (error) throw error;
+}
+
+/**
+ * Função para premiar o usuário com XP e Moedas
+ */
+export async function awardXP(userId: string, xp: number, coins: number = 0) {
+  if (!userId || (xp === 0 && coins === 0)) return;
+
+  const { error } = await supabase.rpc('increment_user_stats', {
+    user_id_param: userId,
+    xp_to_add: xp,
+    coins_to_add: coins
+  });
+  
+  if (error) throw error;
 }

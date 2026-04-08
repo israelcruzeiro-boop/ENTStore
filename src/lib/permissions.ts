@@ -49,3 +49,41 @@ export const checkRepoAccess = (
   
   return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
 };
+
+/**
+ * Valida o acesso de um usuário a um curso específico (idêntico ao repositório)
+ */
+export const checkCourseAccess = (
+  course: { access_type?: string; excluded_user_ids?: string[]; allowed_user_ids?: string[]; allowed_store_ids?: string[]; allowed_region_ids?: string[] }, // Interface definida inline em prol da flexibilidade legado
+
+  user: User | null | undefined, 
+  orgUnits: OrgUnit[], 
+  orgTopLevels: OrgTopLevel[]
+): boolean => {
+  if (!user) return false;
+  if (user.role !== 'USER') return true; 
+  if (course.access_type !== 'RESTRICTED') return true; 
+  
+  if (course.excluded_user_ids?.includes(user.id)) return false; 
+  const hasUserPerm = course.allowed_user_ids?.includes(user.id);
+  const hasUnitPerm = user.org_unit_id && course.allowed_store_ids?.includes(user.org_unit_id);
+  
+  let hasTopLevelPerm = false;
+  if (user.org_unit_id && course.allowed_region_ids && course.allowed_region_ids.length > 0) {
+    const unit = orgUnits.find(u => u.id === user.org_unit_id);
+    let currentParent = orgTopLevels.find(t => t.id === unit?.parent_id);
+    while (currentParent) {
+      if (course.allowed_region_ids.includes(currentParent.id)) {
+        hasTopLevelPerm = true;
+        break;
+      }
+      currentParent = orgTopLevels.find(t => t.id === currentParent?.parent_id);
+    }
+  }
+  
+  if (!hasTopLevelPerm && user.org_top_level_id && course.allowed_region_ids?.includes(user.org_top_level_id)) {
+    hasTopLevelPerm = true;
+  }
+  
+  return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
+};

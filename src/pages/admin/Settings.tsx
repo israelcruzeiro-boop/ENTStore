@@ -15,11 +15,11 @@ import { CoverPreview } from '../../components/admin/CoverPreview';
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
 
 export const AdminSettings = () => {
-  const { link_name } = useParams();
+  const { companySlug } = useParams();
   const navigate = useNavigate();
   const { companies, mutate: mutateCompanies } = useCompanies();
   
-  const company = companies.find(c => c.link_name === link_name);
+  const company = companies.find(c => c.slug === companySlug);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +40,7 @@ export const AdminSettings = () => {
     if (company) {
       setFormData({
         name: company.name,
-        link_name: company.link_name,
+        link_name: company.companySlug,
         logo_url: company.logo_url || '',
         hero_image: company.hero_image || '',
         hero_title: company.hero_title || '',
@@ -110,7 +110,7 @@ export const AdminSettings = () => {
       return toast.error(`O link "${newLinkName}" é reservado pelo sistema e não pode ser utilizado.`);
     }
 
-    const isDuplicate = companies.some(c => c.link_name === newLinkName && c.id !== company.id);
+    const isDuplicate = companies.some(c => c.slug === newLinkName && c.id !== company.id);
     if (isDuplicate) {
       return toast.error('Este Link de Acesso já está em uso por outra empresa.');
     }
@@ -170,7 +170,7 @@ export const AdminSettings = () => {
                     <Input 
                       className="border-0 rounded-none focus-visible:ring-0 px-3 shadow-none bg-white font-mono" 
                       placeholder="minhaempresa" 
-                      value={formData.link_name} 
+                      value={formData.companySlug} 
                       onChange={handleLinkNameChange} 
                       disabled={isSubmitting}
                     />
