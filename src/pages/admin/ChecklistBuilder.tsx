@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -130,30 +130,55 @@ export const ChecklistBuilder = () => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const onDragOver = (e: React.DragEvent, id: string) => {
+  const onDragOver = (e: React.DragEvent, sectionId?: string, questionId?: string) => {
     e.preventDefault();
-    setDragOverItem(id);
+    setDragOverItem(sectionId || null);
   };
 
-  const onDrop = async (e: React.DragEvent, targetSectionId?: string) => {
+  const onDrop = async (e: React.DragEvent, targetSectionId?: string, targetQuestionId?: string) => {
     e.preventDefault();
     if (!draggedItem) return;
 
     if (draggedItem.dragType === 'question') {
-      const updatedQuestions = [...questions];
-      const draggedIdx = updatedQuestions.findIndex(q => q.id === draggedItem.id);
+      const draggedId = draggedItem.id as string;
+      const otherQuestions = questions.filter(q => q.id !== draggedId);
+      const draggedQuestion = questions.find(q => q.id === draggedId);
       
-      // Se mudar de seção
-      const question = updatedQuestions[draggedIdx];
-      question.section_id = targetSectionId;
-      
-      // Reordenação simples (empurrar para o fim da nova seção/posição)
+      if (!draggedQuestion) return;
+
+      let updatedList: ChecklistQuestion[] = [];
+
+      if (targetQuestionId) {
+        const targetIdx = otherQuestions.findIndex(q => q.id === targetQuestionId);
+        updatedList = [
+          ...otherQuestions.slice(0, targetIdx),
+          { ...draggedQuestion, section_id: targetSectionId || null },
+          ...otherQuestions.slice(targetIdx)
+        ];
+      } else {
+        // Move para o final da seção alvo
+        const sectionQuestions = otherQuestions.filter(q => q.section_id === targetSectionId);
+        const nonSectionQuestions = otherQuestions.filter(q => q.section_id !== targetSectionId);
+        updatedList = [
+          ...nonSectionQuestions,
+          ...sectionQuestions,
+          { ...draggedQuestion, section_id: targetSectionId || null }
+        ];
+      }
+
+      // Persiste a nova ordem (indices 0, 1, 2...)
       try {
-        await checklistActions.updateQuestion(question.id, { section_id: targetSectionId });
+        const reorderPayload = updatedList.map((q, idx) => ({
+          id: q.id,
+          order_index: idx,
+          section_id: q.section_id
+        }));
+
+        await checklistActions.reorderQuestions(reorderPayload);
         mutateQuestions();
         toast.success('Movido com sucesso');
       } catch (err) {
-        toast.error('Erro ao mover item');
+        toast.error('Erro ao salvar nova ordem');
       }
     }
     
@@ -236,6 +261,8 @@ export const ChecklistBuilder = () => {
                   onUpdateText={updateQuestionText}
                   onUpdateType={updateQuestionType}
                   onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
                 />
               ))}
             </div>
@@ -278,6 +305,8 @@ export const ChecklistBuilder = () => {
                     onUpdateText={updateQuestionText}
                     onUpdateType={updateQuestionType}
                     onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDrop={onDrop}
                   />
                 ))}
                 
@@ -321,24 +350,35 @@ export const ChecklistBuilder = () => {
 };
 
 // Componente Interno para o Item da Pergunta
-const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onDragStart }: {
+const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onDragStart, onDragOver, onDrop }: {
   question: ChecklistQuestion;
   onDelete: (id: string) => void;
   onUpdateText: (id: string, text: string) => void;
   onUpdateType: (id: string, value: string) => void;
   onDragStart: (e: React.DragEvent, item: Record<string, unknown>, type: 'section' | 'question') => void;
+  onDragOver: (e: React.DragEvent, sectionId?: string, questionId?: string) => void;
+  onDrop: (e: React.DragEvent, targetSectionId?: string, targetQuestionId?: string) => void;
 }) => {
+  const [isDraggable, setIsDraggable] = React.useState(false);
+
   return (
     <div 
-      draggable
+      draggable={isDraggable}
       onDragStart={(e) => onDragStart(e, question, 'question')}
+      onDragEnd={() => setIsDraggable(false)}
+      onDragOver={(e) => onDragOver(e, question.section_id || undefined, question.id)}
+      onDrop={(e) => onDrop(e, question.section_id || undefined, question.id)}
       className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 group cursor-default hover:border-blue-500 transition-all"
     >
-      <div className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-blue-400 transition-colors">
+      <div 
+        onMouseDown={() => setIsDraggable(true)}
+        onMouseUp={() => setIsDraggable(false)}
+        className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-blue-400 transition-colors p-1 rounded hover:bg-slate-100"
+      >
         <GripVertical size={20} />
       </div>
 
-      <div className="flex-1 space-y-1">
+      <div className="flex-1 space-y-1" onMouseDown={() => setIsDraggable(false)}>
         <Input 
           value={question.text} 
           onChange={(e) => onUpdateText(question.id, e.target.value)}

@@ -288,6 +288,8 @@ export interface ChecklistAnswer {
   action_plan?: string;
   assigned_user_id?: string;
   photo_urls?: string[];
+  action_plan_due_date?: string;
+  action_plan_status?: 'PENDING' | 'RESOLVED';
   created_at: string;
   updated_at: string;
 }

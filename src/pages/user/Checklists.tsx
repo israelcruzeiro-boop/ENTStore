@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { ActionPlans } from './ActionPlans';
 
 export const UserChecklists = () => {
   const { company, user } = useAuth();
@@ -29,6 +30,7 @@ export const UserChecklists = () => {
   const { submissions: userSubmissions } = useUserSubmissions(user?.id, company?.id);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'CHECKLISTS' | 'ACTION_PLANS'>('CHECKLISTS');
 
   const handleStart = async (checklistId: string) => {
     if (!user) return;
@@ -101,7 +103,7 @@ export const UserChecklists = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div className="flex items-center gap-4">
           <ClipboardCheck size={36} className="text-[var(--c-primary)] drop-shadow-md" />
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Meus Checklists</h1>
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Central de Auditoria</h1>
         </div>
         
         {/* Busca Compacta no Topo */}
@@ -116,7 +118,27 @@ export const UserChecklists = () => {
         </div>
       </div>
 
-      {foldersWithChecklists.length > 0 ? (
+      {/* Tabs */}
+      <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
+        <button 
+          onClick={() => setActiveTab('CHECKLISTS')}
+          className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${activeTab === 'CHECKLISTS' ? 'bg-[var(--c-primary)] text-black' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+        >
+          <ClipboardCheck size={14} /> Meus Checklists
+        </button>
+        <button 
+          onClick={() => setActiveTab('ACTION_PLANS')}
+          className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${activeTab === 'ACTION_PLANS' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
+        >
+           Planos de Ação
+        </button>
+      </div>
+
+      {activeTab === 'ACTION_PLANS' ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <ActionPlans />
+        </div>
+      ) : foldersWithChecklists.length > 0 ? (
         activeFolderId === null ? (
           // --- VISAO DE PASTAS ---
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

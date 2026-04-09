@@ -41,6 +41,7 @@ import { ChecklistPlayer as UserChecklistPlayer } from './pages/user/ChecklistPl
 import { ChecklistBuilder } from './pages/admin/ChecklistBuilder';
 import { AdminChecklistDashboard } from './pages/admin/ChecklistDashboard';
 import { ChecklistSubmissionDetail } from './pages/admin/ChecklistSubmissionDetail';
+import { ActionPlans } from './pages/user/ActionPlans';
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,7 @@ const AppRoutes = () => (
         <Route path="cursos" element={<UserCourseList />} />
         <Route path="cursos/:courseId" element={<UserCoursePlayer />} />
         <Route path="checklists" element={<UserChecklists />} />
+        <Route path="action-plans" element={<ActionPlans />} />
         <Route path="checklists/:submissionId" element={<UserChecklistPlayer />} />
         <Route path="repo/:id" element={<RepositoryDetail />} />
         <Route path="content/:id" element={<ContentDetail />} />

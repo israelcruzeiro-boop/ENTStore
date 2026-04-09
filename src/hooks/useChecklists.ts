@@ -82,6 +82,26 @@ export function useChecklistQuestions(checklistId?: string) {
 }
 
 /**
+ * Hook para buscar TODAS as perguntas de todos os checklists de uma empresa (Dashboard Admin).
+ */
+export function useAllCompanyQuestions(companyId?: string) {
+  const { data, error, isLoading } = useSWR<ChecklistQuestion[]>(
+    companyId ? `all_company_questions_${companyId}` : null,
+    () => fetcher(() => supabase
+      .from('checklist_questions')
+      .select('*, checklists!inner(company_id)')
+      .eq('checklists.company_id', companyId)
+    )
+  );
+
+  return {
+    questions: data || [],
+    isLoading,
+    isError: error
+  };
+}
+
+/**
  * Hook para buscar seções de um checklist específico.
  */
 export function useChecklistSections(checklistId?: string) {
@@ -114,7 +134,11 @@ export function useChecklistSubmission(submissionId?: string) {
       .select('*, checklist:checklists(title)')
       .eq('id', submissionId)
       .single()
-    )
+    ),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false
+    }
   );
 
   return {
@@ -135,7 +159,11 @@ export function useChecklistAnswers(submissionId?: string) {
       .from('checklist_answers')
       .select('*')
       .eq('submission_id', submissionId)
-    )
+    ),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false
+    }
   );
 
   return {
@@ -213,6 +241,99 @@ export function useAllAnswers(companyId?: string) {
 }
 
 /**
+ * Hook para buscar TODOS os Planos de Ação de uma empresa (Admin Dashboard).
+ */
+export function useAllActionPlans(companyId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<any[]>(
+    companyId ? `all_action_plans_${companyId}` : null,
+    () => fetcher(async () => {
+      return supabase
+        .from('checklist_answers')
+        .select(`
+          *,
+          checklist_submissions!inner(
+            id, status, checklist_id, user_id, company_id, created_at,
+            checklists(title)
+          ),
+          checklist_questions!inner(text)
+        `)
+        .not('action_plan', 'is', null)
+        .eq('checklist_submissions.company_id', companyId)
+        .order('created_at', { ascending: false });
+    })
+  );
+
+  return {
+    actionPlans: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar Planos de Ação RECEBIDOS (atribuídos a mim).
+ */
+export function useActionPlansReceived(userId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<any[]>(
+    userId ? `action_plans_received_${userId}` : null,
+    () => fetcher(async () => {
+      return supabase
+        .from('checklist_answers')
+        .select(`
+          *,
+          checklist_submissions!inner(
+            id, status, checklist_id, user_id, created_at,
+            checklists(title)
+          ),
+          checklist_questions!inner(text)
+        `)
+        .not('action_plan', 'is', null)
+        .eq('assigned_user_id', userId)
+        .order('created_at', { ascending: false });
+    })
+  );
+
+  return {
+    actionPlans: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar Planos de Ação ENVIADOS (que eu criei para outros resolverem).
+ */
+export function useActionPlansSent(userId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<any[]>(
+    userId ? `action_plans_sent_${userId}` : null,
+    () => fetcher(async () => {
+      return supabase
+        .from('checklist_answers')
+        .select(`
+          *,
+          checklist_submissions!inner(
+            id, status, checklist_id, user_id, created_at,
+            checklists(title)
+          ),
+          checklist_questions!inner(text)
+        `)
+        .not('action_plan', 'is', null)
+        .eq('action_plan_created_by', userId)
+        .order('created_at', { ascending: false });
+    })
+  );
+
+  return {
+    actionPlans: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
  * Funções de Ação (Mutation) para Checklists
  */
 export const checklistActions = {
@@ -258,20 +379,32 @@ export const checklistActions = {
     note?: string, 
     action_plan?: string,
     assigned_user_id?: string,
-    photo_urls?: string[]
+    photo_urls?: string[],
+    action_plan_due_date?: string,
+    currentUserId?: string
   ) {
+    const payload: Record<string, unknown> = {
+      submission_id: submissionId,
+      question_id: question_id,
+      value: value,
+      note: note || null,
+      action_plan: action_plan || null,
+      assigned_user_id: assigned_user_id || null,
+      photo_urls: photo_urls || [],
+      action_plan_due_date: action_plan_due_date || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // Grava quem criou o plano de ação (apenas quando há plano preenchido)
+    if (action_plan && currentUserId) {
+      payload.action_plan_created_by = currentUserId;
+      // Se tem plano mas status não existe ainda, inicializa
+      payload.action_plan_status = 'PENDING';
+    }
+
     const { error } = await supabase
       .from('checklist_answers')
-      .upsert({
-        submission_id: submissionId,
-        question_id: question_id,
-        value: value,
-        note: note,
-        action_plan: action_plan,
-        assigned_user_id: assigned_user_id,
-        photo_urls: photo_urls,
-        updated_at: new Date().toISOString()
-      }, {
+      .upsert(payload, {
         onConflict: 'submission_id,question_id'
       });
 
@@ -289,6 +422,21 @@ export const checklistActions = {
         completed_at: new Date().toISOString()
       })
       .eq('id', submissionId);
+
+    if (error) throw error;
+  },
+
+  /**
+   * Resolve um plano de ação
+   */
+  async resolveActionPlan(answerId: string) {
+    const { error } = await supabase
+      .from('checklist_answers')
+      .update({
+        action_plan_status: 'RESOLVED',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', answerId);
 
     if (error) throw error;
   },

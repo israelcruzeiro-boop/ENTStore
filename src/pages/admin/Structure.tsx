@@ -38,6 +38,7 @@ export const AdminStructure = () => {
   const [itemToDelete, setItemToDelete] = useState<{id: string, name: string, type: 'TOP_LEVEL' | 'UNIT'} | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedParentFilter, setSelectedParentFilter] = useState<string>('all');
 
   useEffect(() => {
     if (company) {
@@ -348,10 +349,10 @@ export const AdminStructure = () => {
                  placeholder="Ex: Diretoria" 
                  value={l1.name} 
                  onChange={e => setL1({...l1, name: e.target.value})} 
-                 disabled={!l1.active || isSubmitting} 
-                 className={!l1.active ? 'bg-slate-100 text-slate-400' : 'bg-white'} 
+                 disabled={true} 
+                 className={'bg-slate-100 text-slate-500 font-bold'} 
                />
-               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Ex: Diretoria, Grupo, Operação</p>
+               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Nome fixo</p>
             </div>
 
             {/* Nível 2 */}
@@ -364,10 +365,10 @@ export const AdminStructure = () => {
                  placeholder="Ex: Regional" 
                  value={l2.name} 
                  onChange={e => setL2({...l2, name: e.target.value})} 
-                 disabled={!l2.active || isSubmitting} 
-                 className={!l2.active ? 'bg-slate-100 text-slate-400' : 'bg-white'} 
+                 disabled={true} 
+                 className={'bg-slate-100 text-slate-500 font-bold'} 
                />
-               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Ex: Regional, Estado, Cidade</p>
+               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Nome fixo</p>
             </div>
 
             {/* Nível 3 */}
@@ -380,10 +381,10 @@ export const AdminStructure = () => {
                  placeholder="Ex: Loja, Filial" 
                  value={l3Name} 
                  onChange={e => setL3Name(e.target.value)} 
-                 disabled={isSubmitting}
-                 className="bg-white border-emerald-200 focus-visible:ring-emerald-500"
+                 disabled={true}
+                 className="bg-slate-100 text-slate-500 font-bold border-emerald-200"
                />
-               <p className="text-[10px] text-emerald-600/80 mt-2.5 font-medium">Onde os usuários finais são vinculados</p>
+               <p className="text-[10px] text-emerald-600/80 mt-2.5 font-medium">Nome fixo</p>
             </div>
           </div>
         </div>
@@ -491,11 +492,27 @@ export const AdminStructure = () => {
           </div>
 
           <div className="p-3 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white">
-             <p className="text-xs font-medium text-slate-500">
-                {lowestLevelConfig 
-                  ? <>As unidades se conectam aos registros de <strong>{lowestLevelConfig.name}</strong>.</> 
-                  : <>As unidades ficarão livres, pois não há níveis intermediários.</>}
-             </p>
+             {lowestLevelConfig ? (
+                <div className="flex items-center gap-2">
+                   <p className="text-xs font-medium text-slate-500 whitespace-nowrap">Filtrar por {lowestLevelConfig.name}:</p>
+                   <select 
+                     value={selectedParentFilter}
+                     onChange={(e) => setSelectedParentFilter(e.target.value)}
+                     className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 max-w-[200px]"
+                   >
+                      <option value="all">TODAS</option>
+                      {companyTopLevels
+                        .filter(t => t.level_id === lowestLevelConfig.id || (!t.level_id && activeLevelsConfig[0]?.id === lowestLevelConfig.id))
+                        .map(t => (
+                         <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                   </select>
+                </div>
+             ) : (
+                <p className="text-xs font-medium text-slate-500">
+                   As {l3Name}s ficarão livres, pois não há níveis intermediários.
+                </p>
+             )}
              <Button type="button" onClick={openCreateUnit} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 w-full sm:w-auto shrink-0">
                <Plus size={14} className="mr-1" /> Nova {l3Name}
              </Button>
@@ -511,7 +528,7 @@ export const AdminStructure = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                  {companyUnits.map(unit => {
+                  {(selectedParentFilter === 'all' ? companyUnits : companyUnits.filter(u => u.parent_id === selectedParentFilter)).map(unit => {
                      const parent = lowestLevelConfig ? companyTopLevels.find(t => t.id === unit.parent_id) : null;
                      return (
                        <tr key={unit.id} className={`hover:bg-slate-50 transition-colors ${!unit.active ? 'opacity-60 bg-slate-50/50' : ''}`}>

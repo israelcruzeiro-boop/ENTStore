@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck } from 'lucide-react';
+import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useOrgStructure, useRepositories, useCourses } from '../hooks/useSupabaseData';

@@ -14,14 +14,17 @@ import {
   Download, 
   CheckCircle2, 
   XCircle, 
-  AlertCircle,
   Calendar,
   User,
   MapPin,
   FileText,
   Camera,
   MessageSquare,
-  Lightbulb
+  Lightbulb,
+  Check,
+  Star,
+  Minus,
+  Award
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -76,8 +79,9 @@ export function ChecklistSubmissionDetail() {
   }, [sections, questions, answers]);
 
   const stats = useMemo(() => {
-    if (!answers.length) return { conforme: 0, naoConforme: 0, total: 0, percentage: 0 };
+    if (!answers.length) return { conforme: 0, naoConforme: 0, checkeds: 0, totalChecks: 0, total: 0, percentage: 0 };
     
+    // Análise de Compliance
     const complianceAnswers = answers.filter(a => {
       const q = questions.find(que => que.id === a.question_id);
       return q?.type === 'COMPLIANCE';
@@ -85,22 +89,55 @@ export function ChecklistSubmissionDetail() {
 
     const conforme = complianceAnswers.filter(a => a.value === 'C').length;
     const naoConforme = complianceAnswers.filter(a => a.value === 'NC').length;
-    const total = complianceAnswers.length;
-    const percentage = total > 0 ? Math.round((conforme / total) * 100) : 0;
+    const totalComp = complianceAnswers.length;
 
-    return { conforme, naoConforme, total, percentage };
+    // Análise de Checagem (Checkboxes)
+    const checkAnswers = answers.filter(a => {
+      const q = questions.find(que => que.id === a.question_id);
+      return q?.type === 'CHECK';
+    });
+
+    const checkeds = checkAnswers.filter(a => a.value === 'CHECKED').length;
+    const totalChecks = checkAnswers.length;
+
+    // Calcular Percentual Geral de Sucesso (Considera C e Checkeds como sucessos)
+    const totalPossiblePoints = totalComp + totalChecks;
+    const totalEarnedPoints = conforme + checkeds;
+    const percentage = totalPossiblePoints > 0 ? Math.round((totalEarnedPoints / totalPossiblePoints) * 100) : 0;
+
+    return { 
+      conforme, 
+      naoConforme, 
+      checkeds,
+      totalChecks,
+      total: questions.length, 
+      percentage 
+    };
   }, [answers, questions]);
 
   const exportPDF = async () => {
     const element = document.getElementById('report-content');
     if (!element) return;
 
+    // Remove background do body para o print se quiser muito limpo
+    const originalBg = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = '#ffffff';
+
     const canvas = await html2canvas(element, {
       scale: 2,
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      onclone: (clonedDoc) => {
+        const el = clonedDoc.getElementById('report-content');
+        if (el) {
+           el.style.border = 'none';
+           el.style.boxShadow = 'none';
+        }
+      }
     });
+
+    document.body.style.backgroundColor = originalBg;
     
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -115,191 +152,330 @@ export function ChecklistSubmissionDetail() {
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
 
   if (!submission) {
     return (
-      <div className="p-8 text-center">
-        <h2 className="text-xl font-bold text-slate-900">Relatório não encontrado</h2>
-        <Button onClick={() => navigate(-1)} variant="ghost" className="mt-4">
+      <div className="max-w-md mx-auto mt-20 p-8 text-center bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40">
+        <FileText className="mx-auto h-12 w-12 text-slate-300 mb-4" />
+        <h2 className="text-xl font-black text-slate-900 mb-2">Relatório inacessível</h2>
+        <p className="text-slate-500 mb-6 text-sm">A submissão solicitada não foi encontrada ou foi removida do sistema.</p>
+        <Button onClick={() => navigate(-1)} className="w-full bg-slate-900 text-white rounded-xl h-12 font-bold hover:scale-105 transition-all">
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
       </div>
     );
   }
 
+  // --- COMPONENTES AUXILIARES DE RENDERIZAÇÃO DE RESPOSTAS ---
+
+  const renderCompliance = (value: string) => {
+    switch(value) {
+      case 'C':
+        return (
+          <div className="px-4 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs flex items-center gap-2 border border-emerald-100 shadow-sm shadow-emerald-50">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" /> CONFORME
+          </div>
+        );
+      case 'NC':
+        return (
+          <div className="px-4 py-1.5 rounded-full bg-rose-50 text-rose-700 font-bold text-xs flex items-center gap-2 border border-rose-100 shadow-sm shadow-rose-50">
+            <XCircle className="h-4 w-4 text-rose-500" /> NÃO CONFORME
+          </div>
+        );
+      default:
+        return (
+          <div className="px-4 py-1.5 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center gap-2 border border-slate-200">
+            <Minus className="h-4 w-4" /> NÃO APLICÁVEL
+          </div>
+        );
+    }
+  };
+
+  const renderCheck = (value: string) => {
+    if (value === 'CHECKED') {
+      return (
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-50 border-2 border-emerald-500 shadow-sm shadow-emerald-100">
+          <Check className="h-6 w-6 text-emerald-600 stroke-[3]" />
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-50 border-2 border-slate-200 opacity-50">
+        <Minus className="h-5 w-5 text-slate-400 stroke-[3]" />
+      </div>
+    );
+  };
+
+  const renderRating = (value: string) => {
+    const num = parseInt(value, 10) || 0;
+    return (
+      <div className="flex items-center gap-1.5 bg-slate-50/80 px-4 py-2 rounded-2xl border border-slate-100">
+        <div className="flex">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].filter((_, i) => i < 5).map((star) => {
+            // Adaptar 1-10 para 1-5 estrelas (2 pontos por estrela) visualmente, ou apenas mostrar nota
+            const isActive = star * 2 <= num;
+            return (
+              <Star 
+                key={star} 
+                className={`h-4 w-4 ${isActive ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-100'}`} 
+              />
+            );
+          })}
+        </div>
+        <span className="font-black text-slate-900 border-l border-slate-200 pl-2 ml-1">{num}<span className="text-slate-400 text-[10px]">/10</span></span>
+      </div>
+    );
+  };
+
+  const renderTextOrNumber = (value: string) => {
+    if (!value) return <span className="text-slate-400 italic text-sm">Não preenchido</span>;
+    return (
+      <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 text-slate-800 font-medium text-sm min-w-[120px] text-right">
+        {value}
+      </div>
+    );
+  };
+
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-6">
-      {/* Header Ações */}
-      <div className="flex items-center justify-between no-print">
-        <Button onClick={() => navigate(-1)} variant="ghost" className="text-slate-600 hover:text-slate-900">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Histórico
+    <div className="container mx-auto p-4 md:p-6 max-w-5xl space-y-8 animate-in fade-in duration-500">
+      {/* Action Bar (No Print) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 no-print bg-white p-4 rounded-3xl border border-slate-100 shadow-sm shadow-slate-100/50 sticky top-4 z-10">
+        <Button onClick={() => navigate(-1)} variant="ghost" className="text-slate-600 hover:text-slate-900 rounded-xl">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar Histórico
         </Button>
-        <Button onClick={exportPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 transition-all">
-          <Download className="mr-2 h-4 w-4" /> Exportar PDF
+        <Button onClick={exportPDF} className="w-full sm:w-auto bg-slate-900 hover:bg-black text-white rounded-xl shadow-lg shadow-black/10 transition-all font-bold px-6 h-11">
+          <Download className="mr-2 h-4 w-4" /> Documento Oficial (PDF)
         </Button>
       </div>
 
-      <div id="report-content" className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-8">
-        {/* Cabeçalho do Relatório */}
-        <div className="border-b border-slate-100 pb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-2">
-            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100 uppercase tracking-wider text-[10px] font-bold px-2.5 py-0.5">
-              Relatório de Auditoria
-            </Badge>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight leading-tight">
+      <div id="report-content" className="bg-white p-8 md:p-12 lg:p-16 rounded-[40px] shadow-2xl shadow-slate-200/50 border border-slate-100">
+        {/* Cabeçalho do Relatório - Senior Style */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-10 pb-12 border-b border-slate-100">
+          <div className="space-y-4 max-w-2xl">
+            <div className="flex items-center gap-3">
+               <Badge className="bg-slate-900 text-white border-transparent hover:bg-slate-800 uppercase tracking-widest text-[9px] font-black px-3 py-1 rounded-md">
+                 AUDIT REPORT
+               </Badge>
+               <span className="text-slate-400 font-bold text-xs">ID: {submission.id.split('-')[0].toUpperCase()}</span>
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
               {submission.checklist?.title}
             </h1>
-            <div className="flex flex-wrap gap-4 text-sm text-slate-500 mt-4">
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
-                <User className="h-4 w-4 text-slate-400" />
-                <span className="font-medium text-slate-700">{submissionUser?.name || 'Usuário'}</span>
+            
+            <div className="flex flex-wrap gap-4 mt-6">
+              <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-black text-xs shrink-0">
+                   {submissionUser?.name?.charAt(0) || 'U'}
+                </div>
+                <div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">Avaliador</p>
+                   <p className="font-bold text-slate-800 text-sm leading-tight">{submissionUser?.name || 'Sistema'}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
-                <MapPin className="h-4 w-4 text-slate-400" />
-                <span className="font-medium text-slate-700">{submissionUnit?.name || 'Unidade não definida'}</span>
+
+              <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-xs shrink-0">
+                   <MapPin size={14} />
+                </div>
+                <div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">Unidade Operacional</p>
+                   <p className="font-bold text-slate-800 text-sm leading-tight">{submissionUnit?.name || 'Geral'}</p>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 rounded-full border border-slate-100">
-                <Calendar className="h-4 w-4 text-slate-400" />
-                <span className="font-medium text-slate-700">
-                  {submission.completed_at ? format(new Date(submission.completed_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : 'Pendente'}
-                </span>
+
+              <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black text-xs shrink-0">
+                   <Calendar size={14} />
+                </div>
+                <div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">Concluído em</p>
+                   <p className="font-bold text-slate-800 text-sm leading-tight">
+                     {submission.completed_at ? format(new Date(submission.completed_at), "dd MMM yyyy, HH:mm", { locale: ptBR }) : 'Pendente'}
+                   </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col items-center md:items-end gap-2">
-            <div className="relative">
-               <svg className="h-24 w-24 transform -rotate-90">
-                 <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
-                 <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={251} strokeDashoffset={251 - (251 * stats.percentage) / 100} className="text-emerald-500 transition-all duration-1000" />
-               </svg>
-               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                 <span className="text-2xl font-black text-slate-900">{stats.percentage}%</span>
-                 <span className="text-[10px] font-bold text-slate-400 uppercase">Índice</span>
-               </div>
-            </div>
+          {/* Master Score Dial */}
+          <div className="flex flex-col items-center justify-center bg-slate-50 p-6 rounded-3xl border border-slate-100 shrink-0">
+             <div className="relative">
+                <svg className="h-32 w-32 transform -rotate-90 drop-shadow-xl">
+                  <circle cx="64" cy="64" r="54" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-white" />
+                  <circle 
+                    cx="64" cy="64" r="54" 
+                    stroke="url(#gradient-score)" 
+                    strokeWidth="12" 
+                    fill="transparent" 
+                    strokeDasharray={339} 
+                    strokeDashoffset={339 - (339 * stats.percentage) / 100} 
+                    className="transition-all duration-1000" 
+                    strokeLinecap="round"
+                  />
+                  <defs>
+                    <linearGradient id="gradient-score" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={stats.percentage > 70 ? "#10b981" : stats.percentage > 40 ? "#f59e0b" : "#ef4444"} />
+                      <stop offset="100%" stopColor={stats.percentage > 70 ? "#059669" : stats.percentage > 40 ? "#d97706" : "#b91c1c"} />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-full m-3 shadow-inner">
+                  <span className="text-3xl font-black text-slate-900 tracking-tighter">{stats.percentage}<span className="text-lg text-slate-400 absolute ml-0.5 mt-0.5">%</span></span>
+                </div>
+             </div>
+             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-4">Índice Global</p>
           </div>
         </div>
 
-        {/* Grid de Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-emerald-50/50 border-emerald-100 shadow-none">
-            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between pb-1">
-              <span className="text-xs font-bold text-emerald-700 uppercase tracking-tight">Conformes</span>
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent className="py-2 px-4">
-              <div className="text-2xl font-black text-emerald-900">{stats.conforme}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-rose-50/50 border-rose-100 shadow-none">
-            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between pb-1">
-              <span className="text-xs font-bold text-rose-700 uppercase tracking-tight">Não Conformes</span>
-              <XCircle className="h-4 w-4 text-rose-500" />
-            </CardHeader>
-            <CardContent className="py-2 px-4">
-              <div className="text-2xl font-black text-rose-900">{stats.naoConforme}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-50 border-slate-200 shadow-none">
-            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between pb-1">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-tight">Total Questões</span>
-              <FileText className="h-4 w-4 text-slate-400" />
-            </CardHeader>
-            <CardContent className="py-2 px-4">
-              <div className="text-2xl font-black text-slate-900">{stats.total}</div>
-            </CardContent>
-          </Card>
+        {/* Global Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 mb-16">
+           <div className="bg-emerald-50 rounded-2xl p-5 border border-emerald-100/50">
+             <p className="text-[10px] font-black uppercase text-emerald-600/70 tracking-widest mb-1 flex items-center gap-1.5">
+               <CheckCircle2 size={12} /> C. Positiva
+             </p>
+             <p className="text-3xl font-black text-emerald-900">{stats.conforme + stats.checkeds}</p>
+           </div>
+           
+           <div className="bg-rose-50 rounded-2xl p-5 border border-rose-100/50">
+             <p className="text-[10px] font-black uppercase text-rose-600/70 tracking-widest mb-1 flex items-center gap-1.5">
+               <XCircle size={12} /> C. Negativa
+             </p>
+             <p className="text-3xl font-black text-rose-900">{stats.naoConforme}</p>
+           </div>
+
+           <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100/50">
+             <p className="text-[10px] font-black uppercase text-blue-600/70 tracking-widest mb-1 flex items-center gap-1.5">
+               <Check size={12} /> Tarefas
+             </p>
+             <p className="text-3xl font-black text-blue-900">{stats.checkeds}<span className="text-sm text-blue-400">/{stats.totalChecks}</span></p>
+           </div>
+
+           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200/50">
+             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 flex items-center gap-1.5">
+               <FileText size={12} /> Avaliações
+             </p>
+             <p className="text-3xl font-black text-slate-900">{stats.total}</p>
+           </div>
         </div>
 
-        {/* Detalhamento por Seção */}
-        <div className="space-y-10">
+        {/* Detalhamento de Seções */}
+        <div className="space-y-12">
           {groupedAnswers.map(({ section, items }) => (
-            <div key={section.id} className="space-y-4">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
-                 <div className="h-2 w-2 rounded-full bg-indigo-500" />
-                 <h2 className="text-xl font-bold text-slate-800 uppercase tracking-tight">{section.title}</h2>
+            <div key={section.id} className="relative">
+              {/* Nome da Seção */}
+              <div className="flex items-center gap-4 mb-6">
+                 <div className="p-3 bg-slate-900 rounded-xl text-white">
+                    <Award size={18} />
+                 </div>
+                 <div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{section.title}</h2>
+                    {section.description && <p className="text-sm font-semibold text-slate-500 mt-0.5">{section.description}</p>}
+                 </div>
               </div>
               
-              <div className="space-y-0 divide-y divide-slate-100">
+              <div className="space-y-4">
                 {items.map(({ question, answer }) => (
-                  <div key={question.id} className="py-6 first:pt-2 last:pb-2">
-                    <div className="flex flex-col md:flex-row gap-4 md:items-start justify-between">
-                      <div className="flex-1 space-y-1">
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">PERGUNTA</p>
-                        <h3 className="text-md font-bold text-slate-800 leading-snug">{question.text}</h3>
+                  <div key={question.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      
+                      {/* Pergunta */}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-slate-800 leading-snug">{question.text}</h3>
+                        {question.description && <p className="text-sm font-medium text-slate-500 mt-1">{question.description}</p>}
                       </div>
                       
-                      <div className="flex items-center gap-2 min-w-[140px] justify-end">
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest md:hidden">RESULTADO</p>
-                        {question.type === 'COMPLIANCE' ? (
-                          answer?.value === 'C' ? (
-                            <Badge className="bg-emerald-100 text-emerald-800 border-none px-3 py-1 flex items-center gap-1.5 shadow-sm shadow-emerald-50">
-                              <CheckCircle2 className="h-3.5 w-3.5" /> Conforme
-                            </Badge>
-                          ) : answer?.value === 'NC' ? (
-                            <Badge className="bg-rose-100 text-rose-800 border-none px-3 py-1 flex items-center gap-1.5 shadow-sm shadow-rose-50">
-                              <XCircle className="h-3.5 w-3.5" /> Não Conforme
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-slate-100 text-slate-600 border-none px-3 py-1 flex items-center gap-1.5 shadow-sm shadow-slate-50">
-                              N/A
-                            </Badge>
-                          )
-                        ) : (
-                          <div className="bg-slate-100 text-slate-900 font-bold px-4 py-1.5 rounded-lg text-sm border border-slate-200">
-                            {answer?.value || '-'}
-                          </div>
-                        )}
+                      {/* Resposta Analítica Visual */}
+                      <div className="flex items-center shrink-0">
+                        {question.type === 'COMPLIANCE' && renderCompliance(answer?.value || '')}
+                        {question.type === 'CHECK' && renderCheck(answer?.value || '')}
+                        {question.type === 'RATING' && renderRating(answer?.value || '')}
+                        {['TEXT', 'NUMBER', 'DATE', 'TIME'].includes(question.type) && renderTextOrNumber(answer?.value || '')}
                       </div>
+
                     </div>
 
-                    {/* Observações e Fotos */}
+                    {/* Blocos de Evidência e Observações Estilizados */}
                     {(answer?.note || (answer?.photo_urls && answer.photo_urls.length > 0) || answer?.action_plan) && (
-                      <div className="mt-4 ml-0 md:ml-4 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-4">
-                        {answer.note && (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-slate-400">
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Observações</span>
+                      <div className="bg-slate-50/50 border-t border-slate-100 p-5 md:p-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        {/* Textos */}
+                        <div className="space-y-4">
+                          {answer.note && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1.5 flex items-center gap-1.5">
+                                <MessageSquare size={12} /> Observação Adicional
+                              </p>
+                              <div className="p-3 bg-white rounded-xl border border-slate-200/60 shadow-sm">
+                                <p className="text-slate-700 text-sm font-medium italic">{answer.note}</p>
+                              </div>
                             </div>
-                            <p className="text-slate-700 text-sm italic">"{answer.note}"</p>
-                          </div>
-                        )}
+                          )}
 
-                        {answer.action_plan && (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-indigo-400">
-                              <Lightbulb className="h-3.5 w-3.5" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Plano de Ação</span>
+                          {answer.action_plan && (
+                            <div>
+                              <p className="text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 flex items-center gap-1.5">
+                                <Lightbulb size={12} /> Plano de Ação Detectado
+                              </p>
+                              <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 border-l-4 border-l-indigo-500 shadow-sm space-y-2">
+                                <p className="text-indigo-900 text-sm font-bold">{answer.action_plan}</p>
+                                <div className="flex flex-wrap gap-3 mt-2">
+                                  {answer.assigned_user_id && (
+                                    <span className="text-xs text-indigo-600 font-semibold flex items-center gap-1">
+                                      <User size={12} /> {users.find(u => u.id === answer.assigned_user_id)?.name || 'N/A'}
+                                    </span>
+                                  )}
+                                  {answer.action_plan_due_date && (
+                                    <span className="text-xs text-indigo-600 font-semibold flex items-center gap-1">
+                                      <Calendar size={12} /> Prazo: {format(new Date(answer.action_plan_due_date), 'dd/MM/yyyy')}
+                                    </span>
+                                  )}
+                                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border ${
+                                    answer.action_plan_status === 'RESOLVED'
+                                      ? 'text-emerald-600 bg-emerald-50 border-emerald-200'
+                                      : 'text-amber-600 bg-amber-50 border-amber-200'
+                                  }`}>
+                                    {answer.action_plan_status === 'RESOLVED' ? 'Resolvido' : 'Pendente'}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <p className="text-indigo-900 text-sm font-medium">{answer.action_plan}</p>
-                          </div>
-                        )}
+                          )}
+                        </div>
 
+                        {/* Imagens (Galeria) */}
                         {answer.photo_urls && answer.photo_urls.length > 0 && (
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-1.5 text-slate-400">
-                              <Camera className="h-3.5 w-3.5" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider">Evidências Fotográficas</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
+                          <div className={!answer.note && !answer.action_plan ? "col-span-full" : ""}>
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center gap-1.5">
+                              <Camera size={12} /> Evidências Fotográficas
+                            </p>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                                {answer.photo_urls.map((url, idx) => (
-                                 <div key={idx} className="relative group overflow-hidden rounded-lg border border-slate-200 w-32 h-32 bg-white">
+                                 <a 
+                                   key={idx} 
+                                   href={url} 
+                                   target="_blank" 
+                                   rel="noopener noreferrer"
+                                   className="relative group overflow-hidden rounded-xl border-2 border-white shadow-sm aspect-square bg-slate-100 hover:shadow-md transition-shadow cursor-pointer block"
+                                 >
                                     <img 
                                       src={url} 
                                       alt={`Evidência ${idx + 1}`} 
-                                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
-                                 </div>
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                       <span className="opacity-0 group-hover:opacity-100 bg-white/90 text-slate-900 text-[10px] font-bold px-2 py-1 rounded-md backdrop-blur-sm transition-opacity">Ver Real</span>
+                                    </div>
+                                 </a>
                                ))}
                             </div>
                           </div>
                         )}
+
                       </div>
                     )}
                   </div>
@@ -307,13 +483,24 @@ export function ChecklistSubmissionDetail() {
               </div>
             </div>
           ))}
+          
+          {groupedAnswers.length === 0 && (
+             <div className="py-20 text-center">
+                <CheckCircle2 className="mx-auto h-16 w-16 text-slate-200 mb-4" />
+                <h3 className="text-xl font-bold text-slate-400">Nenhum dado processado</h3>
+                <p className="text-slate-400 mt-2">Esta submissão não possui dados estruturados ou seções válidas no momento.</p>
+             </div>
+          )}
         </div>
 
-        {/* Rodapé do Relatório */}
-        <div className="pt-12 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-           <span>Gerado por ENT Store - Auditoria Digital</span>
-           <span>Documento ID: {submission.id.slice(0, 8).toUpperCase()}</span>
-           <span>Página 1 de 1</span>
+        {/* Rodapé Gráfico Oficial */}
+        <div className="mt-16 pt-8 border-t-2 border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] opacity-70">
+           <div className="flex items-center gap-2">
+              <img src="/logo11.png" alt="Logo" className="h-4 grayscale opacity-50" onError={(e) => e.currentTarget.style.display = 'none'} />
+              <span>Plataforma Inteligente Administrativa</span>
+           </div>
+           <span>ID Ref: {submission.id.toUpperCase()}</span>
+           <span>Documento Gerado Oficialmente</span>
         </div>
       </div>
     </div>

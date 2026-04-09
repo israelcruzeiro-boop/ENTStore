@@ -21,7 +21,10 @@ import {
   Check,
   Camera,
   User as UserIcon,
-  X
+  X,
+  MessageCircle,
+  AlertTriangle,
+  Target
 } from 'lucide-react';
 import { 
   ChecklistQuestion, 
@@ -39,8 +42,17 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { debounce } from 'lodash';
 
 // Interfaces Internas de Tipagem Estrita
 interface LocalAnswer {
@@ -49,6 +61,7 @@ interface LocalAnswer {
   action_plan: string;
   assigned_user_id: string;
   photo_urls: string[];
+  action_plan_due_date: string;
 }
 
 interface QuestionRenderProps {
@@ -58,6 +71,7 @@ interface QuestionRenderProps {
   handleNoteChange: (id: string, note: string) => void;
   handleActionPlanChange: (id: string, plan: string) => void;
   handleAssignmentChange: (id: string, userId: string) => void;
+  handleDueDateChange: (id: string, date: string) => void;
   handlePhotoUpload: (id: string, url: string) => void;
   handlePhotoDelete: (id: string, url: string) => void;
   users: User[];
@@ -112,16 +126,18 @@ const QuestionRender = ({
   handleNoteChange, 
   handleActionPlanChange,
   handleAssignmentChange,
+  handleDueDateChange,
   handlePhotoUpload,
   handlePhotoDelete,
   users,
   currentUserId
 }: QuestionRenderProps) => {
-  const answer = localAnswers[q.id] || { value: '', note: '', action_plan: '', assigned_user_id: '', photo_urls: [] };
+  const answer = localAnswers[q.id] || { value: '', note: '', action_plan: '', assigned_user_id: '', photo_urls: [], action_plan_due_date: '' };
   const isSelected = (val: string) => answer.value === val;
   const hasNotes = ['COMPLIANCE', 'NUMBER', 'RATING'].includes(q.type);
   const canShowPhotos = false; // Temporariamente ocultado a pedido: !['TIME', 'DATE', 'NUMBER', 'CHECK'].includes(q.type);
   const [isUploading, setIsUploading] = useState(false);
+  const [showNote, setShowNote] = useState(!!answer.note);
 
   const onFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -204,12 +220,29 @@ const QuestionRender = ({
           )}
 
           {q.type === 'RATING' && (
-            <Slider 
-              min={0} max={10} step={1} 
-              value={[parseInt(answer.value) || 0]} 
-              onValueChange={(vals) => handleAnswerChange(q.id, vals[0].toString())} 
-              className="flex-1 max-w-sm py-2" 
-            />
+            <div className="flex-1 w-full max-w-sm bg-black/20 p-4 rounded-xl border border-white/5">
+              <div className="flex justify-between px-1 mb-3">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(v => (
+                  <span key={v} className={`text-[10px] font-bold transition-colors ${parseInt(answer.value) >= v ? 'text-[var(--c-primary)]' : 'text-zinc-600'}`}>
+                    {v}
+                  </span>
+                ))}
+              </div>
+              <Slider 
+                min={0} max={10} step={1} 
+                value={[parseInt(answer.value) || 0]} 
+                onValueChange={(vals) => handleAnswerChange(q.id, vals[0].toString())} 
+                className="py-2" 
+              />
+              <div className="flex justify-between px-1 mt-3">
+                <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                   <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Crítico
+                </span>
+                <span className="text-[9px] text-[var(--c-primary)] uppercase tracking-widest font-semibold flex items-center gap-1.5">
+                   Excelente <span className="w-1.5 h-1.5 rounded-full bg-[var(--c-primary)] hover:animate-ping"></span>
+                </span>
+              </div>
+            </div>
           )}
 
           {q.type === 'TEXT' && (
@@ -265,30 +298,90 @@ const QuestionRender = ({
         )}
 
         {hasNotes && (
-          <div className={`space-y-3 mt-2 ${q.type === 'CHECK' ? 'ml-12' : ''}`}>
-            <Input 
-              placeholder="Observações..."
-              className="bg-white/5 border-white/10 text-white placeholder-zinc-500 h-9 text-[10px] focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)]"
-              value={answer.note || ''}
-              onChange={(e) => handleNoteChange(q.id, e.target.value)}
-            />
-            {q.type === 'COMPLIANCE' && isSelected('NC') && (
-              <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg space-y-2">
-                <label className="text-[8px] font-black text-rose-500 uppercase tracking-widest">🚨 Plano de Ação</label>
-                <Textarea 
-                  placeholder="O que será feito?"
-                  className="bg-white text-[10px] h-16"
-                  value={answer.action_plan || ''}
-                  onChange={(e) => handleActionPlanChange(q.id, e.target.value)}
+          <div className={`mt-3 ${q.type === 'CHECK' ? 'ml-12' : ''}`}>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setShowNote(!showNote)}
+                className={`text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 border ${
+                  showNote || answer.note ? 'bg-white/10 text-white border-white/20' : 'bg-transparent text-zinc-500 border-white/5 hover:bg-white/5 hover:text-zinc-300'
+                }`}
+              >
+                <MessageCircle size={12} className={showNote || answer.note ? 'text-[var(--c-primary)]' : ''} />
+                {answer.note ? 'Editar Observação' : 'Observação'}
+              </button>
+
+              {q.type === 'COMPLIANCE' && isSelected('NC') && (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <button className={`text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 border ${
+                      answer.action_plan ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-rose-500 text-white border-rose-600 hover:bg-rose-600 shadow-lg shadow-rose-500/20'
+                    }`}>
+                      <Target size={12} />
+                      {answer.action_plan ? 'Plano Criado' : 'Gerar Plano de Ação'}
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="text-rose-500" size={20} />
+                        Plano de Ação
+                      </DialogTitle>
+                      <DialogDescription>
+                        Defina como o problema será resolvido, o responsável e o prazo.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">O que será feito? / Orientação</label>
+                        <Textarea 
+                          placeholder="Ex: Realizar manutenção no equipamento X..."
+                          className="min-h-[80px]"
+                          value={answer.action_plan || ''}
+                          onChange={(e) => handleActionPlanChange(q.id, e.target.value)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Responsável</label>
+                          <Select value={answer.assigned_user_id || ''} onValueChange={(val) => handleAssignmentChange(q.id, val)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Data Limite (Deadline)</label>
+                          <Input 
+                            type="date"
+                            value={answer.action_plan_due_date ? answer.action_plan_due_date.split('T')[0] : ''}
+                            onChange={(e) => handleDueDateChange(q.id, e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" className="bg-rose-600 hover:bg-rose-700 text-white w-full">Salvar Plano</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+
+            {showNote && (
+              <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <Input 
+                  placeholder="Descreva as observações adicionais aqui..."
+                  className="bg-black/20 border border-white/10 text-white placeholder-zinc-600 h-10 w-full md:w-3/4 text-xs focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)] rounded-xl"
+                  value={answer.note || ''}
+                  onChange={(e) => handleNoteChange(q.id, e.target.value)}
+                  autoFocus
                 />
-                <Select value={answer.assigned_user_id || ''} onValueChange={(val) => handleAssignmentChange(q.id, val)}>
-                  <SelectTrigger className="bg-white h-8 text-[9px]">
-                    <SelectValue placeholder="Responsável..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
               </div>
             )}
           </div>
@@ -322,33 +415,40 @@ export const ChecklistPlayer = () => {
           note: a.note || '',
           action_plan: a.action_plan || '',
           assigned_user_id: a.assigned_user_id || '',
-          photo_urls: a.photo_urls || []
+          photo_urls: a.photo_urls || [],
+          action_plan_due_date: a.action_plan_due_date || ''
         };
       });
       setLocalAnswers(acc);
     }
   }, [answers]);
 
-  const debouncedSave = useCallback(
-    debounce(async (qId: string, data: LocalAnswer) => {
-      if (!submissionId) return;
+  const saveTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
+
+  const scheduleSave = useCallback((qId: string, data: LocalAnswer) => {
+    if (!submissionId) return;
+    
+    if (saveTimeoutRefs.current[qId]) {
+      clearTimeout(saveTimeoutRefs.current[qId]);
+    }
+    
+    saveTimeoutRefs.current[qId] = setTimeout(async () => {
       try {
-        await checklistActions.saveAnswer(submissionId, qId, data.value, data.note, data.action_plan, data.assigned_user_id, data.photo_urls);
+        await checklistActions.saveAnswer(submissionId, qId, data.value, data.note, data.action_plan, data.assigned_user_id, data.photo_urls, data.action_plan_due_date, currentUser?.id);
         setLastSaved(new Date());
       } catch (err) {
         console.error('Erro ao salvar:', err);
       }
-    }, 1000),
-    [submissionId]
-  );
+    }, 800); // Salva 800ms após a última digitação na questão
+  }, [submissionId]);
 
   const updateStateAndSave = (questionId: string, updates: Partial<LocalAnswer>) => {
     setLocalAnswers(prev => {
       const newState = {
         ...prev,
-        [questionId]: { ...(prev[questionId] || { value: '', note: '', action_plan: '', assigned_user_id: '', photo_urls: [] }), ...updates }
+        [questionId]: { ...(prev[questionId] || { value: '', note: '', action_plan: '', assigned_user_id: '', photo_urls: [], action_plan_due_date: '' }), ...updates }
       };
-      debouncedSave(questionId, newState[questionId]);
+      scheduleSave(questionId, newState[questionId]);
       return newState;
     });
   };
@@ -377,8 +477,8 @@ export const ChecklistPlayer = () => {
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4 min-h-screen bg-[#0a0a0a] pt-10">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate(`/${companySlug}/checklists`)} className="text-zinc-500 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px]">
-          <ChevronLeft size={14} className="mr-1" /> Sair
+        <Button variant="ghost" onClick={() => navigate(`/${companySlug}/checklists`)} className="text-zinc-500 hover:text-white hover:bg-red-500/10 hover:text-red-500 font-bold uppercase tracking-widest text-[10px] transition-colors">
+          <X size={14} className="mr-1" /> Sair
         </Button>
         {lastSaved && <span className="text-[8px] text-[var(--c-primary)] border border-[var(--c-primary)]/20 font-black bg-[var(--c-primary)]/10 px-3 py-1 rounded-full uppercase tracking-widest">SALVO</span>}
       </div>
@@ -406,6 +506,7 @@ export const ChecklistPlayer = () => {
             handleNoteChange={(id, note) => updateStateAndSave(id, { note })}
             handleActionPlanChange={(id, action_plan) => updateStateAndSave(id, { action_plan })}
             handleAssignmentChange={(id, assigned_user_id) => updateStateAndSave(id, { assigned_user_id })}
+            handleDueDateChange={(id, action_plan_due_date) => updateStateAndSave(id, { action_plan_due_date })}
             handlePhotoUpload={(id, url) => {
               const photos = localAnswers[id]?.photo_urls || [];
               updateStateAndSave(id, { photo_urls: [...photos, url] });
