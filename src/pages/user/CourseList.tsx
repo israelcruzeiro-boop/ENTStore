@@ -1,22 +1,28 @@
 import { useParams, Link } from 'react-router-dom';
-import { useCourses } from '../../hooks/useSupabaseData';
+import { useCourses, useOrgStructure } from '../../hooks/useSupabaseData';
+import { checkCourseAccess } from '../../lib/permissions';
+import { useAuth } from '../../contexts/AuthContext';
 import { BookOpen, Loader2, Search } from 'lucide-react';
 import { useTenant } from '../../contexts/TenantContext';
 import { CourseCard } from '../../components/user/CourseCard';
 import { useState } from 'react';
 
 export const UserCourseList = () => {
+  const { user } = useAuth();
   const { companySlug } = useParams();
   const { tenantCompany } = useTenant();
-  const { courses, isLoading } = useCourses(tenantCompany?.id);
+  const { courses, isLoading: coursesLoading } = useCourses(tenantCompany?.id);
+  const { orgUnits, orgTopLevels, isLoading: orgLoading } = useOrgStructure(tenantCompany?.id);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredCourses = courses.filter(course => 
+  const availableCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
+
+  const filteredCourses = availableCourses.filter(course => 
     course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     course.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (isLoading) {
+  if (coursesLoading || orgLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
         <Loader2 className="animate-spin text-[var(--c-primary)]" size={40} />

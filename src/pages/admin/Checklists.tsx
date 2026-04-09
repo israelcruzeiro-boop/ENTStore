@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useChecklists, checklistActions } from '../../hooks/useChecklists';
+import { useChecklists, checklistActions, useChecklistFolders } from '../../hooks/useChecklists';
 import {
   Plus,
   Search,
@@ -17,7 +17,12 @@ import {
   TrendingUp,
   ArrowRight,
   FolderPlus,
-  FolderOpen
+  FolderOpen,
+  Clock,
+  FolderMinus,
+  Pencil,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAllSubmissions } from '../../hooks/useChecklists';
 import { format } from 'date-fns';
@@ -64,10 +69,25 @@ export const AdminChecklists = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('templates');
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+
+  const foldersWithChecklists = folders.map(f => ({
+      ...f,
+      checklists: checklists.filter(c => c.folder_id === f.id)
+  }));
+  const unassigned = checklists.filter(c => !c.folder_id);
+  if (unassigned.length > 0) {
+      foldersWithChecklists.push({ id: 'unassigned', name: 'Avulsos (Sem Pasta)', checklists: unassigned } as any);
+  }
+
+  const viewingChecklists = activeFolderId === null 
+    ? [] 
+    : checklists.filter(c => activeFolderId === 'unassigned' ? !c.folder_id : c.folder_id === activeFolderId);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Checklist>>({
@@ -143,19 +163,45 @@ export const AdminChecklists = () => {
     }
   };
 
-  const handleCreateFolder = async () => {
+  const handleSaveFolder = async () => {
     if (!folderName.trim()) return;
     setIsSubmitting(true);
     try {
-      await checklistActions.createFolder({ company_id: company?.id, name: folderName });
-      toast.success('Pasta criada com sucesso!');
+      if (editingFolderId) {
+        await checklistActions.updateFolder(editingFolderId, { name: folderName });
+        toast.success('Pasta atualizada com sucesso!');
+      } else {
+        await checklistActions.createFolder({ company_id: company?.id, name: folderName });
+        toast.success('Pasta criada com sucesso!');
+      }
       setFolderName('');
+      setEditingFolderId(null);
       setIsFolderModalOpen(false);
       mutateFolders();
     } catch (err: unknown) {
-      if (err instanceof Error) toast.error('Erro ao criar pasta: ' + err.message);
+      if (err instanceof Error) toast.error('Erro ao salvar pasta: ' + err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const openEditFolder = (folder: any) => {
+    setEditingFolderId(folder.id);
+    setFolderName(folder.name);
+    setIsFolderModalOpen(true);
+  };
+
+  const handleDeleteFolder = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('Tem certeza que deseja excluir esta pasta? Modelos internos ficarão sem pasta associada.')) return;
+    try {
+      await checklistActions.deleteFolder(id);
+      toast.success('Pasta excluída com sucesso!');
+      if (activeFolderId === id) setActiveFolderId(null);
+      mutateFolders();
+      mutate();
+    } catch (err: unknown) {
+      if (err instanceof Error) toast.error('Erro ao excluir: ' + err.message);
     }
   };
 
@@ -370,7 +416,11 @@ export const AdminChecklists = () => {
           </Button>
           <Button
             variant="outline"
-            onClick={() => setIsFolderModalOpen(true)}
+            onClick={() => {
+              setEditingFolderId(null);
+              setFolderName('');
+              setIsFolderModalOpen(true);
+            }}
             className="bg-white border-blue-200 text-blue-700 font-black px-6 h-14 rounded-2xl shadow-sm hover:bg-blue-50 transition-all"
           >
             <FolderPlus size={20} className="mr-2" /> Nova Pasta
@@ -438,48 +488,114 @@ export const AdminChecklists = () => {
              </Button>
            </div>
            
-           {/* Grid de Modelos (Checklists) */}
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-             {checklists.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
-                <div key={item.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden">
-                   <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                         <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${item.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                            {item.status === 'ACTIVE' ? 'Ativo' : 'Rascunho'}
-                         </div>
-                         <div className="flex gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button variant="ghost" size="icon" onClick={() => openSettings(item)} className="h-9 w-9 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl">
-                               <Settings size={18} />
+           {activeFolderId === null ? (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {foldersWithChecklists.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase())).map(folder => (
+                  <div 
+                    key={folder.id} 
+                    className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden p-6 relative"
+                    onClick={() => setActiveFolderId(folder.id)}
+                  >
+                     <div className="flex justify-between items-start mb-6 relative">
+                       <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                          <FolderOpen size={28} />
+                       </div>
+                       {folder.id !== 'unassigned' && (
+                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEditFolder(folder); }} className="h-9 w-9 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl">
+                               <Pencil size={18} />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-9 w-9 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl">
+                            <Button variant="ghost" size="icon" onClick={(e) => handleDeleteFolder(folder.id, e)} className="h-9 w-9 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl">
                                <Trash2 size={18} />
                             </Button>
                          </div>
-                      </div>
-                      <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2">{item.title}</h3>
-                      
-                      {item.folder_id && (
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-black uppercase tracking-widest mb-3">
-                            <FolderOpen size={10} />
-                            {folders.find(f => f.id === item.folder_id)?.name || 'Pasta Específica'}
-                          </div>
                        )}
+                     </div>
+                     <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2 pr-4">{folder.name}</h3>
+                     <p className="text-xs font-bold text-slate-500 bg-slate-50 py-1.5 px-3 rounded-full inline-flex items-center gap-2">
+                       <ClipboardCheck size={14} /> {folder.checklists.length} checklist(s)
+                     </p>
+                     
+                     <ChevronRight className="absolute right-6 bottom-6 text-slate-300 group-hover:text-blue-600 transition-transform group-hover:translate-x-1" size={20} />
+                  </div>
+                ))}
+             </div>
+           ) : (
+             <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+               <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+                 <Button variant="ghost" onClick={() => setActiveFolderId(null)} className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 font-bold uppercase tracking-widest text-[10px] rounded-xl px-3 py-2 h-auto">
+                   <ChevronLeft size={16} className="mr-1" /> Voltar para Pastas
+                 </Button>
+                 <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2">
+                   <FolderOpen className="text-blue-600" size={28} /> 
+                   {foldersWithChecklists.find(f => f.id === activeFolderId)?.name}
+                 </h2>
+               </div>
 
-                      <p className="text-sm font-medium text-slate-500 line-clamp-2 mb-6">{item.description || 'Sem descrição definida.'}</p>
-                      
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                         <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                            <span className="flex items-center gap-1.5"><ClipboardCheck size={14} className="text-blue-500" /> Modelagem</span>
-                            <span className="flex items-center gap-1.5"><Users size={14} className="text-slate-500" /> {item.access_type === 'RESTRICTED' ? 'Restrito' : 'Público'}</span>
-                         </div>
-                         <Button variant="ghost" size="sm" className="text-blue-600 font-black hover:bg-blue-50 rounded-xl uppercase text-[10px] tracking-widest" onClick={() => navigate(`/admin/${companySlug}/checklists/${item.id}/builder`)}>
-                            Editar Builder
-                         </Button>
-                      </div>
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                 {viewingChecklists.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase())).map(item => (
+                    <div key={item.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden">
+                       <div className="p-6">
+                          <div className="flex justify-between items-start mb-4">
+                             <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${item.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                {item.status === 'ACTIVE' ? 'Ativo' : 'Rascunho'}
+                             </div>
+                             <div className="flex gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" onClick={() => openSettings(item)} className="h-9 w-9 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl">
+                                   <Settings size={18} />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-9 w-9 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl">
+                                   <Trash2 size={18} />
+                                </Button>
+                             </div>
+                          </div>
+                          <h3 className="text-xl font-black text-slate-900 group-hover:text-blue-600 transition-colors mb-2 pr-2">{item.title}</h3>
+                          
+                          <p className="text-sm font-medium text-slate-500 line-clamp-2 mb-6">{item.description || 'Sem descrição definida.'}</p>
+                          
+                          <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                             <div className="flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                                <span className="flex items-center gap-1.5"><ClipboardCheck size={14} className="text-blue-500" /> Modelagem</span>
+                                <span className="flex items-center gap-1.5"><Users size={14} className="text-slate-500" /> {item.access_type === 'RESTRICTED' ? 'Restrito' : 'Público'}</span>
+                             </div>
+                             <Button variant="ghost" size="sm" className="text-blue-600 font-black hover:bg-blue-50 rounded-xl uppercase text-[10px] tracking-widest" onClick={() => navigate(`/admin/${companySlug}/checklists/${item.id}/builder`)}>
+                                Editar Builder
+                             </Button>
+                          </div>
+                       </div>
+                    </div>
+                 ))}
+                 
+                 {viewingChecklists.length === 0 && (
+                   <div className="col-span-full py-12 text-center bg-slate-50 border border-dashed border-slate-200 rounded-3xl">
+                     <FolderOpen className="text-slate-300 mx-auto mb-3" size={48} />
+                     <p className="text-slate-500 font-bold">Nenhum checklist nesta pasta.</p>
+                     <Button 
+                       variant="link" 
+                       className="text-blue-600 mt-2 font-black text-xs uppercase tracking-widest"
+                       onClick={() => {
+                         setEditingId(null);
+                         setFormData({
+                           title: '',
+                           description: '',
+                           status: 'DRAFT',
+                           access_type: 'ALL',
+                           folder_id: activeFolderId === 'unassigned' ? undefined : activeFolderId,
+                           allowed_region_ids: [],
+                           allowed_store_ids: [],
+                           allowed_user_ids: [],
+                           excluded_user_ids: []
+                         });
+                         setIsModalOpen(true);
+                       }}
+                     >
+                       Adicionar Checklist Aqui
+                     </Button>
                    </div>
-                </div>
-             ))}
-           </div>
+                 )}
+               </div>
+             </div>
+           )}
         </TabsContent>
 
         <TabsContent value="history" className="animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -492,10 +608,10 @@ export const AdminChecklists = () => {
         <DialogContent className="max-w-md bg-white p-6 rounded-3xl border-none shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <FolderPlus className="text-blue-500" /> Nova Pasta
+              <FolderPlus className="text-blue-500" /> {editingFolderId ? "Editar Pasta" : "Nova Pasta"}
             </DialogTitle>
             <DialogDescription className="text-slate-500">
-              Crie uma pasta para organizar seus checklists e agrupar auditorias logicamente.
+              {editingFolderId ? "Atualize o nome da pasta de checklists." : "Crie uma pasta para organizar seus checklists e agrupar auditorias logicamente."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -511,8 +627,8 @@ export const AdminChecklists = () => {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsFolderModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateFolder} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-6">
-              {isSubmitting ? 'Salvando...' : 'Criar Pasta'}
+            <Button onClick={handleSaveFolder} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-10 px-6">
+              {isSubmitting ? 'Salvando...' : editingFolderId ? 'Salvar Edição' : 'Criar Pasta'}
             </Button>
           </DialogFooter>
         </DialogContent>

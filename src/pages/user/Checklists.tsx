@@ -97,42 +97,48 @@ export const UserChecklists = () => {
     : [];
 
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 max-w-[1600px] mx-auto min-h-screen">
-      <div className="flex items-center gap-4 mb-4">
-        <ClipboardCheck size={36} className="text-[var(--c-primary)] drop-shadow-md" />
-        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Meus Checklists</h1>
+    <div className="pt-24 pb-12 px-4 md:px-12 max-w-[1600px] mx-auto min-h-screen bg-[#0a0a0a]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div className="flex items-center gap-4">
+          <ClipboardCheck size={36} className="text-[var(--c-primary)] drop-shadow-md" />
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Meus Checklists</h1>
+        </div>
+        
+        {/* Busca Compacta no Topo */}
+        <div className="relative w-full md:w-72 group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-[var(--c-primary)] transition-colors" size={18} />
+          <Input 
+            placeholder="Buscar..." 
+            className="bg-white/5 border-white/10 pl-10 h-10 text-sm rounded-xl focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] text-white placeholder-zinc-500 transition-all font-medium"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
-      
-      <p className="text-zinc-400 mb-10 max-w-3xl text-lg md:text-xl font-medium leading-relaxed">
-        Listas de verificação, auditorias e formulários de conformidade para manter a excelência operacional.
-      </p>
 
       {foldersWithChecklists.length > 0 ? (
         activeFolderId === null ? (
           // --- VISAO DE PASTAS ---
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-black text-white mb-6 flex items-center gap-2"><FolderOpen className="text-blue-500" /> Categorias</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {foldersWithChecklists.map(folder => (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+              {foldersWithChecklists
+                .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map(folder => (
                 <div 
                   key={folder.id}
                   onClick={() => setActiveFolderId(folder.id)}
-                  className="group relative bg-gradient-to-br from-zinc-900 to-black border border-white/10 rounded-3xl p-8 hover:border-[var(--c-primary)]/50 transition-all duration-300 cursor-pointer overflow-hidden shadow-2xl hover:-translate-y-1"
+                  className="group relative bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] border-t border-white/10 rounded-[2rem] p-6 hover:border-[var(--c-primary)]/40 transition-all duration-300 cursor-pointer shadow-2xl hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
                 >
-                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-30 transition-opacity">
-                    <Folder size={120} />
-                  </div>
-                  <div className="relative z-10 flex items-center justify-between">
-                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-[var(--c-primary)]/10 transition-colors">
-                           <FolderOpen size={30} className="text-zinc-400 group-hover:text-[var(--c-primary)] transition-colors" />
-                        </div>
-                        <div>
-                          <h3 className="text-2xl font-black text-white mb-1 group-hover:text-[var(--c-primary)] transition-colors">{folder.name}</h3>
-                          <p className="text-sm font-bold text-zinc-500">{folder.checklists.length} checklist(s)</p>
-                        </div>
+                  <div className="flex flex-col items-center text-center gap-4">
+                     {/* Pasta 3D Icon */}
+                     <div className="text-6xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500">
+                        🗂️
                      </div>
-                     <ChevronRight className="text-zinc-600 group-hover:text-[var(--c-primary)] transition-transform group-hover:translate-x-2" />
+                     <div>
+                       <h3 className="text-xl font-black text-white mb-1 group-hover:text-[var(--c-primary)] transition-colors">{folder.name}</h3>
+                       <p className="text-xs font-bold text-zinc-500 bg-white/5 py-1 px-3 rounded-full inline-block mt-1">{folder.checklists.length} checklist(s)</p>
+                     </div>
                   </div>
                 </div>
               ))}
@@ -141,72 +147,43 @@ export const UserChecklists = () => {
         ) : (
           // --- VISAO INTERNA DA PASTA ---
           <div className="animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex flex-col gap-2">
-                <Button variant="ghost" onClick={() => setActiveFolderId(null)} className="w-fit text-zinc-400 hover:text-white px-0 font-bold hover:bg-transparent tracking-widest text-[10px] uppercase">
-                  <ChevronLeft size={14} className="mr-1" /> Voltar para Pastas
-                </Button>
-                <h2 className="text-3xl font-black text-white flex items-center gap-3">
-                  <FolderOpen className="text-[var(--c-primary)]" /> 
-                  {foldersWithChecklists.find(f => f.id === activeFolderId)?.name}
-                </h2>
-              </div>
-              <div className="relative max-w-sm w-full group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-[var(--c-primary)] transition-colors" size={20} />
-                <Input 
-                  placeholder="Buscar..." 
-                  className="bg-white/5 border-white/10 pl-12 h-12 text-md rounded-xl focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] transition-all"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+            <div className="flex flex-col gap-4 mb-8">
+              <Button variant="ghost" onClick={() => setActiveFolderId(null)} className="w-fit text-zinc-400 hover:text-white px-0 font-bold hover:bg-transparent tracking-widest text-[10px] uppercase">
+                <ChevronLeft size={14} className="mr-1" /> Voltar para Pastas
+              </Button>
+              <h2 className="text-3xl font-black text-white flex items-center gap-3">
+                <span className="text-4xl drop-shadow-md">🗂️</span> 
+                {foldersWithChecklists.find(f => f.id === activeFolderId)?.name}
+              </h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {viewingChecklists
                 .filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map(checklist => (
                   <div 
                     key={checklist.id}
-                    className="group relative bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 hover:border-[var(--c-primary)]/50 hover:bg-white/[0.02] transition-all duration-500 cursor-pointer overflow-hidden shadow-xl"
+                    className="group flex flex-col md:flex-row md:items-center justify-between bg-[#141414] border border-white/5 rounded-2xl p-4 hover:border-[var(--c-primary)]/40 hover:bg-white/[0.02] transition-all duration-300 cursor-pointer shadow-lg hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:-translate-y-1"
                     onClick={() => handleStart(checklist.id)}
                   >
-                    <div className="absolute top-0 right-0 -mr-12 -mt-12 w-32 h-32 bg-[var(--c-primary)] opacity-[0.03] rounded-full blur-3xl pointer-events-none transition-opacity group-hover:opacity-10"></div>
-                    
-                    <div className="relative z-10 flex flex-col h-full">
-                       <div className="flex justify-between items-start mb-6">
-                         <div className="w-12 h-12 rounded-xl bg-white/5 text-zinc-500 flex items-center justify-center group-hover:bg-[var(--c-primary)] group-hover:text-white transition-all duration-500 shadow-inner">
-                            <LayoutGrid size={24} />
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 shrink-0 rounded-xl bg-[var(--c-primary)]/10 flex items-center justify-center text-[var(--c-primary)] shadow-inner group-hover:scale-110 transition-transform">
+                          <ClipboardCheck size={24} />
+                       </div>
+                       <div className="flex-1">
+                         <h3 className="text-lg font-black text-white group-hover:text-[var(--c-primary)] transition-colors leading-tight">
+                           {checklist.title}
+                         </h3>
+                         <div className="flex items-center gap-2 mt-1">
+                            {userSubmissions.some(s => s.checklist_id === checklist.id) ? (
+                              <span className="text-[10px] font-black uppercase tracking-widest text-[#FFF] bg-[var(--c-primary)]/40 px-2 py-0.5 rounded">Em Andamento</span>
+                            ) : (
+                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1"><Clock size={10}/> Ativo</span>
+                            )}
                          </div>
                        </div>
-
-                       <h3 className="text-xl font-black text-white mb-3 group-hover:text-[var(--c-primary)] transition-colors leading-tight">
-                         {checklist.title}
-                       </h3>
-                       
-                       <p className="text-zinc-500 text-sm mb-8 line-clamp-2 font-medium">
-                         {checklist.description || 'Auditoria oficial.'}
-                       </p>
-
-                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
-                           <div className="flex flex-col gap-1">
-                              {userSubmissions.some(s => s.checklist_id === checklist.id) ? (
-                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#FFF] bg-[var(--c-primary)]/20 px-2 py-1 rounded">
-                                   <Pencil size={12} />
-                                   <span>Em Andamento</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                                   <Clock size={12} />
-                                   <span>Módulo Ativo</span>
-                                </div>
-                              )}
-                           </div>
-                           <div className="flex items-center gap-1 text-[var(--c-primary)] font-black text-sm group-hover:translate-x-1 transition-transform">
-                              {userSubmissions.some(s => s.checklist_id === checklist.id) ? 'Continuar' : 'Iniciar'} <ChevronRight size={16} />
-                           </div>
-                        </div>
                     </div>
+                    <ChevronRight className="hidden md:block text-zinc-600 group-hover:text-[var(--c-primary)] transition-transform group-hover:translate-x-1 shrink-0" />
                   </div>
                 ))}
             </div>

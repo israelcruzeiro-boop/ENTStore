@@ -4,6 +4,9 @@ import { useTenant } from '../contexts/TenantContext';
 import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
+import { useOrgStructure, useRepositories, useCourses } from '../hooks/useSupabaseData';
+import { useChecklists } from '../hooks/useChecklists';
+import { checkRepoAccess, checkCourseAccess } from '../lib/permissions';
 
 export const UserLayout = () => {
   const { user, company, logout } = useAuth();
@@ -11,6 +14,33 @@ export const UserLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+
+  const { orgUnits, orgTopLevels } = useOrgStructure(company?.id);
+  const { repositories } = useRepositories(company?.id);
+  const { courses } = useCourses(company?.id);
+  const { checklists } = useChecklists(company?.id);
+
+  const availableRepos = repositories.filter(r => r.status === 'ACTIVE' && checkRepoAccess(r, user, orgUnits, orgTopLevels));
+  const hasLibraries = availableRepos.some(r => r.type === 'SIMPLE');
+  const hasHubs = availableRepos.some(r => r.type === 'FULL' || r.type === 'PLAYLIST' || r.type === 'VIDEO_PLAYLIST' || !r.type);
+  
+  const availableCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
+  const hasCourses = availableCourses.length > 0;
+
+  const availableChecklists = checklists.filter(c => {
+    if (c.status !== 'ACTIVE') return false;
+    if (user?.role !== 'USER') return true;
+    if (user?.id && c.excluded_user_ids?.includes(user.id)) return false;
+    if (c.access_type === 'ALL') return true;
+    if (c.access_type === 'RESTRICTED') {
+      const isUserAllowed = user?.id && c.allowed_user_ids?.includes(user.id);
+      const isUnitAllowed = user?.org_unit_id && c.allowed_store_ids?.includes(user.org_unit_id);
+      const isRegionAllowed = user?.org_top_level_id && c.allowed_region_ids?.includes(user.org_top_level_id);
+      return isUserAllowed || isUnitAllowed || isRegionAllowed;
+    }
+    return false;
+  });
+  const hasChecklists = company?.checklists_enabled && availableChecklists.length > 0;
 
   const handleLogout = async () => {
     await logout();
@@ -56,10 +86,16 @@ export const UserLayout = () => {
           </Link>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
             <Link to={`${basePath}/home`} className={`transition-colors hover:text-white ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>
-            <Link to={`${basePath}/cursos`} className={`transition-colors hover:text-white ${isActive('/cursos') ? 'text-white font-bold' : ''}`}>Cursos</Link>
-            <Link to={`${basePath}/biblioteca`} className={`transition-colors hover:text-white ${isActive('/biblioteca') ? 'text-white font-bold' : ''}`}>Biblioteca</Link>
-            <Link to={`${basePath}/hub`} className={`transition-colors hover:text-white ${isActive('/hub') ? 'text-white font-bold' : ''}`}>Hub</Link>
-            {company?.checklists_enabled && (
+            {hasCourses && (
+              <Link to={`${basePath}/cursos`} className={`transition-colors hover:text-white ${isActive('/cursos') ? 'text-white font-bold' : ''}`}>Cursos</Link>
+            )}
+            {hasLibraries && (
+              <Link to={`${basePath}/biblioteca`} className={`transition-colors hover:text-white ${isActive('/biblioteca') ? 'text-white font-bold' : ''}`}>Biblioteca</Link>
+            )}
+            {hasHubs && (
+              <Link to={`${basePath}/hub`} className={`transition-colors hover:text-white ${isActive('/hub') ? 'text-white font-bold' : ''}`}>Hub</Link>
+            )}
+            {hasChecklists && (
               <Link to={`${basePath}/checklists`} className={`transition-colors hover:text-white ${isActive('/checklists') ? 'text-white font-bold' : ''}`}>Checklists</Link>
             )}
           </nav>
@@ -94,19 +130,25 @@ export const UserLayout = () => {
             <Home size={22} />
             <span className="text-[10px] font-medium">Home</span>
          </Link>
-         <Link to={`${basePath}/cursos`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/cursos') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            <BookOpen size={22} />
-            <span className="text-[10px] font-medium">Cursos</span>
-         </Link>
-         <Link to={`${basePath}/biblioteca`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/biblioteca') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            <Library size={22} />
-            <span className="text-[10px] font-medium">Biblioteca</span>
-         </Link>
-         <Link to={`${basePath}/hub`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/hub') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            <MonitorPlay size={22} />
-            <span className="text-[10px] font-medium">Hub</span>
-         </Link>
-         {company?.checklists_enabled && (
+         {hasCourses && (
+           <Link to={`${basePath}/cursos`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/cursos') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+              <BookOpen size={22} />
+              <span className="text-[10px] font-medium">Cursos</span>
+           </Link>
+         )}
+         {hasLibraries && (
+           <Link to={`${basePath}/biblioteca`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/biblioteca') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+              <Library size={22} />
+              <span className="text-[10px] font-medium">Biblioteca</span>
+           </Link>
+         )}
+         {hasHubs && (
+           <Link to={`${basePath}/hub`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/hub') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+              <MonitorPlay size={22} />
+              <span className="text-[10px] font-medium">Hub</span>
+           </Link>
+         )}
+         {hasChecklists && (
            <Link to={`${basePath}/checklists`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors ${isActive('/checklists') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
               <ClipboardCheck size={22} />
               <span className="text-[10px] font-medium">Checklist</span>

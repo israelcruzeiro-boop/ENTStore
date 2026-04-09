@@ -27,7 +27,7 @@ import {
 import { Checklist, ChecklistSection, ChecklistQuestion } from '../../types';
 
 export const ChecklistBuilder = () => {
-  const { checklistId, link_name } = useParams();
+  const { checklistId, companySlug } = useParams();
   const navigate = useNavigate();
   const { company } = useAuth();
   
@@ -191,16 +191,6 @@ export const ChecklistBuilder = () => {
 
         <div className="flex items-center gap-3">
           <Button 
-            variant="outline" 
-            className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
-            onClick={() => {
-               toast.info('Use o menu principal para editar configurações globais.');
-               navigate(`/admin/${companySlug}/checklists`);
-            }}
-          >
-            <Settings2 size={18} className="mr-2" /> Configurações
-          </Button>
-          <Button 
             onClick={() => {
               toast.success('Estrutura do Builder salva com sucesso!');
               navigate(`/admin/${companySlug}/checklists`);
@@ -309,6 +299,20 @@ export const ChecklistBuilder = () => {
             >
               <Plus size={18} className="mr-2" /> Criar Nova Fase / Sub-tema
             </Button>
+          )}
+
+          {sections.length > 0 && (
+            <div className="pt-8 mt-8 border-t border-slate-200 flex justify-end">
+              <Button 
+                onClick={() => {
+                  toast.success('Estrutura do Builder salva com sucesso!');
+                  navigate(`/admin/${companySlug}/checklists`);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 font-bold px-12 shadow-lg shadow-blue-500/20 text-white border-none h-14 rounded-2xl w-full md:w-auto text-lg"
+              >
+                <Save size={20} className="mr-2" /> Finalizar Editor
+              </Button>
+            </div>
           )}
         </div>
       </main>

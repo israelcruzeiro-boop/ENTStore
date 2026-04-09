@@ -156,16 +156,33 @@ const QuestionRender = ({
   };
 
   return (
-    <div className={`p-4 transition-all duration-300 ${isSelected('CHECKED') || isSelected('C') || isSelected('NA') || (answer.value && q.type !== 'CHECK' && q.type !== 'COMPLIANCE') ? 'bg-blue-50/30' : 'bg-transparent'}`}>
-      <div className="flex flex-col gap-4">
-        <div>
-          <h3 className="text-sm md:text-base font-black text-slate-900 leading-tight">
+    <div className={`p-4 transition-all duration-300 ${isSelected('CHECKED') || isSelected('C') || isSelected('NA') || (answer.value && q.type !== 'CHECK' && q.type !== 'COMPLIANCE') ? 'bg-white/5' : 'bg-transparent'}`}>
+      <div className={`flex ${q.type === 'CHECK' ? 'flex-row items-center gap-4' : 'flex-col gap-4'}`}>
+        
+        {q.type === 'CHECK' && (
+          <button
+            onClick={() => handleAnswerChange(q.id, isSelected('CHECKED') ? '' : 'CHECKED')}
+            className={`relative flex-shrink-0 w-8 h-8 rounded-lg border-2 transition-all duration-300 flex items-center justify-center ${
+              isSelected('CHECKED')
+                ? 'border-[var(--c-primary)] bg-[var(--c-primary)]/10 shadow-[0_0_15px_var(--c-primary)]'
+                : 'border-red-500 bg-transparent'
+            }`}
+          >
+            <div className={`absolute -right-3 -top-3 w-10 h-10 flex items-center justify-center transition-all duration-300 ${isSelected('CHECKED') ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}`}>
+               <Check size={36} strokeWidth={4} className="text-[var(--c-primary)] drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
+            </div>
+          </button>
+        )}
+
+        <div className={q.type === 'CHECK' ? 'flex-1' : ''}>
+          <h3 className={`text-sm md:text-base font-black leading-tight transition-colors ${isSelected('CHECKED') ? 'text-zinc-500 line-through' : 'text-white'}`}>
             {q.text} {q.required && <span className="text-red-500">*</span>}
           </h3>
-          {q.description && <p className="text-xs font-semibold text-slate-500 mt-1">{q.description}</p>}
+          {q.description && <p className="text-xs font-semibold text-zinc-500 mt-1">{q.description}</p>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {q.type !== 'CHECK' && (
+          <div className="flex flex-wrap items-center gap-3">
           {q.type === 'COMPLIANCE' && (
             <div className="flex gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
               {[
@@ -198,7 +215,7 @@ const QuestionRender = ({
           {q.type === 'TEXT' && (
             <Input 
               placeholder="Descreva..."
-              className="bg-slate-50 h-9 w-full md:w-80 text-xs"
+              className="bg-white/5 border-white/10 text-white h-10 w-full md:w-80 text-xs placeholder:text-zinc-600 focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)]"
               value={answer.value || ''}
               onChange={(e) => handleAnswerChange(q.id, e.target.value)}
             />
@@ -207,7 +224,7 @@ const QuestionRender = ({
           {q.type === 'NUMBER' && (
             <Input 
               type="number"
-              className="bg-slate-50 h-9 w-24 text-center text-xs"
+              className="bg-white/5 border-white/10 text-white h-10 w-24 text-center text-xs placeholder:text-zinc-600 focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)]"
               value={answer.value || ''}
               onChange={(e) => handleAnswerChange(q.id, e.target.value)}
             />
@@ -216,38 +233,23 @@ const QuestionRender = ({
           {(q.type === 'DATE' || q.type === 'TIME') && (
             <Input 
               type={q.type === 'DATE' ? 'date' : 'time'}
-              className="bg-slate-50 h-9 w-full md:w-44 text-xs"
+              className="bg-white/5 border-white/10 text-white h-10 w-full md:w-44 text-xs focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)] [&::-webkit-calendar-picker-indicator]:invert"
               value={answer.value || ''}
               onChange={(e) => handleAnswerChange(q.id, e.target.value)}
             />
           )}
 
-          {q.type === 'CHECK' && (
-            <button
-              onClick={() => handleAnswerChange(q.id, isSelected('CHECKED') ? '' : 'CHECKED')}
-              className={`w-full md:w-auto min-w-[200px] h-14 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 border-2 font-black uppercase tracking-widest ${
-                isSelected('CHECKED') 
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-[1.02]' 
-                  : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-blue-300 hover:text-blue-500 hover:bg-white'
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isSelected('CHECKED') ? 'bg-white text-blue-600' : 'bg-slate-200 text-slate-400'}`}>
-                <Check size={20} strokeWidth={isSelected('CHECKED') ? 4 : 3} />
-              </div>
-              {isSelected('CHECKED') ? 'Concluído' : 'Marcar como Feito'}
-            </button>
-          )}
-
           {canShowPhotos && (
             <div className="ml-auto">
               <input type="file" accept="image/*" onChange={onFileSelect} className="hidden" id={`upload-${q.id}`} disabled={isUploading} />
-              <label htmlFor={`upload-${q.id}`} className="bg-white border border-slate-200 text-[9px] font-bold p-2 rounded-lg cursor-pointer flex items-center gap-2">
+              <label htmlFor={`upload-${q.id}`} className="bg-white/5 border border-white/10 text-white text-[9px] font-bold p-2 rounded-lg cursor-pointer flex items-center gap-2 hover:bg-white/10 transition-colors">
                 {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={14} />}
                 {answer.photo_urls.length > 0 ? `${answer.photo_urls.length}/3` : 'Fotos'}
               </label>
             </div>
           )}
         </div>
+        )}
 
         {answer.photo_urls.length > 0 && (
           <div className="flex gap-2">
@@ -263,10 +265,10 @@ const QuestionRender = ({
         )}
 
         {hasNotes && (
-          <div className="space-y-3 mt-2">
+          <div className={`space-y-3 mt-2 ${q.type === 'CHECK' ? 'ml-12' : ''}`}>
             <Input 
               placeholder="Observações..."
-              className="bg-slate-50 h-9 text-[10px]"
+              className="bg-white/5 border-white/10 text-white placeholder-zinc-500 h-9 text-[10px] focus:border-[var(--c-primary)] focus:ring-[var(--c-primary)]"
               value={answer.note || ''}
               onChange={(e) => handleNoteChange(q.id, e.target.value)}
             />
@@ -364,7 +366,7 @@ export const ChecklistPlayer = () => {
     }
   };
 
-  if (subLoading || qLoading || sLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-blue-600" /></div>;
+  if (subLoading || qLoading || sLoading) return <div className="flex items-center justify-center h-screen bg-[#0a0a0a]"><Loader2 className="animate-spin text-[var(--c-primary)]" /></div>;
 
   const totalPages = sections.length + (questions.filter(q => !q.section_id).length > 0 ? 1 : 0);
   const hasGeral = questions.filter(q => !q.section_id).length > 0;
@@ -373,26 +375,30 @@ export const ChecklistPlayer = () => {
     : questions.filter(q => q.section_id === sections[hasGeral ? currentPage - 1 : currentPage]?.id);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-4 min-h-screen bg-slate-50/50 pt-10">
+    <div className="max-w-4xl mx-auto p-4 space-y-4 min-h-screen bg-[#0a0a0a] pt-10">
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={() => navigate(`/${companySlug}/checklists`)} className="text-slate-400 text-[10px]">
-          <ChevronLeft size={14} /> Sair
+        <Button variant="ghost" onClick={() => navigate(`/${companySlug}/checklists`)} className="text-zinc-500 hover:text-white hover:bg-white/5 font-bold uppercase tracking-widest text-[10px]">
+          <ChevronLeft size={14} className="mr-1" /> Sair
         </Button>
-        {lastSaved && <span className="text-[8px] text-emerald-600 font-bold bg-emerald-50 px-2 rounded-full">SALVO</span>}
+        {lastSaved && <span className="text-[8px] text-[var(--c-primary)] border border-[var(--c-primary)]/20 font-black bg-[var(--c-primary)]/10 px-3 py-1 rounded-full uppercase tracking-widest">SALVO</span>}
       </div>
 
-      <div className="bg-white border rounded-xl p-4 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white"><CheckCircle2 /></div>
-          <h1 className="text-lg font-black">{hasGeral && currentPage === 0 ? 'Geral' : sections[hasGeral ? currentPage - 1 : currentPage]?.title}</h1>
+      <div className="bg-[#141414] border border-white/5 rounded-2xl p-5 flex items-center justify-between shadow-2xl">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-[var(--c-primary)]/10 border border-[var(--c-primary)]/20 rounded-xl flex items-center justify-center text-[var(--c-primary)]">
+             <CheckCircle2 size={24} />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Etapa Atual</span>
+            <h1 className="text-xl font-black text-white">{hasGeral && currentPage === 0 ? 'Geral' : sections[hasGeral ? currentPage - 1 : currentPage]?.title}</h1>
+          </div>
         </div>
         <div className="text-right">
-          <span className="text-[10px] text-slate-400 block font-bold">Etapa</span>
-          <span className="text-xl font-black">{currentPage + 1}/{totalPages}</span>
+          <span className="text-2xl font-black text-white">{currentPage + 1}<span className="text-zinc-600 text-lg">/{totalPages}</span></span>
         </div>
       </div>
 
-      <div className="bg-white border rounded-2xl shadow-sm overflow-hidden mb-6 divide-y divide-slate-100">
+      <div className="bg-[#141414] border border-white/5 rounded-3xl shadow-2xl overflow-hidden mb-6 divide-y divide-white/5">
         {activeQuestions.map(q => (
           <QuestionRender 
             key={q.id} q={q} localAnswers={localAnswers} currentUserId={currentUser?.id || ''} users={users}
@@ -412,13 +418,13 @@ export const ChecklistPlayer = () => {
         ))}
       </div>
 
-      <div className="flex gap-2">
-        <Button variant="ghost" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)} className="flex-1 border h-11 rounded-xl font-bold bg-white uppercase text-[10px]">Anterior</Button>
+      <div className="flex gap-4 pt-4">
+        <Button variant="ghost" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)} className="flex-1 bg-white/5 border border-white/5 text-white hover:bg-white/10 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Anterior</Button>
         {currentPage < totalPages - 1 ? (
-          <Button onClick={() => setCurrentPage(p => p + 1)} className="flex-1 bg-slate-900 text-white h-11 rounded-xl font-bold uppercase text-[10px]">Próxima</Button>
+          <Button onClick={() => setCurrentPage(p => p + 1)} className="flex-1 bg-white/10 text-white hover:bg-white/20 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Próxima Etapa</Button>
         ) : (
-          <Button onClick={handleFinish} disabled={isFinishing} className="flex-1 bg-blue-600 text-white h-11 rounded-xl font-bold uppercase text-[10px]">
-            {isFinishing ? <Loader2 className="animate-spin" /> : 'Finalizar'}
+          <Button onClick={handleFinish} disabled={isFinishing} className="flex-1 bg-[var(--c-primary)] text-white hover:opacity-90 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg hover:-translate-y-0.5">
+            {isFinishing ? <Loader2 className="animate-spin" /> : 'Finalizar Checklist'}
           </Button>
         )}
       </div>
