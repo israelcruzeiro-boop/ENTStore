@@ -81,13 +81,9 @@ export const UserLayout = () => {
       <header className={`fixed top-0 w-full z-50 transition-colors duration-300 ${scrolled ? 'bg-black/90 backdrop-blur-sm shadow-lg' : 'bg-gradient-to-b from-black/80 to-transparent'}`}>
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
         <div className="flex items-center gap-8">
-          <Link to={`${basePath}/home`} className="flex items-center">
-            {company?.logo_url ? (
-                <img src={company.logo_url} alt={company.name} className="h-12 md:h-16 w-auto object-contain rounded-md" />
-            ) : (
-                <img src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" alt="Store Page" className="h-10 md:h-12 w-auto" />
-            )}
-          </Link>
+          <div className="flex items-center">
+            {/* Logo removido conforme solicitado para evitar redundância visual */}
+          </div>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
             <Link to={`${basePath}/home`} className={`transition-colors hover:text-white ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>
             {hasCourses && (
