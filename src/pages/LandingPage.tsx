@@ -5,11 +5,11 @@ import {
   ChevronRight, Play, Star, ArrowRight, Sparkles, Link as LinkIcon, FileText
 } from 'lucide-react';
 
-const WHATSAPP_LINK = 'https://wa.me/5561996593376?text=Ol%C3%A1!%20Tenho%20interesse%20no%20ENTStore.%20Gostaria%20de%20saber%20mais!';
+const WHATSAPP_LINK = 'https://wa.me/5561996593376?text=Ol%C3%A1!%20Tenho%20interesse%20no%20Store%20Page.%20Gostaria%20de%20saber%20mais!';
 
 // Product images
 const IMAGES = {
-  heroShowcase: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20002.jpg',
+  heroShowcase: 'https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png',
   whatIs: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20001.jpg',
   features: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20005.jpg',
   howItWorks: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20003.jpg',
@@ -184,14 +184,14 @@ export const LandingPage = () => {
   }, []);
 
   useEffect(() => {
-    document.title = 'ENTStore — Armazenamento Inteligente de Mídias e Documentos';
+    document.title = 'Store Page — Armazenamento Inteligente de Mídias e Documentos';
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'ENTStore é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.');
+      metaDesc.setAttribute('content', 'Store Page é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.');
     } else {
       const meta = document.createElement('meta');
       meta.name = 'description';
-      meta.content = 'ENTStore é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.';
+      meta.content = 'Store Page é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.';
       document.head.appendChild(meta);
     }
 
@@ -204,12 +204,12 @@ export const LandingPage = () => {
       script.textContent = JSON.stringify({
         '@context': 'https://schema.org',
         '@type': 'SoftwareApplication',
-        name: 'ENTStore',
+        name: 'Store Page',
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web, Android, iOS',
         description: 'Plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar.',
         offers: { '@type': 'Offer', category: 'SaaS' },
-        creator: { '@type': 'Organization', name: 'ENTStore', contactPoint: { '@type': 'ContactPoint', telephone: '+55-61-99659-3376', contactType: 'sales' } },
+        creator: { '@type': 'Organization', name: 'Store Page', contactPoint: { '@type': 'ContactPoint', telephone: '+55-61-99659-3376', contactType: 'sales' } },
       });
       document.head.appendChild(script);
     }
@@ -273,8 +273,8 @@ export const LandingPage = () => {
           {/* Logo */}
           <div className="hero-animate mb-8">
             <img
-              src="/assets/logo.png"
-              alt="ENTStore"
+              src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png"
+              alt="Store Page"
               className="h-14 md:h-20 w-auto mx-auto drop-shadow-2xl"
             />
           </div>
@@ -331,7 +331,7 @@ export const LandingPage = () => {
           <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl shadow-orange-500/10">
             <img
               src={IMAGES.heroShowcase}
-              alt="ENTStore — Plataforma de armazenamento de mídias"
+              alt="Store Page — Plataforma de armazenamento de mídias"
               className="w-full h-auto object-cover"
               loading="eager"
             />
@@ -361,12 +361,12 @@ export const LandingPage = () => {
               <h2 className="text-3xl md:text-5xl font-black mb-6">
                 O que é o{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  ENTStore
+                  Store Page
                 </span>
                 ?
               </h2>
               <p className="text-zinc-400 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed mb-12">
-                O ENTStore é a <strong className="text-white">plataforma de armazenamento inteligente</strong> para
+                O Store Page é a <strong className="text-white">plataforma de armazenamento inteligente</strong> para
                 organizar todos os recursos digitais da sua empresa. Centralize links de vídeos, PDFs, documentos
                 e mídias num repositório com a cara da sua marca — acessível para a equipe,
                 de qualquer lugar.
@@ -397,7 +397,7 @@ export const LandingPage = () => {
               <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-4xl mx-auto">
                 <img
                   src={IMAGES.whatIs}
-                  alt="ENTStore — Armazene vídeos, PDFs, links e documentos corporativos"
+                  alt="Store Page — Armazene vídeos, PDFs, links e documentos corporativos"
                   className="w-full h-auto object-cover"
                   loading="lazy"
                 />
@@ -437,7 +437,7 @@ export const LandingPage = () => {
               <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-5xl mx-auto">
                 <img
                   src={IMAGES.features}
-                  alt="ENTStore — Central de armazenamento de mídias e documentos"
+                  alt="Store Page — Central de armazenamento de mídias e documentos"
                   className="w-full h-auto object-cover max-h-[400px]"
                   loading="lazy"
                 />
@@ -471,7 +471,7 @@ export const LandingPage = () => {
               <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-4xl mx-auto">
                 <img
                   src={IMAGES.howItWorks}
-                  alt="Equipe acessando conteúdos armazenados no ENTStore"
+                  alt="Equipe acessando conteúdos armazenados no Store Page"
                   className="w-full h-auto object-cover max-h-[420px]"
                   loading="lazy"
                 />
@@ -501,7 +501,7 @@ export const LandingPage = () => {
               <h2 className="text-3xl md:text-5xl font-black mb-4">
                 Por que escolher a{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  ENTStore
+                  Store Page
                 </span>
                 ?
               </h2>
@@ -549,7 +549,7 @@ export const LandingPage = () => {
                   </h2>
 
                   <p className="text-zinc-400 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
-                    Fale com a nossa equipe e descubra como o ENTStore pode centralizar
+                    Fale com a nossa equipe e descubra como o Store Page pode centralizar
                     todos os documentos e mídias da sua empresa. Sem compromisso.
                   </p>
 
@@ -579,18 +579,18 @@ export const LandingPage = () => {
       <footer className="border-t border-white/[0.05] py-10 px-4 md:px-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img src="/assets/logo.png" alt="ENTStore" className="h-8 w-auto opacity-70" />
+            <img src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" alt="Store Page" className="h-8 w-auto opacity-70" />
           </div>
 
           <p className="text-zinc-500 text-sm text-center">
-            © {new Date().getFullYear()} ENTStore. Todos os direitos reservados.
+            © {new Date().getFullYear()} Store Page. Todos os direitos reservados.
           </p>
 
           <a
             href={WHATSAPP_LINK}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="WhatsApp ENTStore"
+            aria-label="WhatsApp Store Page"
             className="inline-flex items-center gap-2 text-zinc-400 hover:text-orange-400 transition-colors text-sm"
           >
             <MessageCircle size={16} />

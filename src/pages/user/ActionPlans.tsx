@@ -9,6 +9,18 @@ import { toast } from 'sonner';
 
 type PlanTab = 'RECEIVED' | 'SENT';
 
+interface ActionPlan extends ChecklistAnswer {
+  checklist_submissions?: {
+    user_id: string;
+    checklists?: {
+      title: string;
+    };
+  };
+  checklist_questions?: {
+    text: string;
+  };
+}
+
 export const ActionPlans = () => {
   const { user, company } = useAuth();
   const { actionPlans: received, isLoading: loadR, mutate: mutateR } = useActionPlansReceived(user?.id);
@@ -47,7 +59,7 @@ export const ActionPlans = () => {
     }
   };
 
-  const getStatusInfo = (plan: any) => {
+  const getStatusInfo = (plan: ActionPlan) => {
     if (plan.action_plan_status === 'RESOLVED') {
       return {
         label: 'Resolvido',
@@ -106,7 +118,7 @@ export const ActionPlans = () => {
   const pendingReceivedCount = received.filter(p => p.action_plan_status !== 'RESOLVED').length;
   const pendingSentCount = sent.filter(p => p.action_plan_status !== 'RESOLVED').length;
 
-  const renderPlanCard = (plan: any) => {
+  const renderPlanCard = (plan: ActionPlan) => {
     const status = getStatusInfo(plan);
     const isResolved = plan.action_plan_status === 'RESOLVED';
     const creatorName = getUserName(plan.action_plan_created_by || plan.checklist_submissions?.user_id);

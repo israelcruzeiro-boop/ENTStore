@@ -58,6 +58,12 @@ import { useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
 import { Checklist, ChecklistQuestion, ChecklistSection, ChecklistQuestionType } from '../../types';
 import * as XLSX from 'xlsx';
 
+interface FolderWithChecklists {
+  id: string;
+  name: string;
+  checklists: Checklist[];
+}
+
 export const AdminChecklists = () => {
   const { companySlug } = useParams();
   const navigate = useNavigate();
@@ -76,13 +82,15 @@ export const AdminChecklists = () => {
   const [folderName, setFolderName] = useState('');
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
 
-  const foldersWithChecklists = folders.map(f => ({
-      ...f,
+  const foldersWithChecklists: FolderWithChecklists[] = folders.map(f => ({
+      id: f.id,
+      name: f.name,
       checklists: checklists.filter(c => c.folder_id === f.id)
   }));
+
   const unassigned = checklists.filter(c => !c.folder_id);
   if (unassigned.length > 0) {
-      foldersWithChecklists.push({ id: 'unassigned', name: 'Avulsos (Sem Pasta)', checklists: unassigned } as any);
+      foldersWithChecklists.push({ id: 'unassigned', name: 'Avulsos (Sem Pasta)', checklists: unassigned });
   }
 
   const viewingChecklists = activeFolderId === null 
@@ -185,7 +193,7 @@ export const AdminChecklists = () => {
     }
   };
 
-  const openEditFolder = (folder: any) => {
+  const openEditFolder = (folder: ChecklistFolder) => {
     setEditingFolderId(folder.id);
     setFolderName(folder.name);
     setIsFolderModalOpen(true);
@@ -238,7 +246,7 @@ export const AdminChecklists = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Checklist');
     XLSX.utils.book_append_sheet(wb, wsLegend, 'Legenda de Tipos');
 
-    XLSX.writeFile(wb, 'modelo_checklist_entstore.xlsx');
+    XLSX.writeFile(wb, 'modelo_checklist_storepage.xlsx');
     toast.info('Modelo baixado! Preencha e suba no Modo Rápido.');
   };
 

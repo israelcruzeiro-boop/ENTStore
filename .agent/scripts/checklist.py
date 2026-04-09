@@ -26,6 +26,12 @@ import argparse
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+# Configuração de encoding para evitar erros no Windows
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
 # ANSI colors for terminal output
 class Colors:
     HEADER = '\033[95m'

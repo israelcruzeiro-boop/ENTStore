@@ -198,7 +198,7 @@ export const AdminUsers = () => {
        if (cpfExists) return toast.error('Este CPF já está cadastrado no sistema.');
     }
 
-    const generatedEmail = formData.email || `${cleanCpf}@entstore.com`;
+    const generatedEmail = formData.email || `${cleanCpf}@storepage.com`;
 
     const payload: Partial<User> & { password?: string } = {
       name: formData.name,
@@ -282,7 +282,7 @@ export const AdminUsers = () => {
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modelo Importação');
-    XLSX.writeFile(wb, 'modelo_usuarios_entstore.xlsx');
+    XLSX.writeFile(wb, 'modelo_usuarios_storepage.xlsx');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -358,7 +358,7 @@ export const AdminUsers = () => {
         company_id: company.id,
         name: row.nome,
         cpf: row.cpf,
-        email: `${row.cpf}@entstore.com`,
+        email: `${row.cpf}@storepage.com`,
         password: '123456',
         role: 'USER' as const,
         status: 'PENDING_SETUP',

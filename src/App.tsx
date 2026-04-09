@@ -1,7 +1,5 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
@@ -43,7 +41,7 @@ import { AdminChecklistDashboard } from './pages/admin/ChecklistDashboard';
 import { ChecklistSubmissionDetail } from './pages/admin/ChecklistSubmissionDetail';
 import { ActionPlans } from './pages/user/ActionPlans';
 
-const queryClient = new QueryClient();
+
 
 // Route Protectors
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
@@ -175,17 +173,14 @@ const AppRoutes = () => (
 );
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <TooltipProvider>
+    <Sonner />
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  </TooltipProvider>
 );
 
 export default App;

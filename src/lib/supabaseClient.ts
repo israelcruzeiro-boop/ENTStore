@@ -5,6 +5,18 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+/**
+ * Fetcher genérico para queries do Supabase com SWR ou React Query.
+ */
+export const fetcher = async <T>(queryFn: () => PromiseLike<{ data: T | null; error: unknown }>) => {
+  const { data, error } = await queryFn();
+  if (error) {
+    console.error('Supabase fetch error:', error);
+    throw error;
+  }
+  return data;
+};
+
 export const SUPABASE_CONFIG = {
   url: supabaseUrl,
   anonKey: supabaseAnonKey,

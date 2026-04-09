@@ -368,6 +368,6 @@ export const useAppStore = create<AppState>()(
       })),
 
     }),
-    { name: 'entstore-storage' }
+    { name: 'storepage-storage' }
   )
 );

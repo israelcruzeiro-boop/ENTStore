@@ -82,7 +82,11 @@ export const UserLayout = () => {
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 flex justify-between items-center">
         <div className="flex items-center gap-8">
           <Link to={`${basePath}/home`} className="flex items-center">
-            <img src="/assets/logo.png" alt="ENTStore" className="h-8 md:h-10 w-auto" />
+            {company?.logo_url ? (
+                <img src={company.logo_url} alt={company.name} className="h-12 md:h-16 w-auto object-contain rounded-md" />
+            ) : (
+                <img src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" alt="Store Page" className="h-10 md:h-12 w-auto" />
+            )}
           </Link>
           <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
             <Link to={`${basePath}/home`} className={`transition-colors hover:text-white ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>

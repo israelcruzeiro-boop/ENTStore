@@ -112,26 +112,34 @@ export const Login = () => {
 
       <div className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/5 p-8 md:p-10 relative z-10" style={{ backgroundColor: tenantCompany ? 'var(--c-card)' : 'rgba(24, 24, 27, 0.8)' }}>
 
-        <div className="flex flex-col items-center mb-8">
-          {tenantCompany && (
-            <div className="mb-6 flex flex-col items-center">
+          {tenantCompany ? (
+            <div className="mb-8 flex flex-col items-center">
               {tenantCompany.logo_url ? (
-                <img src={tenantCompany.logo_url} alt={tenantCompany.name} className="w-24 h-24 rounded-full object-cover shadow-xl border border-white/10 bg-black/20" />
+                <img 
+                  src={tenantCompany.logo_url} 
+                  alt={tenantCompany.name} 
+                  className="w-32 h-32 md:w-44 md:h-44 rounded-full object-cover shadow-2xl border-2 border-white/20" 
+                />
               ) : (
-                <div className="w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-xl border border-white/10" style={{ backgroundColor: 'var(--c-primary)' }}>
+                <div className="w-32 h-32 md:w-44 md:h-44 rounded-full flex items-center justify-center text-white font-black text-5xl md:text-6xl shadow-2xl border-2 border-white/20" style={{ backgroundColor: 'var(--c-primary)' }}>
                   {tenantCompany.name.charAt(0).toUpperCase()}
                 </div>
               )}
-              <h1 className="text-sm font-medium mt-3 opacity-60 uppercase tracking-widest" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
+              <h1 className="text-lg font-black mt-6 opacity-90 uppercase tracking-[0.2em]" style={{ color: 'var(--c-text, #fff)' }}>{tenantCompany.name}</h1>
+            </div>
+          ) : (
+            <div className="mb-8 flex justify-center">
+              <img 
+                src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" 
+                alt="Store Page" 
+                className="w-32 h-32 md:w-44 md:h-44 rounded-full object-cover shadow-2xl border-2 border-white/20 transition-transform hover:scale-105 duration-300" 
+              />
             </div>
           )}
 
-          <div className="mb-2">
-            <img src="/assets/logo.png" alt="ENTStore" className="h-12 md:h-14 w-auto" />
-          </div>
-
-          <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de armazenamento de mídias</p>
-        </div>
+          {!tenantCompany && (
+            <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de armazenamento de mídias</p>
+          )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {error && (

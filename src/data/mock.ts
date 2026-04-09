@@ -29,9 +29,9 @@ export const MOCK_COMPANIES: Company[] = [
 ];
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Super Admin', email: 'sadmin@entstore.com', password: '123456', role: 'SUPER_ADMIN' },
-  { id: 'u2', name: 'Admin Company', email: 'admin@entstore.com', password: '123456', role: 'ADMIN', company_id: 'c1' },
-  { id: 'u3', name: 'User Premium', email: 'user@entstore.com', password: '123456', role: 'USER', company_id: 'c1', avatar_url: 'https://i.pravatar.cc/150?u=u3' },
+  { id: 'u1', name: 'Super Admin', email: 'sadmin@storepage.com', password: '123456', role: 'SUPER_ADMIN' },
+  { id: 'u2', name: 'Admin Company', email: 'admin@storepage.com', password: '123456', role: 'ADMIN', company_id: 'c1' },
+  { id: 'u3', name: 'User Premium', email: 'user@storepage.com', password: '123456', role: 'USER', company_id: 'c1', avatar_url: 'https://i.pravatar.cc/150?u=u3' },
 ];
 
 export const MOCK_REPOSITORIES: Repository[] = [

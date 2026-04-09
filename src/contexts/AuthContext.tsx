@@ -176,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (identifier: string, pass: string, targetCompanyId?: string): Promise<User | null> => {
     setLoading(true);
     try {
-      const emailToUse = identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@entstore.com`;
+      const emailToUse = identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@storepage.com`;
       
       let { data, error } = await supabase.auth.signInWithPassword({
         email: emailToUse,
@@ -246,7 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
     setUser(null);
     setCompany(null);
-    localStorage.removeItem('entstore_auth_user');
+    localStorage.removeItem('storepage_auth_user');
   };
 
   const refreshUser = async () => {

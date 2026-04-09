@@ -440,7 +440,7 @@ export const ChecklistPlayer = () => {
         console.error('Erro ao salvar:', err);
       }
     }, 800); // Salva 800ms após a última digitação na questão
-  }, [submissionId]);
+  }, [submissionId, currentUser?.id]);
 
   const updateStateAndSave = (questionId: string, updates: Partial<LocalAnswer>) => {
     setLocalAnswers(prev => {

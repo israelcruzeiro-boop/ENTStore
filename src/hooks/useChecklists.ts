@@ -1,5 +1,5 @@
 import useSWR from 'swr';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, fetcher } from '../lib/supabaseClient';
 import { 
   Checklist, 
   ChecklistSection,
@@ -9,11 +9,7 @@ import {
   ChecklistFolder
 } from '../types';
 
-const fetcher = async <T>(queryFn: () => PromiseLike<{ data: T | null; error: unknown }>) => {
-  const { data, error } = await queryFn();
-  if (error) throw error;
-  return data;
-};
+// ============================================================================
 
 /**
  * Hook para buscar checklists disponíveis para a empresa.
@@ -240,11 +236,28 @@ export function useAllAnswers(companyId?: string) {
   };
 }
 
+interface ActionPlan extends ChecklistAnswer {
+  checklist_submissions?: {
+    id: string;
+    status: string;
+    checklist_id: string;
+    user_id: string;
+    company_id?: string;
+    created_at: string;
+    checklists?: {
+      title: string;
+    };
+  };
+  checklist_questions?: {
+    text: string;
+  };
+}
+
 /**
  * Hook para buscar TODOS os Planos de Ação de uma empresa (Admin Dashboard).
  */
 export function useAllActionPlans(companyId?: string) {
-  const { data, error, isLoading, mutate } = useSWR<any[]>(
+  const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     companyId ? `all_action_plans_${companyId}` : null,
     () => fetcher(async () => {
       return supabase
@@ -275,7 +288,7 @@ export function useAllActionPlans(companyId?: string) {
  * Hook para buscar Planos de Ação RECEBIDOS (atribuídos a mim).
  */
 export function useActionPlansReceived(userId?: string) {
-  const { data, error, isLoading, mutate } = useSWR<any[]>(
+  const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     userId ? `action_plans_received_${userId}` : null,
     () => fetcher(async () => {
       return supabase
@@ -306,7 +319,7 @@ export function useActionPlansReceived(userId?: string) {
  * Hook para buscar Planos de Ação ENVIADOS (que eu criei para outros resolverem).
  */
 export function useActionPlansSent(userId?: string) {
-  const { data, error, isLoading, mutate } = useSWR<any[]>(
+  const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     userId ? `action_plans_sent_${userId}` : null,
     () => fetcher(async () => {
       return supabase

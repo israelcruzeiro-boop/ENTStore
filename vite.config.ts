@@ -23,8 +23,8 @@ export default defineConfig(() => ({
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // Aumentado para 10MB para suportar o bundle atual
       },
       manifest: {
-        name: 'ENTStore',
-        short_name: 'ENTStore',
+        name: 'Store Page',
+        short_name: 'Store Page',
         description: 'Gerenciamento de Checklists e Conformidade',
         theme_color: '#FF4D00',
         background_color: '#000000',

@@ -165,7 +165,7 @@ export const AdminSettings = () => {
                   <Label>Link de Acesso (URL) *</Label>
                   <div className={`flex shadow-sm rounded-md overflow-hidden border transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 ${isSubmitting ? 'border-slate-100 bg-slate-50' : 'border-slate-200'}`}>
                     <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">
-                      entstore.com/
+                      storepage.com/
                     </span>
                     <Input 
                       className="border-0 rounded-none focus-visible:ring-0 px-3 shadow-none bg-white font-mono" 

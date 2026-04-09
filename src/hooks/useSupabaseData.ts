@@ -1,18 +1,8 @@
 import useSWR from 'swr';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, fetcher } from '../lib/supabaseClient';
 import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent } from '../types';
 
-/**
- * Fetcher genérico para queries do Supabase com SWR.
- */
-const fetcher = async <T>(queryFn: () => PromiseLike<{ data: T | null; error: unknown }>) => {
-  const { data, error } = await queryFn();
-  if (error) {
-    console.error('Supabase fetch error:', error);
-    throw error;
-  }
-  return data;
-};
+// ============================================================================
 
 // ============================================================================
 // HOOKS CENTRAIS DA ETAPA 4
