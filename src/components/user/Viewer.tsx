@@ -9,10 +9,28 @@ import { toast } from 'sonner';
 // YouTube API Types
 declare global {
   interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    YT: any;
+    YT: typeof YT;
     onYouTubeIframeAPIReady: () => void;
   }
+}
+
+interface YTPlayer {
+  destroy: () => void;
+  playVideo: () => void;
+  pauseVideo: () => void;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getDuration: () => number;
+  getCurrentTime: () => number;
+  setVolume: (volume: number) => void;
+  getVolume: () => number;
+  mute: () => void;
+  unMute: () => void;
+  isMuted: () => boolean;
+}
+
+interface YTEvent {
+  target: YTPlayer;
+  data: number;
 }
 
 // Detecta se a URL é um YouTube Short
@@ -81,8 +99,7 @@ export const MusicPlayer = ({
   hasPrevious?: boolean;
   hasNext?: boolean;
 }) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -121,15 +138,14 @@ export const MusicPlayer = ({
           rel: 0,
         },
         events: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onReady: (event: any) => {
+          onReady: (event: YTEvent) => {
             setDuration(event.target.getDuration());
             setIsReady(true);
             event.target.setVolume(volume);
             event.target.playVideo();
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onStateChange: (event: any) => {
+          onStateChange: (event: YTEvent) => {
             if (event.data === YT.PlayerState.PLAYING) {
               setIsPlaying(true);
               intervalRef.current = setInterval(() => {
@@ -388,7 +404,7 @@ export const VideoPlayer = ({
   hasNext?: boolean;
 }) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [volume, setVolume] = useState(100);
@@ -446,7 +462,7 @@ export const VideoPlayer = ({
             setIsReady(true);
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          onStateChange: (event: any) => {
+          onStateChange: (event: YTEvent) => {
             if (event.data === YT.PlayerState.ENDED) {
               if (onEnded) onEnded();
             }
