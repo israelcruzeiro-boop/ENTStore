@@ -9,11 +9,11 @@ const WHATSAPP_LINK = 'https://wa.me/5561996593376?text=Ol%C3%A1!%20Tenho%20inte
 
 // Product images
 const IMAGES = {
-  heroShowcase: 'https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png',
-  whatIs: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20001.jpg',
-  features: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20005.jpg',
-  howItWorks: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20003.jpg',
-  ctaBackground: 'https://ik.imagekit.io/lflb43qwh/ENTStore/ENTStore%20004.jpg',
+  heroShowcase: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png',
+  whatIs: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20001.jpg',
+  features: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20005.jpg',
+  howItWorks: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20003.jpg',
+  ctaBackground: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20004.jpg',
 };
 
 // Hook for scroll-triggered animations
@@ -184,14 +184,14 @@ export const LandingPage = () => {
   }, []);
 
   useEffect(() => {
-    document.title = 'Store Page — Armazenamento Inteligente de Mídias e Documentos';
+    document.title = 'STORE PAGE — Armazenamento Inteligente de Mídias e Documentos';
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'Store Page é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.');
+      metaDesc.setAttribute('content', 'STORE PAGE é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.');
     } else {
       const meta = document.createElement('meta');
       meta.name = 'description';
-      meta.content = 'Store Page é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.';
+      meta.content = 'STORE PAGE é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.';
       document.head.appendChild(meta);
     }
 
@@ -273,7 +273,7 @@ export const LandingPage = () => {
           {/* Logo */}
           <div className="hero-animate mb-8">
             <img
-              src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png"
+              src="https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png"
               alt="Store Page"
               className="h-14 md:h-20 w-auto mx-auto drop-shadow-2xl"
             />
@@ -359,14 +359,14 @@ export const LandingPage = () => {
                 A Plataforma
               </span>
               <h2 className="text-3xl md:text-5xl font-black mb-6">
-                O que é o{' '}
+                O que é a{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  Store Page
+                  STORE PAGE
                 </span>
                 ?
               </h2>
               <p className="text-zinc-400 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed mb-12">
-                O Store Page é a <strong className="text-white">plataforma de armazenamento inteligente</strong> para
+                A <strong className="text-white">STORE PAGE</strong> é a <strong className="text-white">plataforma de armazenamento inteligente</strong> para
                 organizar todos os recursos digitais da sua empresa. Centralize links de vídeos, PDFs, documentos
                 e mídias num repositório com a cara da sua marca — acessível para a equipe,
                 de qualquer lugar.
@@ -579,11 +579,11 @@ export const LandingPage = () => {
       <footer className="border-t border-white/[0.05] py-10 px-4 md:px-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <img src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" alt="Store Page" className="h-8 w-auto opacity-70" />
+            <img src="https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png" alt="Store Page" className="h-8 w-auto opacity-70" />
           </div>
 
           <p className="text-zinc-500 text-sm text-center">
-            © {new Date().getFullYear()} Store Page. Todos os direitos reservados.
+            © {new Date().getFullYear()} STORE PAGE. Todos os direitos reservados.
           </p>
 
           <a

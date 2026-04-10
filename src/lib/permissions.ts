@@ -7,83 +7,112 @@ import { Repository, User, OrgTopLevel, OrgUnit } from '../types';
  * 3. Repositórios RESTRICTED validam permissão direta (ID do usuário), por unidade (loja) ou por nível macro (regional/diretoria).
  * 4. Exclusões explícitas por ID de usuário têm prioridade máxima de bloqueio.
  */
-export const checkRepoAccess = (
-  repo: Repository, 
-  user: User | null | undefined, 
-  orgUnits: OrgUnit[], 
+import { User, Repository, Course, OrgUnit, OrgTopLevel, Checklist } from '../types';
+
+/**
+ * Interface genérica para objetos que possuem regras de acesso.
+ * Compatível com Repository, Course e Checklist.
+ */
+interface AccessControlled {
+  access_type?: 'ALL' | 'RESTRICTED';
+  allowed_user_ids?: string[];
+  allowed_region_ids?: string[];
+  allowed_store_ids?: string[];
+  excluded_user_ids?: string[];
+}
+
+/**
+ * Função auxiliar para verificar se o usuário pertence a uma hierarquia organizacional permitida.
+ * Percorre a árvore de unidades e níveis macro (Regionais/Diretorias).
+ */
+const checkHierarchyAccess = (
+  allowedRegionIds: string[] | undefined,
+  userUnitId: string | undefined,
+  userTopLevelId: string | undefined,
+  orgUnits: OrgUnit[],
   orgTopLevels: OrgTopLevel[]
 ): boolean => {
-  if (!user) return false;
-  if (user.role !== 'USER') return true; 
-  if (repo.access_type !== 'RESTRICTED') return true; 
-  
-  // 1. Verifica exceções (bloqueio prioritário)
-  if (repo.excluded_user_ids?.includes(user.id)) return false; 
-  
-  // 2. Permissões diretas por usuário
-  const hasUserPerm = repo.allowed_user_ids?.includes(user.id);
-  
-  // 3. Permissão por unidade organizacional (Unidade/Loja)
-  const hasUnitPerm = user.org_unit_id && repo.allowed_store_ids?.includes(user.org_unit_id);
-  
-  // 4. Permissão por nível hierárquico macro (Região/Diretoria) - Varredura recursiva na árvore
-  let hasTopLevelPerm = false;
-  if (user.org_unit_id && repo.allowed_region_ids && repo.allowed_region_ids.length > 0) {
-    const unit = orgUnits.find(u => u.id === user.org_unit_id);
-    let currentParent = orgTopLevels.find(t => t.id === unit?.parent_id);
-    
-    // Sobe a árvore verificando se o repositório foi liberado para algum dos pais
-    while (currentParent) {
-      if (repo.allowed_region_ids.includes(currentParent.id)) {
-        hasTopLevelPerm = true;
-        break;
-      }
-      currentParent = orgTopLevels.find(t => t.id === currentParent?.parent_id);
+  if (!allowedRegionIds || allowedRegionIds.length === 0) return false;
+
+  // 1. Verificação direta do nível macro do usuário
+  if (userTopLevelId && allowedRegionIds.includes(userTopLevelId)) return true;
+
+  // 2. Verificação recursiva subindo pelas unidades
+  if (userUnitId) {
+    const unit = orgUnits.find(u => u.id === userUnitId);
+    let currentParentId = unit?.parent_id;
+
+    while (currentParentId) {
+      if (allowedRegionIds.includes(currentParentId)) return true;
+      const parent = orgTopLevels.find(t => t.id === currentParentId);
+      currentParentId = parent?.parent_id; // Sobe mais um nível se houver hierarquia macro
     }
   }
-  
-  // Fallback para dados legados ou mapeamentos diretos de nível macro
-  if (!hasTopLevelPerm && user.org_top_level_id && repo.allowed_region_ids?.includes(user.org_top_level_id)) {
-    hasTopLevelPerm = true;
-  }
-  
-  return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
+
+  return false;
 };
 
 /**
- * Valida o acesso de um usuário a um curso específico (idêntico ao repositório)
+ * Lógica central de validação de acesso.
  */
-export const checkCourseAccess = (
-  course: { access_type?: string; excluded_user_ids?: string[]; allowed_user_ids?: string[]; allowed_store_ids?: string[]; allowed_region_ids?: string[] }, // Interface definida inline em prol da flexibilidade legado
-
-  user: User | null | undefined, 
-  orgUnits: OrgUnit[], 
+const validateAccess = (
+  item: AccessControlled,
+  user: User | null | undefined,
+  orgUnits: OrgUnit[],
   orgTopLevels: OrgTopLevel[]
 ): boolean => {
   if (!user) return false;
-  if (user.role !== 'USER') return true; 
-  if (course.access_type !== 'RESTRICTED') return true; 
   
-  if (course.excluded_user_ids?.includes(user.id)) return false; 
-  const hasUserPerm = course.allowed_user_ids?.includes(user.id);
-  const hasUnitPerm = user.org_unit_id && course.allowed_store_ids?.includes(user.org_unit_id);
-  
-  let hasTopLevelPerm = false;
-  if (user.org_unit_id && course.allowed_region_ids && course.allowed_region_ids.length > 0) {
-    const unit = orgUnits.find(u => u.id === user.org_unit_id);
-    let currentParent = orgTopLevels.find(t => t.id === unit?.parent_id);
-    while (currentParent) {
-      if (course.allowed_region_ids.includes(currentParent.id)) {
-        hasTopLevelPerm = true;
-        break;
-      }
-      currentParent = orgTopLevels.find(t => t.id === currentParent?.parent_id);
-    }
+  // Super Admins e Admins têm acesso total (dentro da sua empresa, garantido pelo RLS)
+  if (user.role && user.role !== 'USER') return true;
+
+  // 1. Acesso Público
+  if (item.access_type !== 'RESTRICTED') return true;
+
+  // 2. Prioridade Máxima: Exclusão Manual (Blacklist)
+  if (item.excluded_user_ids && Array.isArray(item.excluded_user_ids) && item.excluded_user_ids.includes(user.id)) {
+    return false;
   }
-  
-  if (!hasTopLevelPerm && user.org_top_level_id && course.allowed_region_ids?.includes(user.org_top_level_id)) {
-    hasTopLevelPerm = true;
+
+  // 3. Permissão Direta (Whitelist)
+  if (item.allowed_user_ids && Array.isArray(item.allowed_user_ids) && item.allowed_user_ids.includes(user.id)) {
+    return true;
   }
-  
-  return !!(hasUserPerm || hasUnitPerm || hasTopLevelPerm);
+
+  // 4. Permissão por Unidade (Loja)
+  if (user.org_unit_id && item.allowed_store_ids && Array.isArray(item.allowed_store_ids) && item.allowed_store_ids.includes(user.org_unit_id)) {
+    return true;
+  }
+
+  // 5. Permissão por Nível Hierárquico (Região/Diretoria)
+  return checkHierarchyAccess(
+    item.allowed_region_ids,
+    user.org_unit_id,
+    user.org_top_level_id,
+    orgUnits,
+    orgTopLevels
+  );
 };
+
+// --- Exports Específicos para manter compatibilidade com o código existente ---
+
+export const checkRepoAccess = (
+  repo: Repository,
+  user: User | null | undefined,
+  orgUnits: OrgUnit[],
+  orgTopLevels: OrgTopLevel[]
+): boolean => validateAccess(repo, user, orgUnits, orgTopLevels);
+
+export const checkCourseAccess = (
+  course: Course,
+  user: User | null | undefined,
+  orgUnits: OrgUnit[],
+  orgTopLevels: OrgTopLevel[]
+): boolean => validateAccess(course, user, orgUnits, orgTopLevels);
+
+export const checkChecklistAccess = (
+  checklist: Checklist,
+  user: User | null | undefined,
+  orgUnits: OrgUnit[],
+  orgTopLevels: OrgTopLevel[]
+): boolean => validateAccess(checklist, user, orgUnits, orgTopLevels);

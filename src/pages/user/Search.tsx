@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useRepositories, useContents, useSimpleLinks, useOrgStructure } from '../../hooks/useSupabaseData';
-import { checkRepoAccess } from '../../lib/permissions';
+import { useRepositories, useContents, useSimpleLinks, useOrgStructure, useCourses } from '../../hooks/useSupabaseData';
+import { checkRepoAccess, checkCourseAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
-import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library } from 'lucide-react';
+import { CourseCard } from '../../components/user/CourseCard';
+import { Search as SearchIcon, ExternalLink, PlayCircle, Link as LinkIcon, Library, BookOpen } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 export const UserBusca = () => {
@@ -17,9 +18,10 @@ export const UserBusca = () => {
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
+  const { courses, isLoading: loadingCourses } = useCourses(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
 
-  const isLoading = loadingRepos || loadingContents || loadingLinks || loadingOrg;
+  const isLoading = loadingRepos || loadingContents || loadingLinks || loadingCourses || loadingOrg;
   
   const initialQuery = searchParams.get('q') || '';
   const [query, setQuery] = useState(initialQuery);
@@ -55,6 +57,15 @@ export const UserBusca = () => {
       (l.name.toLowerCase().includes(query.toLowerCase()) || (l.url && l.url.toLowerCase().includes(query.toLowerCase())))
     );
   }, [simpleLinks, repoIds, query]);
+
+  const filteredCourses = useMemo(() => {
+    if (!query) return [];
+    return courses.filter(c => 
+      c.status === 'ACTIVE' && 
+      c.title.toLowerCase().includes(query.toLowerCase()) &&
+      checkCourseAccess(c, user, orgUnits, orgTopLevels)
+    );
+  }, [courses, query, user, orgUnits, orgTopLevels]);
 
   if (isLoading) {
     return (
@@ -144,7 +155,21 @@ export const UserBusca = () => {
             </div>
           )}
 
-          {filteredRepos.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 && (
+          {filteredCourses.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-6 border-t border-zinc-800/50 pt-8">
+                <BookOpen size={20} className="text-[var(--c-primary)]" />
+                <h2 className="text-xl font-bold text-white">Cursos e Treinamentos</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                {filteredCourses.map(course => (
+                  <CourseCard key={course.id} course={course} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {filteredRepos.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 && filteredCourses.length === 0 && (
             <div className="text-center text-zinc-500 mt-20">
               <p className="text-xl text-white font-medium mb-2">Nenhum resultado</p>
               <p className="text-zinc-400">Não encontramos nada para "{query}".</p>

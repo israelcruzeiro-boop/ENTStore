@@ -121,7 +121,9 @@ export interface Course {
   allowed_region_ids?: string[];
   allowed_store_ids?: string[];
   excluded_user_ids?: string[];
-  target_audience?: string[]; 
+  target_audience?: string[];
+  passing_score?: number;
+  diploma_template?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -129,7 +131,9 @@ export interface Course {
 export interface CourseModule {
   id: string;
   course_id: string;
+  company_id?: string;
   title: string;
+  description?: string;
   order_index: number;
   created_at: string;
   updated_at?: string;
@@ -141,14 +145,110 @@ export interface CourseContent {
   module_id: string;
   title: string;
   description: string;
-  type: 'PDF' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'DOCUMENT';
+  type: 'PDF' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'DOCUMENT' | 'HTML';
   url: string;
+  content_url?: string;
   file_path?: string;
   size_bytes?: number;
+  html_content?: string;
   order_index: number;
   has_quiz?: boolean;
   created_at: string;
   updated_at?: string;
+}
+
+export type CourseQuestionType = 'MULTIPLE_CHOICE' | 'WORD_SEARCH' | 'ORDERING' | 'HOTSPOT';
+
+export interface CoursePhaseQuestion {
+  id: string;
+  module_id: string;
+  question_text: string;
+  question_type: CourseQuestionType;
+  configuration?: any;
+  image_url?: string;
+  explanation?: string;
+  order_index: number;
+  created_at: string;
+  options?: CourseQuestionOption[];
+}
+
+export interface CourseQuestionOption {
+  id: string;
+  question_id: string;
+  option_text: string;
+  is_correct: boolean;
+  order_index: number;
+}
+
+export interface CourseEnrollment {
+  id: string;
+  course_id: string;
+  user_id: string;
+  company_id: string;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  started_at: string;
+  completed_at?: string;
+  score_percent?: number;
+  total_correct: number;
+  total_questions: number;
+  time_spent_seconds?: number;
+  current_module_id?: string;
+  current_content_id?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CourseAnswer {
+  id: string;
+  enrollment_id: string;
+  question_id: string;
+  selected_option_id?: string;
+  complex_answer?: any;
+  is_correct: boolean;
+  answered_at: string;
+}
+
+// Legacy Quiz types (backward compat)
+export interface Quiz {
+  id: string;
+  company_id?: string;
+  content_id?: string;
+  course_content_id?: string;
+  title?: string;
+  passing_score: number;
+  time_limit?: number;
+  shuffle_questions?: boolean;
+  points_reward: number;
+  created_at?: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  quiz_id: string;
+  question_text: string;
+  explanation?: string;
+  source_excerpt?: string;
+  order_index: number;
+  quiz_options?: QuizOption[];
+}
+
+export interface QuizOption {
+  id: string;
+  question_id: string;
+  option_text: string;
+  is_correct: boolean;
+  order_index: number;
+}
+
+export interface QuizAttempt {
+  id: string;
+  company_id: string;
+  user_id: string;
+  quiz_id: string;
+  score: number;
+  passed: boolean;
+  answers: Record<string, string>;
+  completed_at?: string;
 }
 
 export interface SimpleLink {

@@ -209,6 +209,7 @@ export function QuizPlayer({ quiz, questions: initialQuestions, userId, companyI
               key={option.id}
               onClick={() => handleOptionSelect(option.id)}
               disabled={isAnswered}
+              aria-label={`Selecionar opção: ${option.option_text}`}
               className={cn(
                 "group relative flex items-center p-4 rounded-xl border transition-all duration-200 text-left",
                 selectedOptionId === option.id ? "border-white bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]" : "border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/5",

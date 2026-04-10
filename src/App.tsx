@@ -21,6 +21,7 @@ import { ContentDetail } from './pages/user/ContentDetail';
 import { AdminDashboard } from './pages/admin/Dashboard';
 import { AdminCourses } from './pages/admin/Courses';
 import { AdminCourseDetails } from './pages/admin/CourseDetails';
+import { AdminCourseDashboard } from './pages/admin/CourseDashboard';
 import { AdminRepositories } from './pages/admin/Repositories';
 import { AdminRepositoryContents } from './pages/admin/RepositoryContents';
 import { AdminUsers } from './pages/admin/Users';
@@ -125,6 +126,7 @@ const AppRoutes = () => (
       <Route path="repos" element={<AdminRepositories />} />
       <Route path="repos/:repoId" element={<AdminRepositoryContents />} />
       <Route path="courses" element={<AdminCourses />} />
+      <Route path="courses/dashboard" element={<AdminCourseDashboard />} />
       <Route path="courses/:courseId" element={<AdminCourseDetails />} />
       <Route path="users" element={<AdminUsers />} />
       <Route path="checklists" element={<AdminChecklists />} />

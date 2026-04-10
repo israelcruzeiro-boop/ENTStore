@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext'; // Restaurado pois é necessário para o slug
 import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses } from '../../hooks/useSupabaseData';
-import { checkRepoAccess } from '../../lib/permissions';
+import { checkRepoAccess, checkCourseAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
 import { ContentRow } from '../../components/user/ContentRow';
@@ -47,13 +47,19 @@ export const UserHome = () => {
   const featuredLibs = libraryRepos.filter(r => r.featured);
   const recentContents = companyContents.filter(c => c.recent);
 
+  const companyCourses = courses.filter(c => {
+     if (c.company_id !== company?.id || c.status !== 'ACTIVE') return false;
+     return checkCourseAccess(c, user, orgUnits, orgTopLevels);
+  });
+
   // Listas para a Busca
   const query = searchQuery.toLowerCase().trim();
   const filteredHubs = query ? hubRepos.filter(r => r.name.toLowerCase().includes(query)) : [];
   const filteredLibs = query ? libraryRepos.filter(r => r.name.toLowerCase().includes(query)) : [];
   const filteredContents = query ? companyContents.filter(c => c.title.toLowerCase().includes(query) || c.description.toLowerCase().includes(query)) : [];
   const filteredLinks = query ? companyLinks.filter(l => l.name.toLowerCase().includes(query) || l.url.toLowerCase().includes(query)) : [];
-
+  const filteredCourses = query ? companyCourses.filter(c => c.title.toLowerCase().includes(query)) : [];
+  
   const hero_image = company?.hero_image || (companyRepos.length > 0 ? (companyRepos[0].banner_image || companyRepos[0].cover_image) : null);
   const hero_title = company?.hero_title || (companyRepos.length > 0 ? companyRepos[0].name : `Bem-vindo à ${company?.name}`);
   const hero_subtitle = company?.hero_subtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os hubs e bibliotecas exclusivas da sua plataforma corporativa.');
@@ -136,7 +142,7 @@ export const UserHome = () => {
       <div className="w-full mt-6 md:mt-8 px-4 md:px-8 relative z-10">
          {query ? (
            <div className="space-y-12 animate-in fade-in duration-300">
-             {filteredHubs.length === 0 && filteredLibs.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 ? (
+             {filteredHubs.length === 0 && filteredLibs.length === 0 && filteredContents.length === 0 && filteredLinks.length === 0 && filteredCourses.length === 0 ? (
                 <div className="text-center text-zinc-500 py-12">
                   <div className="w-16 h-16 bg-zinc-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-800">
                      <Search size={28} className="text-zinc-600" />
@@ -217,9 +223,9 @@ export const UserHome = () => {
            </div>
          ) : (
            <div className="animate-in fade-in duration-300">
-             {courses.length > 0 && !activeFilter && (
+             {companyCourses.length > 0 && !activeFilter && (
                 <ContentRow title="Seus Treinamentos">
-                  {courses.slice(0, 6).map(course => (
+                  {companyCourses.slice(0, 6).map(course => (
                     <CourseCard key={course.id} course={course} />
                   ))}
                 </ContentRow>

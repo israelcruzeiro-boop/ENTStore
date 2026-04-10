@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useOrgStructure, useRepositories, useCourses } from '../hooks/useSupabaseData';
 import { useChecklists } from '../hooks/useChecklists';
-import { checkRepoAccess, checkCourseAccess } from '../lib/permissions';
+import { checkRepoAccess, checkCourseAccess, checkChecklistAccess } from '../lib/permissions';
 
 export const UserLayout = () => {
   const { user, company, logout } = useAuth();
@@ -27,19 +27,7 @@ export const UserLayout = () => {
   const availableCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
   const hasCourses = availableCourses.length > 0;
 
-  const availableChecklists = checklists.filter(c => {
-    if (c.status !== 'ACTIVE') return false;
-    if (user?.role !== 'USER') return true;
-    if (user?.id && c.excluded_user_ids?.includes(user.id)) return false;
-    if (c.access_type === 'ALL') return true;
-    if (c.access_type === 'RESTRICTED') {
-      const isUserAllowed = user?.id && c.allowed_user_ids?.includes(user.id);
-      const isUnitAllowed = user?.org_unit_id && c.allowed_store_ids?.includes(user.org_unit_id);
-      const isRegionAllowed = user?.org_top_level_id && c.allowed_region_ids?.includes(user.org_top_level_id);
-      return isUserAllowed || isUnitAllowed || isRegionAllowed;
-    }
-    return false;
-  });
+  const availableChecklists = checklists.filter(c => c.status === 'ACTIVE' && checkChecklistAccess(c, user, orgUnits, orgTopLevels));
   const hasChecklists = company?.checklists_enabled && availableChecklists.length > 0;
 
   const handleLogout = async () => {
@@ -54,8 +42,13 @@ export const UserLayout = () => {
       setScrolled(window.scrollY > 50);
     };
     window.addEventListener('scroll', handleScroll);
+    
+    if (company?.name) {
+      document.title = company.name;
+    }
+    
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [company]);
 
   const isActive = (path: string) => {
     if (path === '/home') return location.pathname === `${basePath}/home` || location.pathname === `${basePath}`;

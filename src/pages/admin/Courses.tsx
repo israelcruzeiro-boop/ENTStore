@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCompanies, useCourses } from '../../hooks/useSupabaseData';
 import { Button } from '@/components/ui/button';
-import { Plus, BookOpen, ChevronRight, Layout, Loader2, Search, MoreVertical, Edit2, Archive } from 'lucide-react';
+import { Plus, BookOpen, ChevronRight, Layout, Loader2, Search, MoreVertical, Edit2, Archive, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ export const AdminCourses = () => {
   const { companySlug } = useParams();
   const navigate = useNavigate();
   const { companies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
   const { courses, isLoading, mutate } = useCourses(company?.id);
   
@@ -71,9 +71,14 @@ export const AdminCourses = () => {
           <h1 className="text-2xl font-bold text-slate-900">Cursos & Treinamentos</h1>
           <p className="text-slate-500 text-sm">Gerencie conteúdo estruturado e quizzes gerados por IA.</p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm border-0">
-          <Plus size={18} /> Novo Curso
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate(`/admin/${companySlug}/courses/dashboard`)} variant="outline" className="gap-2 border-slate-200 text-slate-700">
+            <BarChart3 size={18} /> Dashboard
+          </Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 shadow-sm border-0">
+            <Plus size={18} /> Novo Curso
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">

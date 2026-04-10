@@ -53,7 +53,7 @@ export const Login = () => {
         <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
           <AlertTriangle size={36} className="text-zinc-500" />
         </div>
-        <h1 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h1>
+        <h2 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h2>
         <p className="text-zinc-400 max-w-sm mb-8">
           O endereço <strong>{companySlug}</strong> não corresponde a nenhuma empresa ativa no momento.
         </p>
@@ -130,15 +130,23 @@ export const Login = () => {
           ) : (
             <div className="mb-8 flex justify-center">
               <img 
-                src="https://ik.imagekit.io/lflb43qwh/ENTStore/StorePage/StorePage.png" 
-                alt="Store Page" 
+                src="https://ik.imagekit.io/lflb43qwh/StorePage/StorePage.png" 
+                alt="STORE PAGE" 
                 className="w-32 h-32 md:w-44 md:h-44 rounded-full object-cover shadow-2xl border-2 border-white/20 transition-transform hover:scale-105 duration-300" 
+                onError={(e) => {
+                  // Fallback final apenas para lidar com quebra na renderização se o cache falhar
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes('StorePage.png')) {
+                     target.src = "https://ik.imagekit.io/lflb43qwh/StorePage/StorePage.png";
+                  }
+                  target.onerror = null;
+                }}
               />
             </div>
           )}
 
           {!tenantCompany && (
-            <p className="text-sm mt-2 opacity-50" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de armazenamento de mídias</p>
+            <p className="text-sm mt-2 opacity-50 text-center" style={{ color: 'var(--c-text, #a1a1aa)' }}>Plataforma de Armazenamento de Mídias</p>
           )}
 
         <form onSubmit={handleSubmit} className="space-y-5">

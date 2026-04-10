@@ -1,7 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
-import { BookOpen, Star, PlayCircle, Clock, ChevronRight } from 'lucide-react';
+import { BookOpen, PlayCircle, Layers, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Course } from '../../types';
+import { useCourseModuleStats } from '../../hooks/useSupabaseData';
 
 interface CourseCardProps {
   course: Course;
@@ -10,13 +11,7 @@ interface CourseCardProps {
 
 export const CourseCard = ({ course, fullWidth = false }: CourseCardProps) => {
   const { companySlug } = useParams();
-  
-  // No futuro, estas métricas virão do hook useCourseStats ou similar
-  const mockStats = {
-    rating: 4.9,
-    lessons: 12,
-    duration: '4h 30m'
-  };
+  const { moduleStats } = useCourseModuleStats(course.id);
 
   return (
     <Link 
@@ -45,25 +40,19 @@ export const CourseCard = ({ course, fullWidth = false }: CourseCardProps) => {
       </div>
 
       <div className="p-6 flex flex-col flex-1 space-y-4">
-        <div className="flex justify-between items-start">
-           <h2 className="text-lg font-bold text-white leading-tight group-hover:text-blue-400 transition-colors line-clamp-2">{course.title}</h2>
-           <div className="flex items-center gap-1 text-amber-500 shrink-0 ml-2">
-             <Star size={12} fill="currentColor" />
-             <span className="text-xs font-black">{mockStats.rating}</span>
-           </div>
-        </div>
+        <h2 className="text-lg font-bold text-white leading-tight group-hover:text-blue-400 transition-colors line-clamp-2">{course.title}</h2>
 
         <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed flex-1">{course.description || "Inicie sua jornada de aprendizado agora mesmo e domine novos conhecimentos."}</p>
 
         <div className="pt-4 mt-auto border-t border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5 text-slate-500">
-               <PlayCircle size={14} className="text-blue-500/50" />
-               <span className="text-[10px] font-bold uppercase tracking-tighter">{mockStats.lessons} Aulas</span>
+               <Layers size={14} className="text-blue-500/50" />
+               <span className="text-[10px] font-bold uppercase tracking-tighter">{moduleStats.totalModules} Fases</span>
             </div>
             <div className="flex items-center gap-1.5 text-slate-500">
-               <Clock size={14} className="text-blue-500/50" />
-               <span className="text-[10px] font-bold uppercase tracking-tighter">{mockStats.duration}</span>
+               <PlayCircle size={14} className="text-blue-500/50" />
+               <span className="text-[10px] font-bold uppercase tracking-tighter">{moduleStats.totalContents} Aulas</span>
             </div>
           </div>
           <div className="bg-white/5 p-2 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">

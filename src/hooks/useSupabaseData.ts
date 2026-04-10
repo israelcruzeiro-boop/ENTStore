@@ -1,6 +1,6 @@
 import useSWR from 'swr';
 import { supabase, fetcher } from '../lib/supabaseClient';
-import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent } from '../types';
+import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseEnrollment, CourseAnswer } from '../types';
 
 // ============================================================================
 
@@ -506,5 +506,280 @@ export async function awardXP(userId: string, xp: number, coins: number = 0) {
     coins_to_add: coins
   });
   
+  if (error) throw error;
+}
+
+// ============================================================================
+// HOOKS DO MÓDULO DE CURSOS (FASES, PERGUNTAS, MATRÍCULAS)
+// ============================================================================
+
+/**
+ * Hook para buscar perguntas de uma fase/módulo
+ */
+export function useCourseQuestions(moduleId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<CoursePhaseQuestion[]>(
+    moduleId ? `course_questions_${moduleId}` : null,
+    async () => {
+      const { data: questions, error } = await supabase
+        .from('course_phase_questions')
+        .select('*, options:course_question_options(*)')
+        .eq('module_id', moduleId)
+        .order('order_index', { ascending: true });
+      if (error) throw error;
+      return questions as CoursePhaseQuestion[];
+    }
+  );
+
+  return {
+    questions: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para buscar matrícula do usuário em um curso
+ */
+export function useCourseEnrollment(courseId?: string, userId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<CourseEnrollment | null>(
+    courseId && userId ? `enrollment_${courseId}_${userId}` : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('course_enrollments')
+        .select('*')
+        .eq('course_id', courseId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+  );
+
+  return {
+    enrollment: data,
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Inicia uma matrícula em um curso
+ */
+export async function startEnrollment(courseId: string, userId: string, companyId: string) {
+  const { data, error } = await supabase
+    .from('course_enrollments')
+    .upsert({
+      course_id: courseId,
+      user_id: userId,
+      company_id: companyId,
+      status: 'IN_PROGRESS',
+      started_at: new Date().toISOString()
+    }, { onConflict: 'course_id,user_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CourseEnrollment;
+}
+
+/**
+ * Atualiza o progresso atual da matrícula (módulo e conteúdo)
+ */
+export async function updateEnrollmentProgress(enrollmentId: string, moduleId: string | null, contentId: string | null) {
+  const { error } = await supabase
+    .from('course_enrollments')
+    .update({
+      current_module_id: moduleId,
+      current_content_id: contentId,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', enrollmentId);
+  if (error) throw error;
+}
+
+/**
+ * Registra uma resposta do aluno
+ */
+export async function submitCourseAnswer(
+  enrollmentId: string,
+  questionId: string,
+  selectedOptionId: string,
+  isCorrect: boolean
+) {
+  const { error } = await supabase
+    .from('course_answers')
+    .upsert({
+      enrollment_id: enrollmentId,
+      question_id: questionId,
+      selected_option_id: selectedOptionId,
+      is_correct: isCorrect,
+      answered_at: new Date().toISOString()
+    }, { onConflict: 'enrollment_id,question_id' });
+  if (error) throw error;
+}
+
+/**
+ * Finaliza uma matrícula (calcula score e tempo)
+ */
+export async function completeEnrollment(
+  enrollmentId: string,
+  totalCorrect: number,
+  totalQuestions: number,
+  startedAt: string
+) {
+  const now = new Date();
+  const startTime = startedAt ? new Date(startedAt) : now;
+  const timeSpent = isNaN(startTime.getTime()) ? 0 : Math.round((now.getTime() - startTime.getTime()) / 1000);
+  const scorePercent = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 100;
+
+  const { data, error } = await supabase
+    .from('course_enrollments')
+    .update({
+      status: 'COMPLETED',
+      completed_at: now.toISOString(),
+      score_percent: scorePercent,
+      total_correct: totalCorrect,
+      total_questions: totalQuestions,
+      time_spent_seconds: timeSpent,
+      updated_at: now.toISOString()
+    })
+    .eq('id', enrollmentId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as CourseEnrollment;
+}
+
+/**
+ * Hook para buscar respostas do aluno em uma matrícula
+ */
+export function useCourseAnswers(enrollmentId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<CourseAnswer[]>(
+    enrollmentId ? `course_answers_${enrollmentId}` : null,
+    () => fetcher(() => supabase
+      .from('course_answers')
+      .select('*')
+      .eq('enrollment_id', enrollmentId)
+    )
+  );
+
+  return {
+    answers: data || [],
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+/**
+ * Hook para estatísticas de um curso (dashboard admin)
+ */
+export function useCourseStats(courseId?: string) {
+  const { data, error, isLoading } = useSWR(
+    courseId ? `course_stats_${courseId}` : null,
+    async () => {
+      const { data: enrollments, error } = await supabase
+        .from('course_enrollments')
+        .select('*')
+        .eq('course_id', courseId);
+      if (error) throw error;
+
+      const completed = (enrollments || []).filter(e => e.status === 'COMPLETED');
+      const totalEnrolled = enrollments?.length || 0;
+      const completionRate = totalEnrolled > 0 ? Math.round((completed.length / totalEnrolled) * 100) : 0;
+      const avgScore = completed.length > 0 ? Math.round(completed.reduce((sum, e) => sum + (e.score_percent || 0), 0) / completed.length) : 0;
+      const avgTime = completed.length > 0 ? Math.round(completed.reduce((sum, e) => sum + (e.time_spent_seconds || 0), 0) / completed.length) : 0;
+
+      return {
+        totalEnrolled,
+        totalCompleted: completed.length,
+        completionRate,
+        avgScore,
+        avgTimeSeconds: avgTime,
+        enrollments: enrollments || []
+      };
+    }
+  );
+
+  return {
+    stats: data || { totalEnrolled: 0, totalCompleted: 0, completionRate: 0, avgScore: 0, avgTimeSeconds: 0, enrollments: [] },
+    isLoading,
+    isError: error
+  };
+}
+
+/**
+ * Hook para dashboard de cursos (visão geral por company)
+ */
+export function useCourseDashboard(companyId?: string) {
+  const { data, error, isLoading } = useSWR(
+    companyId ? `course_dashboard_${companyId}` : null,
+    async () => {
+      const { data: enrollments, error } = await supabase
+        .from('course_enrollments')
+        .select('*, users:user_id(name, email), courses:course_id(title)')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return enrollments || [];
+    }
+  );
+
+  return {
+    enrollments: data || [],
+    isLoading,
+    isError: error
+  };
+}
+
+/**
+ * Hook para contar módulos e conteúdos de um curso (stats reais para CourseCard)
+ */
+export function useCourseModuleStats(courseId?: string) {
+  const { data, error, isLoading } = useSWR(
+    courseId ? `course_module_stats_${courseId}` : null,
+    async () => {
+      const { data: modules, error: mErr } = await supabase
+        .from('course_modules')
+        .select('id')
+        .eq('course_id', courseId);
+      if (mErr) throw mErr;
+      
+      let totalContents = 0;
+      if (modules && modules.length > 0) {
+        const moduleIds = modules.map(m => m.id);
+        const { count, error: cErr } = await supabase
+          .from('course_contents')
+          .select('id', { count: 'exact', head: true })
+          .in('module_id', moduleIds);
+        if (cErr) throw cErr;
+        totalContents = count || 0;
+      }
+
+      return {
+        totalModules: modules?.length || 0,
+        totalContents
+      };
+    }
+  );
+
+  return {
+    moduleStats: data || { totalModules: 0, totalContents: 0 },
+    isLoading,
+    isError: error
+  };
+}
+
+/**
+ * Admin: Liberar curso para um usuário refazer
+ */
+export async function resetEnrollment(courseId: string, userId: string) {
+  // Deleta a matrícula anterior e respostas (cascade)
+  const { error } = await supabase
+    .from('course_enrollments')
+    .delete()
+    .eq('course_id', courseId)
+    .eq('user_id', userId);
   if (error) throw error;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompanies } from '../hooks/useSupabaseData';
@@ -17,8 +17,23 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    if (companySlug) {
+      navigate(`/${companySlug}/login`);
+    } else {
+      navigate('/login');
+    }
   };
+
+  useEffect(() => {
+    if (user?.role === 'SUPER_ADMIN' && superAdmin) {
+      document.title = 'Super Admin | Store Page';
+    } else if (companySlug) {
+      const company = companies.find(c => c.slug === companySlug);
+      if (company?.name) {
+        document.title = `${company.name} | Admin`;
+      }
+    }
+  }, [user, superAdmin, companySlug, companies]);
 
   // 1. Identifica a empresa alvo a partir da URL
   const targetCompany = companySlug ? companies.find(c => c.slug === companySlug) : undefined;

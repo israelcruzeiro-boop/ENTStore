@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { mutate as globalMutate } from 'swr';
+import { cn } from '../../lib/utils';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useCompanies, useCourses, useCourseModules, useCourseContents, useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
+import { useCompanies, useCourses, useCourseModules, useCourseContents, useOrgStructure, useUsers, useCourseQuestions, resetEnrollment } from '../../hooks/useSupabaseData';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -27,8 +29,18 @@ import {
   Target,
   Globe,
   Lock,
-  Eye
+  Eye,
+  HelpCircle,
+  FileCode,
+  RefreshCw,
+  Percent,
+  Upload,
+  Layers,
+  Grid3X3,
+  ListOrdered,
+  MousePointer2
 } from 'lucide-react';
+import { Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseQuestionType } from '../../types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -38,12 +50,13 @@ import { Switch } from '@/components/ui/switch';
 import { uploadToSupabase } from '../../lib/storage';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'sonner';
+import { DIPLOMA_TEMPLATES } from '../../components/user/CourseDiploma';
 
 export const AdminCourseDetails = () => {
-  const { link_name: companySlug, courseId } = useParams();
+  const { companySlug, courseId } = useParams();
   const navigate = useNavigate();
   const { companies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
   const { courses, mutate: mutateCourses } = useCourses(company?.id);
   const course = courses.find(c => c.id === courseId);
@@ -64,16 +77,16 @@ export const AdminCourseDetails = () => {
   const [newContent, setNewContent] = useState({
     title: '',
     description: '',
-    type: 'PDF' as 'PDF' | 'VIDEO' | 'DOCUMENT' | 'IMAGE' | 'AUDIO',
+    type: 'PDF' as 'PDF' | 'VIDEO' | 'DOCUMENT' | 'IMAGE' | 'AUDIO' | 'HTML',
     file: null as File | null,
-    url: '' // Adicionado para links externos/YouTube
+    url: '',
+    html_content: ''
   });
   const [addMethod, setAddMethod] = useState<'upload' | 'link'>('upload');
 
 
   // Estado para Configurações do Curso (Público/Status/Estruturas)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [targetAudience, setTargetAudience] = useState<string[]>(course?.target_audience || []);
   const [courseStatus, setCourseStatus] = useState<string>(course?.status || 'DRAFT');
   
   const [accessType, setAccessType] = useState<'ALL' | 'RESTRICTED'>(course?.access_type || 'ALL');
@@ -81,12 +94,54 @@ export const AdminCourseDetails = () => {
   const [allowedRegionIds, setAllowedRegionIds] = useState<string[]>(course?.allowed_region_ids || []);
   const [allowedStoreIds, setAllowedStoreIds] = useState<string[]>(course?.allowed_store_ids || []);
   const [excludedUserIds, setExcludedUserIds] = useState<string[]>(course?.excluded_user_ids || []);
+  const [passingScore, setPassingScore] = useState<number>(course?.passing_score || 70);
+  const [diplomaTemplate, setDiplomaTemplate] = useState<string>(course?.diploma_template || 'azul');
+  const [thumbnailUrl, setThumbnailUrl] = useState<string>(course?.thumbnail_url || '');
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estado para perguntas
+  const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [questionModuleId, setQuestionModuleId] = useState<string | null>(null);
+  const [questionText, setQuestionText] = useState('');
+  const [questionExplanation, setQuestionExplanation] = useState('');
+  const [questionType, setQuestionType] = useState<CourseQuestionType>('MULTIPLE_CHOICE');
+  const [questionImageUrl, setQuestionImageUrl] = useState('');
+  const [questionOptions, setQuestionOptions] = useState<{text: string; isCorrect: boolean}[]>([
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false },
+    { text: '', isCorrect: false }
+  ]);
+  const [wordSearchWords, setWordSearchWords] = useState<string[]>(['']);
+  const [wordSearchDifficulty, setWordSearchDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('MEDIUM');
+  const [orderingItems, setOrderingItems] = useState<string[]>(['']);
+  const [hotspotPoints, setHotspotPoints] = useState<any[]>([]);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [resetUserId, setResetUserId] = useState('');
 
   const companyUsers = users.filter(u => u.role === 'USER');
   const companyTopLevels = orgTopLevels.filter(o => o.active);
   const companyUnitsLocal = orgUnits.filter(u => u.active);
   const unitLabel = company?.org_unit_name || 'Unidade';
   const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }];
+
+  // Sincronizar estados quando o curso for carregado
+  useEffect(() => {
+    if (course) {
+      setCourseTitle(course.title || '');
+      setCourseStatus(course.status || 'DRAFT');
+      setAccessType(course.access_type || 'ALL');
+      setAllowedUserIds(course.allowed_user_ids || []);
+      setAllowedRegionIds(course.allowed_region_ids || []);
+      setAllowedStoreIds(course.allowed_store_ids || []);
+      setExcludedUserIds(course.excluded_user_ids || []);
+      setPassingScore(course.passing_score || 70);
+      setDiplomaTemplate(course.diploma_template || 'azul');
+      setThumbnailUrl(course.thumbnail_url || '');
+    }
+  }, [course]);
 
   const usersInScope = useMemo(() => {
     if (allowedRegionIds.length === 0 && allowedStoreIds.length === 0) return [];
@@ -105,31 +160,75 @@ export const AdminCourseDetails = () => {
     });
   }, [allowedRegionIds, allowedStoreIds, companyUsers, companyUnitsLocal, companyTopLevels]);
 
+  const handleUploadCover = async (file: File) => {
+    if (!company?.id || !courseId) return;
+    setIsUploadingCover(true);
+    try {
+      const publicUrl = await uploadToSupabase(file, 'assets', `courses/${company.id}/covers`, 'thumbnail');
+      if (publicUrl) {
+        setThumbnailUrl(publicUrl);
+        toast.success('Capa carregada!');
+      }
+    } catch (err) {
+      toast.error('Erro ao enviar imagem');
+    } finally {
+      setIsUploadingCover(false);
+    }
+  };
+
   const handleUpdateCourse = async () => {
     const finalTitle = courseTitle || course?.title;
     if (!courseId || !finalTitle) return;
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('courses').update({ 
+      // Monta o payload base (colunas que sempre existem)
+      const payload: Record<string, unknown> = {
         title: finalTitle,
-        target_audience: targetAudience,
         status: courseStatus,
         access_type: accessType,
         allowed_user_ids: allowedUserIds,
         allowed_region_ids: allowedRegionIds,
         allowed_store_ids: allowedStoreIds,
-        excluded_user_ids: excludedUserIds
-      }).eq('id', courseId);
+        excluded_user_ids: excludedUserIds,
+        thumbnail_url: thumbnailUrl
+      };
+
+      // Tenta incluir colunas opcionais (podem não existir no banco)
+      payload.passing_score = passingScore;
+      payload.diploma_template = diplomaTemplate;
+
+      const { error } = await supabase.from('courses').update(payload).eq('id', courseId);
       
-      if (error) throw error;
-      toast.success("Curso atualizado com sucesso!");
+      if (error) {
+        // Se o erro for de coluna inexistente, tenta salvar sem os campos opcionais
+        if (error.message?.includes('passing_score') || error.message?.includes('diploma_template') || error.code === 'PGRST204') {
+          const safePayload = {
+            title: finalTitle,
+            status: courseStatus,
+            access_type: accessType,
+            allowed_user_ids: allowedUserIds,
+            allowed_region_ids: allowedRegionIds,
+            allowed_store_ids: allowedStoreIds,
+            excluded_user_ids: excludedUserIds,
+            thumbnail_url: thumbnailUrl
+          };
+          const { error: retryErr } = await supabase.from('courses').update(safePayload).eq('id', courseId);
+          if (retryErr) throw retryErr;
+          toast.info('Salvo! (Nota mínima e diploma precisam de migração no banco)');
+        } else {
+          throw error;
+        }
+      } else {
+        toast.success('Configurações salvas com sucesso!');
+      }
+      
+      await mutateCourses();
       setIsEditingTitle(false);
       setIsSettingsOpen(false);
-      mutateCourses();
     } catch (error: unknown) {
       if (error instanceof Error) {
-        toast.error("Erro: " + error.message);
+        toast.error('Erro: ' + error.message);
       }
     } finally {
       setIsSubmitting(false);
@@ -288,6 +387,52 @@ export const AdminCourseDetails = () => {
     }
   };
 
+  const handleAddQuestion = (moduleId: string) => {
+    setQuestionModuleId(moduleId);
+    setEditingQuestionId(null);
+    setQuestionText("");
+    setQuestionExplanation("");
+    setQuestionType("MULTIPLE_CHOICE");
+    setQuestionImageUrl("");
+    setWordSearchWords([""]);
+    setWordSearchDifficulty("MEDIUM");
+    setOrderingItems([""]);
+    setHotspotPoints([]);
+    setQuestionOptions([
+      { text: "", isCorrect: false },
+      { text: "", isCorrect: false },
+      { text: "", isCorrect: false },
+      { text: "", isCorrect: false },
+    ]);
+    setIsQuestionDialogOpen(true);
+  };
+
+  const handleEditQuestion = (q: CoursePhaseQuestion) => {
+    setEditingQuestionId(q.id);
+    setQuestionModuleId(q.module_id);
+    setQuestionText(q.question_text);
+    setQuestionExplanation(q.explanation || "");
+    setQuestionType(q.question_type);
+    setQuestionImageUrl(q.image_url || "");
+
+    if (q.question_type === "MULTIPLE_CHOICE") {
+      setQuestionOptions(
+        q.options?.map((o) => ({
+          text: o.option_text,
+          isCorrect: o.is_correct,
+        })) || []
+      );
+    } else if (q.question_type === "WORD_SEARCH") {
+      setWordSearchWords(q.configuration?.words || [""]);
+      setWordSearchDifficulty(q.configuration?.difficulty || "MEDIUM");
+    } else if (q.question_type === "ORDERING") {
+      setOrderingItems(q.configuration?.items || [""]);
+    } else if (q.question_type === "HOTSPOT") {
+      setHotspotPoints(q.configuration?.hotspots || []);
+    }
+    setIsQuestionDialogOpen(true);
+  };
+
   if (!course && !loadingModules) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -326,22 +471,7 @@ export const AdminCourseDetails = () => {
                   <ArrowLeft size={18} />
                 </Button>
               </div>
-            ) : (
-              <div className="flex items-center gap-3 group">
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight">{course?.title}</h1>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={() => {
-                    setCourseTitle(course?.title || '');
-                    setIsEditingTitle(true);
-                  }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-blue-600"
-                >
-                  <Edit2 size={18} />
-                </Button>
-              </div>
-            )}
+            ) : null}
             <p className="text-slate-500 mt-2 max-w-2xl">{course?.description || 'Adicione uma descrição para este curso.'}</p>
           </div>
 
@@ -350,7 +480,6 @@ export const AdminCourseDetails = () => {
                 variant="outline" 
                 onClick={() => {
                    setCourseTitle(course?.title || '');
-                   setTargetAudience(course?.target_audience || []);
                    setCourseStatus(course?.status || 'DRAFT');
                    setAccessType(course?.access_type || 'ALL');
                    setAllowedUserIds(course?.allowed_user_ids || []);
@@ -400,12 +529,14 @@ export const AdminCourseDetails = () => {
                 key={module.id} 
                 module={module} 
                 onDelete={() => handleDeleteModule(module.id)}
-                companySlug={companySlug!}
+                linkName={companySlug!}
                 onAddContent={() => {
                   setSelectedModuleId(module.id);
                   setIsAddContentOpen(true);
                 }}
                 onDeleteContent={handleDeleteContent}
+                onAddQuestion={handleAddQuestion}
+                onEditQuestion={handleEditQuestion}
               />
             ))}
           </Accordion>
@@ -560,6 +691,149 @@ export const AdminCourseDetails = () => {
                      </div>
                   </div>
 
+                  <div className="space-y-4">
+                   <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      Configurações do Curso
+                   </h3>
+                   
+                   <div className="space-y-3">
+                      <div className="flex flex-col gap-2 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                         <Label className="text-slate-900 font-bold flex items-center gap-2">
+                            <ImageIcon size={18} className="text-blue-500" /> Capa do Curso
+                         </Label>
+                         
+                         {thumbnailUrl && (
+                           <div className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video mb-2">
+                             <img src={thumbnailUrl} alt="Capa" className="w-full h-full object-cover" />
+                             <button 
+                               type="button"
+                               onClick={() => setThumbnailUrl('')}
+                               className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                             >
+                               <X size={12} />
+                             </button>
+                           </div>
+                         )}
+
+                         <div className="flex gap-2">
+                           <Input 
+                              type="text"
+                              placeholder="https://exemplo.com/imagem.png"
+                              value={thumbnailUrl}
+                              onChange={(e) => setThumbnailUrl(e.target.value)}
+                              className="bg-white border-slate-200 focus:border-blue-500 flex-1"
+                           />
+                           <input
+                             ref={coverInputRef}
+                             type="file"
+                             accept="image/*"
+                             className="hidden"
+                             onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file) handleUploadCover(file);
+                               e.target.value = '';
+                             }}
+                           />
+                           <Button
+                             type="button"
+                             variant="outline"
+                             size="sm"
+                             disabled={isUploadingCover}
+                             onClick={() => coverInputRef.current?.click()}
+                             className="border-blue-200 text-blue-700 hover:bg-blue-50 shrink-0 gap-1"
+                           >
+                             {isUploadingCover ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                             Upload
+                           </Button>
+                         </div>
+                         <p className="text-[10px] text-slate-500 italic">Cole uma URL ou faça upload. Esta imagem será exibida no card do curso.</p>
+                      </div>
+
+                      <div className="flex justify-between items-center bg-amber-50 p-3 rounded-lg border border-amber-100 mb-4">
+                     <Label className="text-slate-900 font-bold flex items-center gap-2">
+                        <Percent size={18} className="text-amber-500" /> Nota Mínima (%)
+                     </Label>
+                     <Input 
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={passingScore}
+                        onChange={(e) => setPassingScore(Number(e.target.value))}
+                        className="w-20 text-center font-bold border-amber-200"
+                     />
+                  </div>
+
+                  {/* Template de Diploma */}
+                  <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-4">
+                     <Label className="text-slate-900 font-bold flex items-center gap-2 mb-3">
+                        <BookOpen size={18} className="text-emerald-500" /> Template de Diploma
+                     </Label>
+                     <div className="grid grid-cols-5 gap-2">
+                        {DIPLOMA_TEMPLATES.map(t => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setDiplomaTemplate(t.id)}
+                            className={`relative rounded-lg overflow-hidden border-2 transition-all aspect-[297/210] ${
+                              diplomaTemplate === t.id 
+                                ? 'border-emerald-500 ring-2 ring-emerald-200 scale-105' 
+                                : 'border-slate-200 hover:border-emerald-300 opacity-70 hover:opacity-100'
+                            }`}
+                          >
+                            <img src={t.image} alt={t.label} className="w-full h-full object-cover" />
+                            {diplomaTemplate === t.id && (
+                              <div className="absolute top-1 right-1 bg-emerald-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
+                                <CheckCircle2 size={10} />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                     </div>
+                     <p className="text-[10px] text-slate-500 mt-2 text-center">
+                       Selecionado: <strong>{DIPLOMA_TEMPLATES.find(t => t.id === diplomaTemplate)?.label}</strong>
+                     </p>
+                  </div>
+                </div>
+             </div>
+
+             {/* Liberar curso para refazer */}
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
+                     <Label className="text-slate-900 font-bold flex items-center gap-2 mb-2">
+                        <RefreshCw size={18} className="text-blue-500" /> Liberar Curso para Refazer
+                     </Label>
+                     <p className="text-[10px] text-slate-500 mb-3">Selecione um usuário para resetar a matrícula e permitir que ele refaça o curso.</p>
+                     <div className="flex gap-2">
+                        <select
+                          className="flex-1 h-9 border border-slate-200 rounded-md bg-white text-sm px-3"
+                          value={resetUserId}
+                          onChange={(e) => setResetUserId(e.target.value)}
+                        >
+                          <option value="">Selecione um usuário...</option>
+                          {companyUsers.map(u => (
+                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                          ))}
+                        </select>
+                        <Button 
+                          variant="outline"
+                          size="sm"
+                          disabled={!resetUserId || !courseId}
+                          className="border-blue-200 text-blue-700 hover:bg-blue-100 text-xs shrink-0"
+                          onClick={async () => {
+                            if (!courseId || !resetUserId) return;
+                            try {
+                              await resetEnrollment(courseId, resetUserId);
+                              toast.success('Curso liberado para o usuário refazer!');
+                              setResetUserId('');
+                            } catch (err) {
+                              toast.error('Erro ao liberar curso');
+                            }
+                          }}
+                        >
+                          <RefreshCw size={14} className="mr-1" /> Liberar
+                        </Button>
+                     </div>
+                  </div>
+
                   <Label className="text-slate-900 font-bold flex items-center gap-2">
                      <Target size={18} className="text-rose-500" /> Público Alvo e Acesso
                   </Label>
@@ -668,35 +942,7 @@ export const AdminCourseDetails = () => {
                            )}
                         </div>
                      </div>
-                  ) : (
-                     <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-                        <p className="text-xs font-semibold text-blue-800 mb-2 flex items-center gap-2">
-                           <Globe size={14} /> Filtro por Perfis (Opcional)
-                        </p>
-                        <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">
-                           Apenas usuários com as roles abaixo verão o curso. Se vazio, todos os usuários da empresa verão.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                           {['vendedor', 'gerente', 'viewer'].map(role => (
-                              <button
-                                 key={role}
-                                 type="button"
-                                 onClick={() => {
-                                    if (targetAudience?.includes(role)) setTargetAudience(targetAudience.filter(r => r !== role));
-                                    else setTargetAudience([...(targetAudience || []), role]);
-                                 }}
-                                 className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase transition-all border ${
-                                    targetAudience?.includes(role) 
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                                    : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
-                                 }`}
-                              >
-                                 {role}
-                              </button>
-                           ))}
-                        </div>
-                     </div>
-                  )}
+                  ) : null}
                </div>
             </div>
             <DialogFooter className="p-6 bg-slate-50 border-t flex flex-col sm:flex-row gap-3">
@@ -717,6 +963,473 @@ export const AdminCourseDetails = () => {
             </DialogFooter>
          </DialogContent>
       </Dialog>
+
+      {/* DIÁLOGO: ADICIONAR PERGUNTA */}
+      <Dialog open={isQuestionDialogOpen} onOpenChange={setIsQuestionDialogOpen}>
+        <DialogContent className="sm:max-w-[550px] border-0 shadow-2xl p-0 overflow-hidden rounded-2xl">
+          <div className="bg-amber-600 p-6 text-white flex justify-between items-center">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <HelpCircle size={24} /> Nova Pergunta
+              </DialogTitle>
+            </DialogHeader>
+            <Button variant="ghost" size="icon" onClick={() => setIsQuestionDialogOpen(false)} className="text-white hover:bg-white/10"><X /></Button>
+          </div>
+          <div className="p-6 space-y-5 bg-white overflow-y-auto max-h-[70vh]">
+            <div className="space-y-4">
+              <Label className="font-bold text-slate-700">Tipo de Interação</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'MULTIPLE_CHOICE', label: 'Múltipla Escolha', icon: HelpCircle, color: 'text-blue-500' },
+                  { id: 'WORD_SEARCH', label: 'Caça Palavras', icon: Grid3X3, color: 'text-emerald-500' },
+                  { id: 'ORDERING', label: 'Reordenação', icon: ListOrdered, color: 'text-amber-500' },
+                  { id: 'HOTSPOT', label: 'Clique na Imagem', icon: MousePointer2, color: 'text-rose-500' }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setQuestionType(t.id as CourseQuestionType)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
+                      questionType === t.id 
+                        ? "border-blue-600 bg-blue-50" 
+                        : "border-slate-100 hover:border-slate-200"
+                    )}
+                  >
+                    <t.icon className={cn("shrink-0", t.color)} size={20} />
+                    <span className={cn("text-xs font-bold", questionType === t.id ? "text-blue-900" : "text-slate-600")}>
+                      {t.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-slate-700">Pergunta / Instrução *</Label>
+              <Textarea
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                placeholder="Ex: Encontre os termos de segurança no quadro abaixo..."
+                className="min-h-[80px] border-slate-200"
+              />
+            </div>
+
+            {/* Configuração Dinâmica por Tipo */}
+            {questionType === 'MULTIPLE_CHOICE' && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between">
+                  <Label className="font-bold text-slate-700">Alternativas</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setQuestionOptions([...questionOptions, { text: '', isCorrect: false }])}
+                    className="text-xs text-blue-600"
+                  >
+                    <Plus size={14} className="mr-1" /> Adicionar
+                  </Button>
+                </div>
+                {questionOptions.map((option, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuestionOptions(prev => prev.map((o, i) => ({
+                          ...o,
+                          isCorrect: i === idx
+                        })));
+                      }}
+                      className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
+                        option.isCorrect ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300"
+                      )}
+                    >
+                      {option.isCorrect && <CheckCircle2 size={14} />}
+                    </button>
+                    <Input
+                      value={option.text}
+                      onChange={(e) => {
+                        const updated = [...questionOptions];
+                        updated[idx].text = e.target.value;
+                        setQuestionOptions(updated);
+                      }}
+                      placeholder={`Alternativa ${idx + 1}`}
+                      className="flex-1 border-slate-200"
+                    />
+                    {questionOptions.length > 2 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setQuestionOptions(prev => prev.filter((_, i) => i !== idx))}
+                        className="h-8 w-8 text-slate-400 hover:text-red-500"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {questionType === 'WORD_SEARCH' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700 text-[10px] uppercase tracking-wider">Dificuldade do Desafio</Label>
+                  <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    {['EASY', 'MEDIUM', 'HARD'].map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => setWordSearchDifficulty(level as any)}
+                        className={cn(
+                          "py-2 rounded-md text-[10px] font-bold transition-all",
+                          wordSearchDifficulty === level 
+                            ? "bg-white text-blue-600 shadow-sm ring-1 ring-slate-200" 
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        {level === 'EASY' ? 'FÁCIL' : level === 'MEDIUM' ? 'MÉDIO' : 'DIFÍCIL'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <Label className="font-bold text-slate-700">Palavras Alvo</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setWordSearchWords([...wordSearchWords, ''])}
+                    className="text-xs text-blue-600 font-bold"
+                  >
+                    <Plus size={14} className="mr-1" /> Adicionar
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {wordSearchWords.map((word, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input 
+                        value={word} 
+                        onChange={e => {
+                          const updated = [...wordSearchWords];
+                          updated[idx] = e.target.value.toUpperCase();
+                          setWordSearchWords(updated);
+                        }}
+                        placeholder={`Palavra ${idx + 1}`}
+                        className="h-9 text-sm font-medium"
+                      />
+                      {wordSearchWords.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setWordSearchWords(prev => prev.filter((_, i) => i !== idx))}
+                          className="h-8 w-8 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
+                   <p className="text-[10px] text-blue-600 italic">O grid será gerado automaticamente ao salvar.</p>
+                </div>
+              </div>
+            )}
+
+            {questionType === 'ORDERING' && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <div className="flex items-center justify-between">
+                  <Label className="font-bold text-slate-700">Itens em Ordem Correta</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOrderingItems([...orderingItems, ''])}
+                    className="text-xs text-blue-600"
+                  >
+                    <Plus size={14} className="mr-1" /> Adicionar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {orderingItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                        {idx + 1}
+                      </div>
+                      <Input 
+                        value={item} 
+                        onChange={e => {
+                          const updated = [...orderingItems];
+                          updated[idx] = e.target.value;
+                          setOrderingItems(updated);
+                        }}
+                        placeholder={`Item ${idx + 1}`}
+                        className="h-9 text-sm flex-1"
+                      />
+                      {orderingItems.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setOrderingItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="h-8 w-8 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 italic">O aluno verá estes itens embaralhados e deve colocá-los nesta ordem.</p>
+              </div>
+            )}
+
+            {questionType === 'HOTSPOT' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">URL da Imagem de Referência</Label>
+                  <Input 
+                    value={questionImageUrl} 
+                    onChange={e => setQuestionImageUrl(e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+                {questionImageUrl && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-bold text-slate-700">Áreas de Clique (Hotspots)</Label>
+                      {hotspotPoints.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setHotspotPoints([])}
+                          className="text-xs text-red-500"
+                        >
+                          <Trash2 size={14} className="mr-1" /> Limpar Tudo
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div 
+                      className="relative rounded-lg overflow-hidden border-2 border-dashed border-slate-200 cursor-crosshair group"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = ((e.clientX - rect.left) / rect.width) * 100;
+                        const y = ((e.clientY - rect.top) / rect.height) * 100;
+                        setHotspotPoints([...hotspotPoints, { id: Math.random().toString(36), x, y, radius: 5 }]);
+                      }}
+                    >
+                      <img src={questionImageUrl} alt="Preview" className="w-full h-auto opacity-70 group-hover:opacity-100 transition-opacity" />
+                      {hotspotPoints.map((hs, idx) => (
+                        <div 
+                          key={hs.id} 
+                          className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-rose-500/50 border-2 border-rose-500 rounded-full flex items-center justify-center text-[10px] text-white font-bold"
+                          style={{ left: `${hs.x}%`, top: `${hs.y}%` }}
+                        >
+                          {idx + 1}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHotspotPoints(hotspotPoints.filter(p => p.id !== hs.id));
+                            }}
+                            className="absolute -top-2 -right-2 bg-red-600 rounded-full p-0.5"
+                          >
+                            <X size={8} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <p className="text-[10px] font-bold text-slate-400 bg-white/80 px-2 py-1 rounded">CLIQUE NA IMAGEM PARA MARCAR O PONTO CORRETO</p>
+                      </div>
+                    </div>
+
+                    {/* Lista Gerencial de Pontos */}
+                    {hotspotPoints.length > 0 && (
+                      <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2">Pontos Definidos ({hotspotPoints.length})</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {hotspotPoints.map((hs, idx) => (
+                            <div key={hs.id} className="flex items-center gap-1.5 bg-white px-2 py-1 rounded border border-slate-200 text-[10px] font-medium text-slate-600">
+                              <span className="w-4 h-4 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center font-bold">{idx + 1}</span>
+                              X:{Math.round(hs.x)}% Y:{Math.round(hs.y)}%
+                              <button onClick={() => setHotspotPoints(hotspotPoints.filter(p => p.id !== hs.id))} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <X size={10} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2 border-t pt-4">
+              <Label className="font-bold text-slate-700 flex items-center gap-2">
+                <AlertCircle size={14} className="text-amber-500" /> Explicação (opcional)
+              </Label>
+              <Textarea
+                value={questionExplanation}
+                onChange={(e) => setQuestionExplanation(e.target.value)}
+                placeholder="Explicação exibida após a resposta..."
+                className="min-h-[60px] border-slate-200"
+              />
+            </div>
+          </div>
+          <DialogFooter className="p-4 bg-slate-50 border-t flex gap-3">
+            <Button variant="ghost" onClick={() => setIsQuestionDialogOpen(false)} className="flex-1">Cancelar</Button>
+            <Button
+              className="flex-1 bg-amber-600 hover:bg-amber-700"
+              disabled={
+                isSubmitting || 
+                !questionText.trim() ||
+                (questionType === 'MULTIPLE_CHOICE' && (!questionOptions.some(o => o.isCorrect) || questionOptions.some(o => !o.text.trim()))) ||
+                (questionType === 'WORD_SEARCH' && wordSearchWords.every(w => !w.trim())) ||
+                (questionType === 'ORDERING' && orderingItems.every(i => !i.trim())) ||
+                (questionType === 'HOTSPOT' && (!questionImageUrl.trim() || hotspotPoints.length === 0))
+              }
+              onClick={async () => {
+                if (!questionModuleId) return;
+                setIsSubmitting(true);
+                try {
+                  // Preparar configuração baseada no tipo
+                  let config: any = {};
+                  if (questionType === 'WORD_SEARCH') {
+                    const wordsForGrid = wordSearchWords.map(w => w.trim().toUpperCase()).filter(Boolean);
+                    const size = wordSearchDifficulty === 'HARD' ? 12 : wordSearchDifficulty === 'MEDIUM' ? 10 : 8;
+                    const grid = Array(size).fill(null).map(() => Array(size).fill(''));
+                    
+                    const directionsByDifficulty = {
+                      EASY: [[0, 1], [1, 0]], // Horiz, Vert
+                      MEDIUM: [[0, 1], [1, 0], [1, 1], [-1, 1]], // + Diagonais
+                      HARD: [[0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1]] // + Invertidas
+                    };
+                    const directions = directionsByDifficulty[wordSearchDifficulty];
+
+                    // Posicionar palavras
+                    for (const word of wordsForGrid) {
+                      let placed = false;
+                      let attempts = 0;
+                      while (!placed && attempts < 100) {
+                        const [dr, dc] = directions[Math.floor(Math.random() * directions.length)];
+                        const r = Math.floor(Math.random() * size);
+                        const c = Math.floor(Math.random() * size);
+                        
+                        // Verificar se cabe no grid
+                        let fits = true;
+                        if (r + dr * (word.length - 1) < 0 || r + dr * (word.length - 1) >= size) fits = false;
+                        if (c + dc * (word.length - 1) < 0 || c + dc * (word.length - 1) >= size) fits = false;
+                        
+                        // Verificar colisões
+                        if (fits) {
+                          for (let i = 0; i < word.length; i++) {
+                            const currChar = grid[r + i * dr][c + i * dc];
+                            if (currChar !== '' && currChar !== word[i]) {
+                              fits = false;
+                              break;
+                            }
+                          }
+                        }
+
+                        if (fits) {
+                          for (let i = 0; i < word.length; i++) {
+                            grid[r + i * dr][c + i * dc] = word[i];
+                          }
+                          placed = true;
+                        }
+                        attempts++;
+                      }
+                    }
+
+                    // Preencher espaços vazios com letras aleatórias
+                    for (let r = 0; r < size; r++) {
+                      for (let c = 0; c < size; c++) {
+                        if (grid[r][c] === '') {
+                          grid[r][c] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+                        }
+                      }
+                    }
+                    config = { words: wordsForGrid, grid, difficulty: wordSearchDifficulty };
+                  } else if (questionType === 'ORDERING') {
+                    config = { items: orderingItems.map(i => i.trim()).filter(Boolean) };
+                  } else if (questionType === 'HOTSPOT') {
+                    config = { hotspots: hotspotPoints };
+                  }
+
+                  let questionId = editingQuestionId;
+
+                  if (editingQuestionId) {
+                    // Atualizar pergunta existente
+                    const { error: qErr } = await supabase.from('course_phase_questions').update({
+                      question_text: questionText.trim(),
+                      explanation: questionExplanation.trim() || null,
+                      question_type: questionType,
+                      configuration: config,
+                      image_url: questionImageUrl || null,
+                      updated_at: new Date().toISOString()
+                    }).eq('id', editingQuestionId);
+                    if (qErr) throw qErr;
+                  } else {
+                    // Criar nova pergunta
+                    const { data: q, error: qErr } = await supabase.from('course_phase_questions').insert({
+                      module_id: questionModuleId,
+                      question_text: questionText.trim(),
+                      explanation: questionExplanation.trim() || null,
+                      question_type: questionType,
+                      configuration: config,
+                      image_url: questionImageUrl || null,
+                      order_index: 0
+                    }).select().single();
+                    if (qErr) throw qErr;
+                    questionId = q.id;
+                  }
+
+                  // Gerenciar alternativas apenas se for múltipla escolha
+                  if (questionType === 'MULTIPLE_CHOICE') {
+                    // Se estiver editando, limpar as antigas primeiro
+                    if (editingQuestionId) {
+                      await supabase.from('course_question_options').delete().eq('question_id', editingQuestionId);
+                    }
+
+                    const optionsToInsert = questionOptions.map((opt, idx) => ({
+                      question_id: questionId,
+                      option_text: opt.text.trim(),
+                      is_correct: opt.isCorrect,
+                      order_index: idx
+                    }));
+                    const { error: oErr } = await supabase.from('course_question_options').insert(optionsToInsert);
+                    if (oErr) throw oErr;
+                  }
+
+                  toast.success(editingQuestionId ? 'Pergunta atualizada!' : 'Pergunta adicionada!');
+                  setIsQuestionDialogOpen(false);
+                  setEditingQuestionId(null);
+                  setQuestionText('');
+                  setQuestionExplanation('');
+                  setQuestionType('MULTIPLE_CHOICE');
+                  setQuestionImageUrl('');
+                  setWordSearchWords(['']);
+                  setOrderingItems(['']);
+                  setHotspotPoints([]);
+                  setQuestionOptions([
+                    { text: '', isCorrect: false },
+                    { text: '', isCorrect: false },
+                    { text: '', isCorrect: false },
+                    { text: '', isCorrect: false }
+                  ]);
+                  globalMutate(`course_questions_${questionModuleId}`);
+                  mutateModules();
+                } catch (err) {
+                  toast.error(editingQuestionId ? 'Erro ao atualizar pergunta' : 'Erro ao criar pergunta');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            >
+              {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2" size={18} />} Salvar Pergunta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -726,13 +1439,17 @@ const ModuleItem = ({
   onDelete, 
   linkName, 
   onAddContent,
-  onDeleteContent
+  onDeleteContent,
+  onAddQuestion,
+  onEditQuestion
 }: { 
   module: { id: string; title: string }, 
   onDelete: () => void, 
   linkName: string, 
   onAddContent: () => void,
-  onDeleteContent: (id: string) => void
+  onDeleteContent: (id: string) => void,
+  onAddQuestion: (moduleId: string) => void,
+  onEditQuestion: (question: CoursePhaseQuestion) => void
 }) => {
   const { contents, mutate: mutateContents } = useCourseContents(module.id);
   const [isEditing, setIsEditing] = useState(false);
@@ -785,6 +1502,13 @@ const ModuleItem = ({
                  <Plus size={16} /> Adicionar Aula ou Conteúdo
               </Button>
            </div>
+           
+           {/* Seção de Perguntas da Fase */}
+           <ModuleQuestionsSection 
+              moduleId={module.id} 
+              onAddQuestion={onAddQuestion} 
+              onEditQuestion={onEditQuestion} 
+            />
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -808,6 +1532,7 @@ const ContentRow = ({
       case 'AUDIO': return <Music size={16} className="text-amber-500" />;
       case 'IMAGE': return <ImageIcon size={16} className="text-blue-500" />;
       case 'DOCUMENT': return <FileText size={16} className="text-emerald-500" />;
+      case 'HTML': return <FileCode size={16} className="text-purple-500" />;
       default: return <FileText size={16} />;
     }
   };
@@ -830,6 +1555,91 @@ const ContentRow = ({
          <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 text-slate-400 hover:text-red-500">
             <Trash2 size={14} />
          </Button>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente para perguntas do módulo
+const ModuleQuestionsSection = ({ 
+  moduleId, 
+  onAddQuestion, 
+  onEditQuestion 
+}: { 
+  moduleId: string; 
+  onAddQuestion: (moduleId: string) => void;
+  onEditQuestion: (question: CoursePhaseQuestion) => void;
+}) => {
+  const { questions, mutate } = useCourseQuestions(moduleId);
+  
+  const handleDeleteQuestion = async (questionId: string) => {
+    try {
+      const { error } = await supabase.from('course_phase_questions').delete().eq('id', questionId);
+      if (error) throw error;
+      mutate();
+      toast.success('Pergunta removida');
+    } catch (err) {
+      toast.error('Erro ao remover pergunta');
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-200">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-xs font-bold text-amber-600">
+          <HelpCircle size={14} />
+          <span>Perguntas da Fase ({questions.length})</span>
+        </div>
+        <Button onClick={() => onAddQuestion(moduleId)} variant="outline" size="sm" className="text-xs gap-1 border-amber-200 text-amber-700 hover:bg-amber-50">
+          <Plus size={14} /> Nova Pergunta
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {questions.map((q, idx) => (
+          <div key={q.id} className="bg-white p-3 rounded-lg border border-slate-100 flex items-start justify-between group">
+            <div className="flex-1 overflow-hidden">
+              <p className="text-sm font-medium text-slate-700 truncate">
+                <span className="text-slate-400 mr-1">{idx + 1}.</span>
+                {q.question_text}
+              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold bg-slate-100 px-1 rounded">{q.question_type}</span>
+                <span className="text-[10px] text-slate-400">
+                  {q.question_type === 'MULTIPLE_CHOICE' ? `${q.options?.length || 0} alternativas` : 
+                   q.question_type === 'WORD_SEARCH' ? `${q.configuration?.words?.length || 0} palavras` :
+                   q.question_type === 'ORDERING' ? `${q.configuration?.items?.length || 0} itens` :
+                   `${q.configuration?.hotspots?.length || 0} pontos`}
+                </span>
+                {(q.question_type === 'MULTIPLE_CHOICE' ? q.options?.some(o => o.is_correct) : true) && (
+                  <span className="text-[10px] text-emerald-500 flex items-center gap-0.5">
+                    <CheckCircle2 size={10} /> Configurado
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => onEditQuestion(q)} 
+                className="h-7 w-7 text-slate-400 hover:text-blue-600"
+              >
+                <Edit2 size={12} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleDeleteQuestion(q.id)} 
+                className="h-7 w-7 text-slate-300 hover:text-red-500"
+              >
+                <Trash2 size={12} />
+              </Button>
+            </div>
+          </div>
+        ))}
+        {questions.length === 0 && (
+          <p className="text-xs text-slate-400 text-center py-2">Nenhuma pergunta nesta fase. Opcional — o aluno avançará diretamente.</p>
+        )}
       </div>
     </div>
   );

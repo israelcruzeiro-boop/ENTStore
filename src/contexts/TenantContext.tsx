@@ -41,6 +41,7 @@ export const TenantProvider = () => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTenant = () => {
   const context = useContext(TenantContext);
   if (context === undefined) {

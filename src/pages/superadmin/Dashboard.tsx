@@ -121,10 +121,10 @@ export const SuperAdminDashboard = () => {
     if (!name || !link_name) return toast.error('Nome e Link da Empresa são obrigatórios.');
 
     if (RESERVED_SLUGS.includes(link_name)) {
-      return toast.error(`"${companySlug}" é um nome reservado pelo sistema e não pode ser utilizado.`);
+      return toast.error(`"${link_name}" é um nome reservado pelo sistema e não pode ser utilizado.`);
     }
 
-    const isDuplicate = companies.some(c => c.slug === companySlug && c.id !== editingId);
+    const isDuplicate = companies.some(c => (c.slug === link_name || c.link_name === link_name) && c.id !== editingId);
     if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
 
     setIsSubmitting(true);
