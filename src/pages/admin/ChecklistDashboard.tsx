@@ -833,7 +833,14 @@ export const AdminChecklistDashboard = () => {
                     }))}
                     courseHistory={userCourseHistory}
                  />
-               {/* Response Modal */}
+               </div>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* Response Modal */}
       <Dialog open={isResponseModalOpen} onOpenChange={setIsResponseModalOpen}>
         <DialogContent className="max-w-3xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[95vh] flex flex-col" hideCloseIcon>
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
