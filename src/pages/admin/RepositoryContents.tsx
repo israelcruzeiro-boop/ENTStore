@@ -883,7 +883,7 @@ export const AdminRepositoryContents = () => {
                   <Label>URL Principal *</Label>
                   <div className="flex gap-2">
                     <Input placeholder="https://..." value={formData.url} onChange={(e) => setFormData({ ...formData, url: e.target.value })} className="flex-1" disabled={isSubmitting} />
-                    <Input type="file" onChange={(e) => handleFileUpload(e)} className="hidden" id="file-upload" disabled={isSubmitting || isUploading} />
+                    <input type="file" onChange={(e) => handleFileUpload(e)} className="hidden" id="file-upload" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.mp3,.wav" disabled={isSubmitting || isUploading} />
                     <Button type="button" variant="outline" onClick={() => document.getElementById('file-upload')?.click()} className="shrink-0" disabled={isSubmitting || isUploading}>
                       {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
                     </Button>
@@ -979,7 +979,7 @@ export const AdminRepositoryContents = () => {
                     <Input placeholder="Ex: Planilha XPTO" value={link.name} onChange={e => updateBatch(index, 'name', e.target.value)} className="h-9 text-sm focus-visible:ring-indigo-500" disabled={isSubmitting} />
                     <Input placeholder="https://..." value={link.url} onChange={e => updateBatch(index, 'url', e.target.value)} onPaste={e => handlePaste(e, index)} className="h-9 text-sm font-mono focus-visible:ring-indigo-500" disabled={isSubmitting} />
                     <div className="flex justify-center">
-                      <Input type="file" onChange={(e) => handleFileUpload(e, index)} className="hidden" id={`file-upload-batch-${index}`} disabled={isSubmitting || isUploading} />
+                      <Input type="file" onChange={(e) => handleFileUpload(e, index)} className="hidden" id={`file-upload-batch-${index}`} accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.mp3,.wav" disabled={isSubmitting || isUploading} />
                       <Button type="button" variant="ghost" size="icon" onClick={() => document.getElementById(`file-upload-batch-${index}`)?.click()} className="h-9 w-9 text-slate-400 hover:text-indigo-600" disabled={isSubmitting || isUploading}>
                         <Plus size={16} />
                       </Button>

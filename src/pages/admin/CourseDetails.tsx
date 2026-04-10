@@ -374,9 +374,10 @@ export const AdminCourseDetails = () => {
     const file = e.target.files?.[0];
     if (file) {
       let type: 'PDF' | 'VIDEO' | 'DOCUMENT' | 'IMAGE' | 'AUDIO' = 'PDF';
-      if (file.type.startsWith('video/')) type = 'VIDEO';
-      else if (file.type.startsWith('audio/')) type = 'AUDIO';
+      if (file.type.includes('pdf')) type = 'PDF';
       else if (file.type.startsWith('image/')) type = 'IMAGE';
+      else if (file.type.startsWith('audio/')) type = 'AUDIO';
+      else type = 'DOCUMENT';
       
       setNewContent({
         ...newContent,
@@ -598,14 +599,9 @@ export const AdminCourseDetails = () => {
                   <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 flex flex-col items-center justify-center hover:border-blue-400 hover:bg-blue-50/50 transition-all cursor-pointer relative group">
                      <input 
                         type="file" 
-                        onChange={onFileChange} 
-                        className="absolute inset-0 opacity-0 cursor-pointer" 
-                        accept={
-                          newContent.type === 'PDF' ? 'application/pdf' :
-                          newContent.type === 'DOCUMENT' ? '.txt,.doc,.docx' :
-                          newContent.type === 'IMAGE' ? 'image/*' :
-                          newContent.type === 'AUDIO' ? 'audio/*' : '*'
-                        } 
+                        onChange={(e) => setNewContent(prev => ({ ...prev, file: e.target.files?.[0] || null }))}
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                        accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp,.mp3,.wav"
                      />
                      {newContent.file ? (
                         <div className="text-center">

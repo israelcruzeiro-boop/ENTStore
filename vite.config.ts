@@ -52,7 +52,7 @@ export default defineConfig(() => ({
     })
   ],
   build: {
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1000, // Aumentado para 1MB para evitar falsos positivos nos avisos
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -62,7 +62,9 @@ export default defineConfig(() => ({
             if (id.includes('recharts')) return 'vendor-charts';
             if (id.includes('@supabase')) return 'vendor-supabase';
             if (id.includes('lucide-react')) return 'vendor-lucide';
-            return 'vendor';
+            if (id.includes('@radix-ui')) return 'vendor-ui';
+            if (id.includes('date-fns')) return 'vendor-utils';
+            return 'vendor-core';
           }
         }
       }

@@ -761,8 +761,8 @@ export const Viewer = ({ content }: { content: Content }) => {
         iframeUrl = `${match[1]}/preview`;
       }
     }
-    else if (content.type === 'DOCUMENT' && !iframeUrl.includes('google.com')) {
-      // Forçar o modo de visualização caso a URL já seja do Drive mas sem preview
+    else if ((content.type === 'DOCUMENT' || content.type === 'PDF') && !iframeUrl.includes('google.com')) {
+      // Forçar o modo de visualização caso a URL já seja do Drive mas sem preview ou para PDFs/Documentos
       if (iframeUrl.includes('drive.google.com/')) {
         const driveIdMatch = iframeUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         if (driveIdMatch && driveIdMatch[1]) {
@@ -807,13 +807,24 @@ export const Viewer = ({ content }: { content: Content }) => {
             </div>
         )}
 
-        <iframe 
-            src={iframeUrl} 
-            className="w-full h-full border-0 absolute inset-0 z-10"
-            title={content.title}
-            onLoad={() => setIsLoading(false)}
-            allowFullScreen
-        />
+        {(content.type === 'IMAGE' || content.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) ? (
+            <div className="w-full h-full flex items-center justify-center p-4 bg-zinc-950">
+              <img 
+                src={content.url} 
+                alt={content.title}
+                className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                onLoad={() => setIsLoading(false)}
+              />
+            </div>
+        ) : (
+            <iframe 
+                src={iframeUrl} 
+                className="w-full h-full border-0 absolute inset-0 z-10"
+                title={content.title}
+                onLoad={() => setIsLoading(false)}
+                allowFullScreen
+            />
+        )}
     </div>
   );
 

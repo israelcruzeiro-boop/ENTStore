@@ -225,7 +225,7 @@ export const RepositoryDetail = () => {
       } else if (iframeUrl.includes('vimeo.com/') && !iframeUrl.includes('player.vimeo.com')) {
         const videoId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
         if (videoId) iframeUrl = `https://player.vimeo.com/video/${videoId}`;
-      } else if (!iframeUrl.includes('google.com') && iframeUrl.match(/\.(doc|docx|xls|xlsx|ppt|pptx)$/i)) {
+      } else if (!iframeUrl.includes('google.com') && iframeUrl.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i)) {
         iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
       }
     } catch (e) { console.error("Erro ao formatar URL", e); }
