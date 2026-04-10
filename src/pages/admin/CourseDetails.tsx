@@ -1293,11 +1293,14 @@ export const AdminCourseDetails = () => {
                 try {
                   // Preparar configuração baseada no tipo
                   let config: Record<string, unknown> = {};
-                  if (questionType === 'WORD_SEARCH') {
+                    if (questionType === 'WORD_SEARCH') {
                     const wordsForGrid = wordSearchWords.map(w => w.trim().toUpperCase()).filter(Boolean);
+                    if (wordsForGrid.length === 0) throw new Error("Adicione pelo menos uma palavra.");
+                    
                     const longestWord = Math.max(...wordsForGrid.map(w => w.length));
-                    const baseSize = wordSearchDifficulty === 'HARD' ? 12 : wordSearchDifficulty === 'MEDIUM' ? 10 : 8;
-                    const size = Math.max(baseSize, longestWord + 2); // Garante que a maior palavra caiba com folga
+                    const baseSize = wordSearchDifficulty === 'HARD' ? 14 : wordSearchDifficulty === 'MEDIUM' ? 12 : 10;
+                    // Aumentamos um pouco o tamanho base para garantir que palavras como COMPUTADOR (10) caibam com folga
+                    const size = Math.max(baseSize, longestWord + 2); 
                     const grid = Array(size).fill(null).map(() => Array(size).fill(''));
                     
                     const directionsByDifficulty = {
@@ -1309,10 +1312,13 @@ export const AdminCourseDetails = () => {
 
                     // Posicionar palavras
                     const placedWords: string[] = [];
-                    for (const word of wordsForGrid) {
+                    // Ordenar por tamanho decrescente para facilitar o encaixe das maiores primeiro
+                    const sortedWords = [...wordsForGrid].sort((a, b) => b.length - a.length);
+
+                    for (const word of sortedWords) {
                       let placed = false;
                       let attempts = 0;
-                      while (!placed && attempts < 500) {
+                      while (!placed && attempts < 1000) { // Aumentado para 1000 tentativas
                         const [dr, dc] = directions[Math.floor(Math.random() * directions.length)];
                         const r = Math.floor(Math.random() * size);
                         const c = Math.floor(Math.random() * size);
@@ -1342,6 +1348,14 @@ export const AdminCourseDetails = () => {
                         }
                         attempts++;
                       }
+                    }
+
+                    // VALIDAR SE TODAS FORAM COLOCADAS
+                    if (placedWords.length < sortedWords.length) {
+                       const missing = sortedWords.filter(w => !placedWords.includes(w));
+                       toast.error(`Falha ao gerar grid: Não foi possível encaixar "${missing.join(', ')}". Tente reduzir o número de palavras ou simplificar.`);
+                       setIsSubmitting(false);
+                       return;
                     }
 
                     // Preencher espaços vazios com letras aleatórias

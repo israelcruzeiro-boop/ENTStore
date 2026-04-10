@@ -207,7 +207,7 @@ export const UserCoursePlayer = () => {
     }
   };
 
-  const handlePhaseQuestionsComplete = async (correct: number, total: number, answers: Record<string, { optionId: string; isCorrect: boolean }>) => {
+  const handlePhaseQuestionsComplete = async (correct: number, total: number, answers: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>) => {
     const newTotalCorrect = totalCorrect + correct;
     const newTotalQuestions = totalQuestions + total;
     setTotalCorrect(newTotalCorrect);
@@ -217,7 +217,7 @@ export const UserCoursePlayer = () => {
     if (enrollment) {
       for (const [questionId, answer] of Object.entries(answers)) {
         try {
-          await submitCourseAnswer(enrollment.id, questionId, answer.optionId, answer.isCorrect);
+          await submitCourseAnswer(enrollment.id, questionId, answer.optionId, answer.isCorrect, answer.complexAnswer);
         } catch (err) {
           console.error('Error saving answer:', err);
         }

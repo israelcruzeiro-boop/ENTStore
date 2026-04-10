@@ -618,15 +618,17 @@ export async function updateEnrollmentProgress(enrollmentId: string, moduleId: s
 export async function submitCourseAnswer(
   enrollmentId: string,
   questionId: string,
-  selectedOptionId: string,
-  isCorrect: boolean
+  selectedOptionId: string | undefined,
+  isCorrect: boolean,
+  complexAnswer?: any
 ) {
   const { error } = await supabase
     .from('course_answers')
     .upsert({
       enrollment_id: enrollmentId,
       question_id: questionId,
-      selected_option_id: selectedOptionId,
+      selected_option_id: selectedOptionId || null,
+      complex_answer: complexAnswer || null,
       is_correct: isCorrect,
       answered_at: new Date().toISOString()
     }, { onConflict: 'enrollment_id,question_id' });

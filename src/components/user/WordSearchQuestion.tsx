@@ -152,23 +152,34 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
 
   // Touch Handlers
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isSelectingRef.current || isAnswered) return;
+    if (!isSelectingRef.current || isAnswered || !gridRef.current) return;
     
     // Impede o scroll da página enquanto seleciona no mobile
     if (e.cancelable) e.preventDefault();
     
     const touch = e.touches[0];
-    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    const rect = gridRef.current.getBoundingClientRect();
     
-    if (element) {
-      const row = element.getAttribute('data-row');
-      const col = element.getAttribute('data-col');
-      
-      if (row !== null && col !== null) {
-        handleCellEnter(parseInt(row), parseInt(col));
-      }
+    // Cálculo preciso da célula baseado na posição do toque relativa ao grid
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    
+    const numRows = grid.length;
+    const numCols = grid[0]?.length || 0;
+    
+    if (numCols === 0) return;
+
+    const cellWidth = rect.width / numCols;
+    const cellHeight = rect.height / numRows;
+    
+    const r = Math.floor(y / cellHeight);
+    const c = Math.floor(x / cellWidth);
+    
+    // Só processa se estiver dentro dos limites do grid
+    if (r >= 0 && r < numRows && c >= 0 && c < numCols) {
+      handleCellEnter(r, c);
     }
-  }, [isAnswered, handleCellEnter]);
+  }, [isAnswered, handleCellEnter, grid]);
 
   useEffect(() => {
     const handleGlobalUp = () => {

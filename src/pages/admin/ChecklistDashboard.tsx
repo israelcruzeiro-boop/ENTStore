@@ -833,82 +833,115 @@ export const AdminChecklistDashboard = () => {
                     }))}
                     courseHistory={userCourseHistory}
                  />
-              </div>
-            )}
-          </div>
-        )}
-
-      </div>
-
-      {/* Response Modal */}
+               {/* Response Modal */}
       <Dialog open={isResponseModalOpen} onOpenChange={setIsResponseModalOpen}>
-        <DialogContent className="max-w-2xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[90vh] flex flex-col" hideCloseIcon>
+        <DialogContent className="max-w-3xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[95vh] flex flex-col" hideCloseIcon>
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
-          <DialogHeader className="p-6 md:p-8 pb-4 shrink-0 border-b border-white/5">
-             <DialogTitle className="text-xl md:text-2xl font-black text-white">Relatório Completo de Checklist</DialogTitle>
-             <p className="text-slate-400 font-bold text-xs md:text-sm mt-1">Visão integral com todas as perguntas, respostas e evidências do checklist.</p>
+          <DialogHeader className="p-6 md:p-8 pb-4 shrink-0 border-b border-white/5 flex flex-row justify-between items-center group">
+             <div>
+                <DialogTitle className="text-xl md:text-2xl font-black text-white">Relatório de Auditoria</DialogTitle>
+                <p className="text-slate-400 font-bold text-xs md:text-sm mt-1">Detalhamento completo e evidências fotográficas.</p>
+             </div>
+             {targetCompany?.logo_url && (
+                <img src={targetCompany.logo_url} alt="Logo" className="h-10 w-auto opacity-80 group-hover:opacity-100 transition-opacity" />
+             )}
           </DialogHeader>
-          <div id="exportable-detail" className="p-6 md:p-8 space-y-6 bg-slate-900 overflow-y-auto flex-1 custom-scrollbar">
+          
+          <div id="exportable-detail" className="p-6 md:p-10 space-y-8 bg-slate-900 overflow-y-auto flex-1 custom-scrollbar">
              {selectedResponse && (
-               <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                       <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Entrevistado / Revisor</p>
-                       <p className="font-bold text-white">{(users || []).find((u: any) => u.id === selectedResponse.user_id)?.name || 'Anônimo'}</p>
-                       <p className="text-xs font-bold text-slate-500">{selectedResponse.created_at ? format(new Date(selectedResponse.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : ''}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                       <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Local Auditado</p>
-                       <p className="font-bold text-white">{(orgUnits || []).find((u: any) => u.id === selectedResponse.org_unit_id)?.name || 'Geral'}</p>
-                       <p className="text-xs font-bold text-slate-500">{(checklists || []).find((c: any) => c.id === selectedResponse.checklist_id)?.title}</p>
-                    </div>
+               <div className="space-y-8">
+                  {/* Cabeçalho do Documento */}
+                  <div className="flex justify-between items-start gap-6">
+                     <div className="space-y-4 flex-1">
+                        <div className="grid grid-cols-2 gap-4">
+                           <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                              <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Auditor / Revisor</p>
+                              <p className="font-bold text-white">{(users || []).find((u: any) => u.id === selectedResponse.user_id)?.name || 'Anônimo'}</p>
+                              <p className="text-[11px] font-bold text-slate-500">
+                                 {selectedResponse.created_at ? format(new Date(selectedResponse.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : ''}
+                              </p>
+                           </div>
+                           <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                              <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Unidade / Local</p>
+                              <p className="font-bold text-white">{(orgUnits || []).find((u: any) => u.id === selectedResponse.org_unit_id)?.name || 'Geral'}</p>
+                              <p className="text-[11px] font-bold text-slate-500">{(checklists || []).find((c: any) => c.id === selectedResponse.checklist_id)?.title}</p>
+                           </div>
+                        </div>
+                     </div>
+                     
+                     <div className="w-32 p-4 rounded-3xl bg-indigo-600 flex flex-col items-center justify-center text-white shadow-xl shadow-indigo-500/20 shrink-0">
+                        <p className="text-[10px] font-black uppercase tracking-tighter opacity-80">Nota Digital</p>
+                        <h4 className="text-2xl font-black">
+                           {Math.round(
+                              ((stats?.filteredAnswers || []).filter((ans: any) => ans.submission_id === selectedResponse.id && (ans.value === 'C' || ans.value === 'CHECKED')).length / 
+                               (stats?.filteredAnswers || []).filter((ans: any) => ans.submission_id === selectedResponse.id && (ans.value === 'C' || ans.value === 'NC' || ans.value === 'CHECKED')).length || 1) * 100
+                           )}%
+                        </h4>
+                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                     <p className="text-[12px] font-black tracking-widest text-white/50 border-b border-white/10 pb-2">DETALHAMENTO DE CHECAGEM</p>
+                  <div className="space-y-6">
+                     <div className="flex items-center gap-4">
+                        <div className="h-px flex-1 bg-white/10" />
+                        <p className="text-[11px] font-black tracking-[0.2em] text-white/40 uppercase">Itens Avaliados</p>
+                        <div className="h-px flex-1 bg-white/10" />
+                     </div>
                      
                      {(stats?.filteredAnswers || []).filter((ans: any) => ans.submission_id === selectedResponse.id).map((ans: any, idx) => {
                         const q = allQuestions.find((qst: any) => qst.id === ans.question_id);
+                        const isConform = ans.value === 'C' || ans.value === 'CHECKED';
+                        const isNonConform = ans.value === 'NC';
+                        
                         return (
-                           <div key={ans.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
+                           <div key={ans.id} className="p-6 rounded-[24px] bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] transition-all">
                               <div className="flex gap-4 items-start">
-                                 <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</div>
-                                 <div className="flex-1 space-y-3">
-                                    <p className="text-sm font-bold text-white leading-relaxed">{q?.text || ans.checklist_questions?.text || 'Pergunta'}</p>
-                                    
-                                    <div className="flex flex-wrap items-center gap-3">
-                                       <div className={`px-3 py-1 rounded-lg text-[10px] font-black border uppercase ${
-                                          ans.value === 'C' || ans.value === 'CHECKED' 
-                                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                             : ans.value === 'NC' 
-                                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                                       }`}>
-                                          <span className="font-black uppercase tracking-widest text-xs">
-                                             {ans.value === 'C' ? 'Conforme' : ans.value === 'NC' ? 'Não Conforme' : ans.value}
-                                          </span>
+                                 <div className={cn(
+                                    "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 shadow-lg",
+                                    isConform ? "bg-emerald-500 text-white" : isNonConform ? "bg-rose-500 text-white" : "bg-slate-700 text-white"
+                                 )}>
+                                    {idx + 1}
+                                 </div>
+                                 <div className="flex-1 space-y-4">
+                                    <div className="flex justify-between items-start gap-4">
+                                       <p className="text-sm md:text-base font-bold text-white leading-relaxed">{q?.text || ans.checklist_questions?.text || 'Questão do Checklist'}</p>
+                                       <div className={cn(
+                                          "px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest shrink-0 border",
+                                          isConform ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : isNonConform ? "bg-rose-500/10 text-rose-400 border-rose-500/20" : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                                       )}>
+                                          {isConform ? 'CONFORME' : isNonConform ? 'NÃO CONFORME' : 'N/A'}
                                        </div>
-                                       
-                                       {ans.comments && (
-                                          <div className="text-xs text-slate-400 max-w-sm italic">"{ans.comments}"</div>
-                                       )}
                                     </div>
-
-                                    {/* Evidência Fotográfica */}
-                                    {ans.photo_url && (
-                                       <div className="mt-2 text-xs font-bold text-indigo-400 flex items-center gap-2">
-                                          <div className="h-16 w-16 md:h-24 md:w-24 rounded-lg overflow-hidden border border-white/20 bg-black">
-                                             <img src={ans.photo_url} alt="Evidência" className="w-full h-full object-cover" />
-                                          </div>
-                                          <span>↳ Evidência Fotográfica Anexada</span>
+                                    
+                                    {ans.comments && (
+                                       <div className="p-3 bg-white/5 rounded-xl border-l-2 border-indigo-500 flex items-start gap-3">
+                                          <Activity size={14} className="text-indigo-400 shrink-0 mt-0.5" />
+                                          <p className="text-xs text-slate-300 italic font-medium">"{ans.comments}"</p>
                                        </div>
                                     )}
 
-                                    {/* Plano de Ação */}
+                                    {/* Evidência Fotográfica Ampliada */}
+                                    {ans.photo_url && (
+                                       <div className="mt-4 space-y-2">
+                                          <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Evidência Visual:</p>
+                                          <div className="relative aspect-video max-w-sm rounded-2xl overflow-hidden border border-white/10 bg-black group">
+                                             <img src={ans.photo_url} alt="Evidência" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                                          </div>
+                                       </div>
+                                    )}
+
+                                    {/* Plano de Ação Detalhado */}
                                     {ans.action_plans && ans.action_plans.length > 0 && (
-                                       <div className="mt-3 p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl">
-                                          <p className="text-[10px] font-black text-rose-400 uppercase tracking-wider mb-1">Plano de Ação Requerido</p>
-                                          <p className="text-sm font-semibold text-rose-200">{ans.action_plans[0].description}</p>
+                                       <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl ring-1 ring-rose-500/20">
+                                          <div className="flex items-center gap-2 mb-2">
+                                             <AlertTriangle size={14} className="text-rose-500" />
+                                             <p className="text-[11px] font-black text-rose-500 uppercase tracking-widest">Plano de Ação Corretiva</p>
+                                          </div>
+                                          <p className="text-sm font-bold text-rose-50 text-left pl-6">{ans.action_plans[0].description}</p>
+                                          <div className="mt-2 pl-6 flex items-center gap-2">
+                                             <span className="text-[10px] font-bold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded">Prioridade: ALTA</span>
+                                             <span className="text-[10px] font-bold text-rose-400">Prazo: Conforme Política</span>
+                                          </div>
                                        </div>
                                     )}
                                  </div>
@@ -920,29 +953,46 @@ export const AdminChecklistDashboard = () => {
                </div>
              )}
           </div>
-          <div className="p-6 md:p-8 border-t border-white/5 shrink-0 flex gap-4 bg-slate-900/50 backdrop-blur-md">
+          
+          <div className="p-6 md:p-8 border-t border-white/5 shrink-0 flex gap-4 bg-slate-950/80 backdrop-blur-xl">
              <Button 
                variant="default" 
-               className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-6 rounded-2xl"
+               className="flex-1 bg-white hover:bg-slate-200 text-slate-900 font-black py-7 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-95 group"
                onClick={() => {
                   const el = document.getElementById('exportable-detail');
                   if (el) {
-                     toast.loading('Gerando PDF...', { id: 'pdf-gen' });
-                     html2canvas(el, { backgroundColor: '#0f172a' }).then(canvas => {
+                     toast.loading('Gerando Relatório PDF Profissional...', { id: 'pdf-gen' });
+                     
+                     // Ajuste temporário para o print (fundo claro p/ PDF)
+                     const originalBg = el.style.backgroundColor;
+                     const elementsToTheme = el.querySelectorAll('.text-white, .text-slate-300, .bg-white\\/[0\\.03], .bg-white\\/5');
+                     
+                     // O html2canvas capturará o que está visível, mas podemos usar scale para alta definição
+                     html2canvas(el, { 
+                        scale: 1.5, // 1.5x p/ balanço entre qualidade e tamanho de arquivo
+                        backgroundColor: '#0f172a',
+                        useCORS: true,
+                        logging: false
+                     }).then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
                         const pdf = new jsPDF('p', 'mm', 'a4');
                         const pdfW = pdf.internal.pageSize.getWidth();
                         const pdfH = (canvas.height * pdfW) / canvas.width;
+                        
                         pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-                        pdf.save(`Checagem_${format(new Date(), 'dd-MM-yyyy')}.pdf`);
-                        toast.success('PDF Exportado', { id: 'pdf-gen' });
+                        pdf.save(`Relatorio_Auditoria_${format(new Date(), 'dd_MM_yyyy')}.pdf`);
+                        toast.success('Relatório PDF Gerado com Sucesso!', { id: 'pdf-gen' });
                      });
                   }
                }}
              >
-                <Download size={18} className="mr-2" /> Exportar PDF
+                <Download size={20} className="mr-3 group-hover:bounce" /> Exportar Relatório PDF
              </Button>
-             <Button variant="ghost" onClick={() => setIsResponseModalOpen(false)} className="px-8 font-black text-slate-400 hover:text-white rounded-2xl">
+             <Button 
+               variant="ghost" 
+               onClick={() => setIsResponseModalOpen(false)} 
+               className="px-10 font-black text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl"
+             >
                 Fechar
              </Button>
           </div>
