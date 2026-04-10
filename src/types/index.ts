@@ -169,6 +169,7 @@ export interface CoursePhaseQuestion {
   explanation?: string;
   order_index: number;
   created_at: string;
+  updated_at?: string;
   options?: CourseQuestionOption[];
 }
 

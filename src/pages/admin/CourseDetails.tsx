@@ -1364,8 +1364,7 @@ export const AdminCourseDetails = () => {
                       explanation: questionExplanation.trim() || null,
                       question_type: questionType,
                       configuration: config,
-                      image_url: questionImageUrl || null,
-                      updated_at: new Date().toISOString()
+                      image_url: questionImageUrl || null
                     }).eq('id', editingQuestionId);
                     if (qErr) throw qErr;
                   } else {

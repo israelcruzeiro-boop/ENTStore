@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { cn } from '../../lib/utils';
-import { CheckCircle2, Star } from 'lucide-react';
+import { CheckCircle2, Star, Maximize2 } from 'lucide-react';
 
 interface WordSearchProps {
   configuration: {
@@ -34,6 +34,7 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
   const [foundWords, setFoundWords] = useState<string[]>(userAnswer?.foundWords || []);
   const [foundPaths, setFoundPaths] = useState<{word: string, cells: {r: number, c: number}[], color: string}[]>([]);
   const [lastFound, setLastFound] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const grid = configuration.grid;
   const targetWords = configuration.words;
@@ -50,6 +51,9 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
     
     setIsSelecting(true);
     setSelectedCells([{r, c}]);
+    
+    // Feedback tátil se disponível
+    if (window.navigator.vibrate) window.navigator.vibrate(10);
   };
 
   const handleCellEnter = (r: number, c: number) => {
@@ -71,14 +75,25 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
         for (let i = 0; i <= steps; i++) {
           path.push({ r: start.r + i * sr, c: start.c + i * sc });
         }
+        
+        // Evitar redundância se o caminho for o mesmo
+        if (JSON.stringify(path) === JSON.stringify(prev)) return prev;
+        
         return path;
       }
       return prev;
     });
   };
 
-  const handleMouseUp = useCallback(() => {
-    if (!isSelecting || isAnswered) return;
+  const finalizeSelection = useCallback(() => {
+    if (!isSelecting || isAnswered || selectedCells.length < 2) {
+      if (selectedCells.length < 2) {
+        setSelectedCells([]);
+        setIsSelecting(false);
+      }
+      return;
+    }
+    
     setIsSelecting(false);
 
     const word = selectedCells.map(cell => grid[cell.r][cell.c]).join('');
@@ -98,6 +113,8 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
       setLastFound(match);
       onAnswer(newFound);
 
+      if (window.navigator.vibrate) window.navigator.vibrate([10, 30, 10]);
+
       // Limpar o "last found" após animação
       setTimeout(() => setLastFound(null), 2000);
     }
@@ -105,13 +122,34 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
     setSelectedCells([]);
   }, [isSelecting, isAnswered, selectedCells, grid, targetWords, foundWords, foundPaths, onAnswer]);
 
+  // Touch Handlers
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isSelecting || isAnswered) return;
+    
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    if (element) {
+      const row = element.getAttribute('data-row');
+      const col = element.getAttribute('data-col');
+      
+      if (row !== null && col !== null) {
+        handleCellEnter(parseInt(row), parseInt(col));
+      }
+    }
+  };
+
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
-      if (isSelecting) handleMouseUp();
+    const handleGlobalUp = () => {
+      if (isSelecting) finalizeSelection();
     };
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [isSelecting, handleMouseUp]);
+    window.addEventListener('mouseup', handleGlobalUp);
+    window.addEventListener('touchend', handleGlobalUp);
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalUp);
+      window.removeEventListener('touchend', handleGlobalUp);
+    };
+  }, [isSelecting, finalizeSelection]);
 
   // Mapa de células para cores de palavras encontradas
   const cellHighlights = useMemo(() => {
@@ -125,9 +163,9 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
   }, [foundPaths]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Lista de Palavras com Feedback Visual */}
-      <div className="flex flex-wrap justify-center gap-3">
+      <div className="flex flex-wrap justify-center gap-2 md:gap-3">
         {targetWords.map((word, idx) => {
           const isFound = foundWords.includes(word);
           const path = foundPaths.find(p => p.word === word);
@@ -135,7 +173,7 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
             <div 
               key={word} 
               className={cn(
-                "px-4 py-1.5 rounded-full text-sm font-bold border transition-all duration-500 flex items-center gap-2",
+                "px-3 md:px-4 py-1.5 rounded-full text-[10px] md:text-sm font-bold border transition-all duration-500 flex items-center gap-1.5 md:gap-2",
                 isFound 
                   ? "shadow-lg scale-105" 
                   : "bg-white/5 border-white/10 text-white/40",
@@ -147,18 +185,27 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
                 color: path?.color 
               } : {}}
             >
-              {isFound && <CheckCircle2 size={14} />}
+              {isFound && <CheckCircle2 size={12} className="md:w-[14px] md:h-[14px]" />}
               {word}
             </div>
           );
         })}
       </div>
 
-      {/* Grid do Caça-Palavras */}
-      <div className="relative group">
+      {/* Grid do Caça-Palavras com Suporte Mobile */}
+      <div className="relative group max-w-full flex justify-center overflow-visible">
         <div 
-          className="inline-grid gap-1.5 p-3 bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-white/10 select-none mx-auto shadow-2xl overflow-auto max-w-full"
-          style={{ gridTemplateColumns: `repeat(${grid[0]?.length || 0}, minmax(0, 1fr))` }}
+          ref={gridRef}
+          onTouchMove={handleTouchMove}
+          className={cn(
+            "inline-grid gap-1 md:gap-1.5 p-2 md:p-3 bg-slate-900/50 backdrop-blur-sm rounded-xl md:rounded-2xl border border-white/10 select-none shadow-2xl transition-transform duration-300",
+            isSelecting && "scale-[1.02] md:scale-100", // Leve "zoom" no mobile ao interagir
+            "touch-none" // CRÍTICO: Impede o scroll do navegador ao arrastar
+          )}
+          style={{ 
+            gridTemplateColumns: `repeat(${grid[0]?.length || 0}, minmax(0, 1fr))`,
+            touchAction: 'none'
+          }}
         >
           {grid.map((row, r) => (
             row.map((char, c) => {
@@ -170,23 +217,29 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
               return (
                 <div
                   key={cellKey}
+                  data-row={r}
+                  data-col={c}
                   onMouseDown={() => handleCellClick(r, c)}
                   onMouseEnter={() => handleCellEnter(r, c)}
+                  onTouchStart={(e) => {
+                    // Previne comportamentos padrão e inicia seleção
+                    e.preventDefault();
+                    handleCellClick(r, c);
+                  }}
                   className={cn(
-                    "w-9 h-9 md:w-11 md:h-11 flex items-center justify-center rounded-xl text-sm md:text-base font-black transition-all duration-200 cursor-pointer relative z-10",
+                    "w-8 h-8 sm:w-9 sm:h-9 md:w-11 md:h-11 flex items-center justify-center rounded-lg md:rounded-xl text-xs md:text-base font-black transition-all duration-200 cursor-pointer relative z-10",
                     !isFound && !isSelected && "bg-white/5 text-white/70 hover:bg-white/10 hover:scale-105",
                     isSelected && "bg-blue-500 text-white scale-110 z-20 shadow-xl shadow-blue-500/50",
                     isAnswered && "cursor-default"
                   )}
                   style={isFound && !isSelected ? {
-                    backgroundColor: `${highlightColor}dd`,
+                    backgroundColor: `${highlightColor}cc`,
                     color: '#fff',
                     boxShadow: `0 0 15px ${highlightColor}40`,
                     transform: lastFound === foundPaths.find(p => p.cells.some(cell => cell.r === r && cell.c === c))?.word ? 'scale(1.05)' : 'scale(1)'
                   } : {}}
                 >
                   {char}
-                  {/* Pequena estrela se foi a última encontrada */}
                   {isFound && lastFound === foundPaths.find(p => p.cells.some(cell => cell.r === r && cell.c === c))?.word && (
                     <Star size={8} className="absolute -top-1 -right-1 text-white fill-white animate-pulse" />
                   )}
@@ -198,18 +251,22 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
       </div>
       
       <div className="flex flex-col items-center gap-2">
-         <p className="text-sm font-medium text-blue-400">
+         <p className="text-[10px] md:text-sm font-medium text-blue-400">
             {foundWords.length === targetWords.length 
               ? "✨ Incrível! Você encontrou todas as palavras!" 
               : `Progresso: ${foundWords.length} de ${targetWords.length} palavras`}
          </p>
-         <div className="w-48 h-1.5 bg-white/5 rounded-full overflow-hidden">
+         <div className="w-32 md:w-48 h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div 
               className="h-full bg-blue-500 transition-all duration-1000 ease-out" 
               style={{ width: `${(foundWords.length / targetWords.length) * 100}%` }}
             />
          </div>
+         <p className="md:hidden text-[8px] text-slate-500 uppercase flex items-center gap-1">
+           <Maximize2 size={8} /> Deslize o dedo para selecionar
+         </p>
       </div>
     </div>
   );
 }
+

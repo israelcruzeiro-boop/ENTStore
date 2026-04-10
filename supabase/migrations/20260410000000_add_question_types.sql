@@ -7,7 +7,8 @@ ALTER TABLE public.course_phase_questions
 ADD COLUMN IF NOT EXISTS question_type TEXT DEFAULT 'MULTIPLE_CHOICE' 
 CHECK (question_type IN ('MULTIPLE_CHOICE', 'WORD_SEARCH', 'ORDERING', 'HOTSPOT')),
 ADD COLUMN IF NOT EXISTS configuration JSONB DEFAULT '{}'::jsonb,
-ADD COLUMN IF NOT EXISTS image_url TEXT;
+ADD COLUMN IF NOT EXISTS image_url TEXT,
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2. Adicionar colunas na tabela de respostas para dados complexos
 ALTER TABLE public.course_answers
