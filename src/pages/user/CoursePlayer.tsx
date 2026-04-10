@@ -439,12 +439,20 @@ export const UserCoursePlayer = () => {
             {activeModuleContents.map((c, idx) => {
               const isActive = activeContentId === c.id && !showPhaseQuestions;
               const isCompleted = idx < currentContentIndex;
+              const isLocked = idx > currentContentIndex; // Bloquear o clique em aulas ainda não iniciadas
+
               return (
                 <button
                   key={c.id}
-                  onClick={() => { setActiveContentId(c.id); setShowPhaseQuestions(false); }}
+                  onClick={() => { 
+                    if (!isLocked) {
+                      setActiveContentId(c.id); 
+                      setShowPhaseQuestions(false); 
+                    }
+                  }}
+                  disabled={isLocked}
                   style={isActive ? { background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#2563eb'}, ${tenantCompany?.primary_color || '#3b82f6'}80)` } : {}}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 active:scale-95 ${
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${!isLocked ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
                     isActive
                       ? 'text-white shadow-lg scale-105'
                       : isCompleted 
@@ -561,6 +569,58 @@ export const UserCoursePlayer = () => {
                     </button>
                   </div>
                 )}
+
+                {/* Confirmar Fase concluída (Visível na última aula da fase se NÃO houver perguntas) */}
+                {(currentContentIndex === activeModuleContents.length - 1) && moduleQuestions.length === 0 && !showPhaseQuestions && (
+                  <div className="pt-8 pb-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                    <button
+                      onClick={handleNext}
+                      className="w-full relative group overflow-hidden rounded-2xl p-6 md:p-8 transition-all duration-500 active:scale-[0.98] border border-white/10 hover:border-emerald-500/50 bg-[#0f172a] hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] flex flex-col md:flex-row items-center justify-between gap-6"
+                    >
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#10b981'}20, transparent)` }} />
+                      <div className="relative z-10 flex items-center gap-5 text-left w-full md:w-auto">
+                        <div className="p-4 rounded-full shadow-lg" style={{ background: `linear-gradient(to bottom right, ${tenantCompany?.primary_color || '#10b981'}, ${tenantCompany?.primary_color || '#059669'}80)`, boxShadow: `0 4px 14px 0 ${tenantCompany?.primary_color || '#10b981'}40` }}>
+                          <CheckCircle2 className="w-7 h-7 md:w-8 md:h-8 text-white animate-[pulse_2s_ease-in-out_infinite]" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-1.5 flex items-center gap-2">
+                            Fase Concluída
+                          </h3>
+                          <p className="text-white/60 text-sm md:text-base font-medium">Você finalizou todos os materiais desta etapa.</p>
+                        </div>
+                      </div>
+                      <div className="relative z-10 shrink-0 w-full md:w-auto">
+                        <div className="flex items-center justify-center gap-2 bg-white text-slate-900 font-bold px-6 py-3.5 rounded-xl w-full md:w-auto group-hover:bg-emerald-50 transition-colors">
+                          Avançar
+                          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {/* Botão de Próxima Aula (Se não for a última aula da fase) */}
+                {currentContentIndex < activeModuleContents.length - 1 && (
+                  <div className="pt-8 pb-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                    <button
+                      onClick={handleNext}
+                      className="w-full relative group overflow-hidden rounded-2xl p-4 md:p-6 transition-all duration-500 active:scale-[0.98] border border-white/10 hover:border-blue-500/50 bg-[#0f172a] hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] flex flex-col md:flex-row items-center justify-between gap-4"
+                    >
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#2563eb'}10, transparent)` }} />
+                      <div className="relative z-10 flex items-center gap-4 text-left w-full md:w-auto">
+                         <div>
+                          <h3 className="text-base md:text-lg font-bold text-white leading-tight">Marcar lido e continuar</h3>
+                          <p className="text-white/50 text-xs md:text-sm mt-0.5">Avance para o próximo material.</p>
+                         </div>
+                      </div>
+                      <div className="relative z-10 shrink-0 w-full md:w-auto text-right">
+                        <div className="inline-flex items-center justify-center gap-1.5 text-blue-400 font-bold text-sm group-hover:text-blue-300 transition-colors">
+                          Próximo Material <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : activeModuleContents.length === 0 && moduleQuestions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-24 text-white/30 bg-white/[0.02] rounded-2xl border border-white/[0.04]">
@@ -580,55 +640,6 @@ export const UserCoursePlayer = () => {
           </div>
         </div>
       </main>
-
-      {/* ===== BOTTOM NAV BAR ===== */}
-      <nav className="shrink-0 safe-area-bottom z-30">
-        <div className="backdrop-blur-xl border-t border-white/[0.06]" style={{ backgroundColor: tenantCompany?.primary_color ? `${tenantCompany.primary_color}10` : 'rgba(15, 23, 42, 0.95)' }}>
-          <div className="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto gap-3">
-            {/* Previous */}
-            <button 
-              onClick={handlePrevious}
-              className="flex items-center gap-1.5 text-white/50 hover:text-white transition-all active:scale-95 py-2.5 px-3 rounded-xl hover:bg-white/5 min-w-[44px] justify-center"
-            >
-              <ChevronLeft size={20} />
-              <span className="text-sm font-medium hidden sm:inline">Anterior</span>
-            </button>
-
-            {/* Phase dots */}
-            <div className="flex items-center gap-1.5 flex-1 justify-center">
-              {modules.map((m, idx) => (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setActiveModuleId(m.id);
-                    setActiveContentId(null);
-                    setShowPhaseQuestions(false);
-                  }}
-                  className="group relative"
-                  title={m.title}
-                >
-                  <div className={`transition-all duration-500 rounded-full ${
-                    idx === currentModuleIndex 
-                      ? 'w-8 h-2.5 bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_12px_rgba(59,130,246,0.4)]'
-                      : idx < currentModuleIndex
-                        ? 'w-2.5 h-2.5 bg-emerald-500/70'
-                        : 'w-2.5 h-2.5 bg-white/15'
-                  }`} />
-                </button>
-              ))}
-            </div>
-
-            {/* Next */}
-            <button 
-              onClick={handleNext}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white py-2.5 px-5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-blue-500/25 min-w-[44px] justify-center"
-            >
-              <span className="hidden sm:inline">Próxima</span>
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-      </nav>
 
       {/* ===== NAVIGATION PANEL (Bottom Sheet) ===== */}
       {showNav && (
@@ -713,6 +724,7 @@ export const UserCoursePlayer = () => {
                       }}
                       getIcon={getContentIcon}
                     />
+
                   </div>
                 ))}
               </div>

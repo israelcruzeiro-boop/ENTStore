@@ -65,7 +65,8 @@ export function CourseQuestionPlayer({
       isCorrect = option?.is_correct || false;
     } 
     else if (currentQuestion.question_type === 'WORD_SEARCH') {
-      const found = complexAnswer as string[] || [];
+      const foundObj = (complexAnswer as any) || {};
+      const found = Array.isArray(foundObj) ? foundObj : (foundObj.foundWords || []);
       const targetCount = currentQuestion.configuration?.words?.length || 0;
       isCorrect = found.length === targetCount;
     }
@@ -184,7 +185,11 @@ export function CourseQuestionPlayer({
     const type = currentQuestion.question_type || 'MULTIPLE_CHOICE';
     if (type === 'MULTIPLE_CHOICE') return !!selectedOptionId;
     if (type === 'HOTSPOT') return !!complexAnswer;
-    if (type === 'WORD_SEARCH') return (complexAnswer as string[])?.length > 0;
+    if (type === 'WORD_SEARCH') {
+       const foundObj = (complexAnswer as any) || {};
+       const foundCount = Array.isArray(foundObj) ? foundObj.length : (foundObj.foundWords?.length || 0);
+       return foundCount > 0;
+    }
     if (type === 'ORDERING') return !!complexAnswer;
     return false;
   };

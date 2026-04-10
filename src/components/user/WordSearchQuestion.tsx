@@ -8,7 +8,7 @@ interface WordSearchProps {
     words: string[];
     difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
   };
-  onAnswer: (foundWords: string[]) => void;
+  onAnswer: (answer: { foundWords: string[], foundPaths: { word: string, cells: { r: number, c: number }[], color: string }[] }) => void;
   isAnswered?: boolean;
   correctAnswer?: unknown;
   userAnswer?: { foundWords: string[], foundPaths: { word: string, cells: { r: number, c: number }[], color: string }[] };
@@ -48,72 +48,98 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
     setLastFound(null);
   }, [configuration, userAnswer]);
 
-  const handleCellClick = (r: number, c: number) => {
+  const isSelectingRef = useRef(false);
+  const selectedCellsRef = useRef<{r: number, c: number}[]>([]);
+
+  const setSelection = useCallback((cells: {r: number, c: number}[]) => {
+     selectedCellsRef.current = cells;
+     setSelectedCells(cells);
+  }, []);
+
+
+
+  const handleCellClick = useCallback((r: number, c: number) => {
     if (isAnswered) return;
     
+    isSelectingRef.current = true;
     setIsSelecting(true);
-    setSelectedCells([{r, c}]);
+    setSelection([{r, c}]);
     
     // Feedback tátil se disponível
     if (window.navigator.vibrate) window.navigator.vibrate(10);
-  };
+  }, [isAnswered, setSelection]);
 
-  const handleCellEnter = (r: number, c: number) => {
-    if (!isSelecting || isAnswered) return;
+  const handleCellEnter = useCallback((r: number, c: number) => {
+    if (!isSelectingRef.current || isAnswered) return;
     
-    setSelectedCells(prev => {
-      const start = prev[0];
-      if (!start) return [{r, c}];
+    const prev = selectedCellsRef.current;
+    const start = prev[0];
+    if (!start) {
+      setSelection([{r, c}]);
+      return;
+    }
+    
+    const dr = Math.abs(r - start.r);
+    const dc = Math.abs(c - start.c);
+    
+    if (dr === 0 || dc === 0 || dr === dc) {
+      const path: {r: number, c: number}[] = [];
+      const steps = Math.max(dr, dc);
+      const sr = r > start.r ? 1 : (r < start.r ? -1 : 0);
+      const sc = c > start.c ? 1 : (c < start.c ? -1 : 0);
       
-      const dr = Math.abs(r - start.r);
-      const dc = Math.abs(c - start.c);
-      
-      if (dr === 0 || dc === 0 || dr === dc) {
-        const path: {r: number, c: number}[] = [];
-        const steps = Math.max(dr, dc);
-        const sr = r > start.r ? 1 : (r < start.r ? -1 : 0);
-        const sc = c > start.c ? 1 : (c < start.c ? -1 : 0);
-        
-        for (let i = 0; i <= steps; i++) {
-          path.push({ r: start.r + i * sr, c: start.c + i * sc });
-        }
-        
-        // Evitar redundância se o caminho for o mesmo
-        if (JSON.stringify(path) === JSON.stringify(prev)) return prev;
-        
-        return path;
+      for (let i = 0; i <= steps; i++) {
+        path.push({ r: start.r + i * sr, c: start.c + i * sc });
       }
-      return prev;
-    });
-  };
+      
+      // Evitar redundância se o caminho for o mesmo
+      if (JSON.stringify(path) !== JSON.stringify(prev)) {
+         setSelection(path);
+      }
+    }
+  }, [isAnswered, setSelection]);
+
+  const normalizeWord = useCallback((w: string) => w.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "").toUpperCase(), []);
 
   const finalizeSelection = useCallback(() => {
-    if (!isSelecting || isAnswered || selectedCells.length < 2) {
-      if (selectedCells.length < 2) {
-        setSelectedCells([]);
+    const currentCells = selectedCellsRef.current;
+
+    if (!isSelectingRef.current || isAnswered || currentCells.length < 2) {
+      if (currentCells.length < 2) {
+        setSelection([]);
+        isSelectingRef.current = false;
         setIsSelecting(false);
       }
       return;
     }
     
+    isSelectingRef.current = false;
     setIsSelecting(false);
 
-    const word = selectedCells.map(cell => grid[cell.r][cell.c]).join('');
+    const word = currentCells.map(cell => grid[cell.r][cell.c]).join('');
     const reversedWord = word.split('').reverse().join('');
+    
+    const normalWord = normalizeWord(word);
+    const normalReversedWord = normalizeWord(reversedWord);
 
-    const match = targetWords.find(tw => tw.toUpperCase() === word.toUpperCase() || tw.toUpperCase() === reversedWord.toUpperCase());
+    const matchOriginal = targetWords.find(tw => {
+      const twNormal = normalizeWord(tw);
+      return twNormal === normalWord || twNormal === normalReversedWord;
+    });
 
-    if (match && !foundWords.includes(match)) {
+    console.log('[DEBUG WORD SEARCH]', { word, normalWord, normalReversedWord, targetWords, matchFound: !!matchOriginal });
+
+    if (matchOriginal && !foundWords.includes(matchOriginal)) {
       const color = WORD_COLORS[foundPaths.length % WORD_COLORS.length];
-      const newPath = { word: match, cells: [...selectedCells], color };
+      const newPath = { word: matchOriginal, cells: [...currentCells], color };
       
-      const newFound = [...foundWords, match];
+      const newFound = [...foundWords, matchOriginal];
       const newPaths = [...foundPaths, newPath];
       
       setFoundWords(newFound);
       setFoundPaths(newPaths);
-      setLastFound(match);
-      onAnswer(newFound);
+      setLastFound(matchOriginal);
+      onAnswer({ foundWords: newFound, foundPaths: newPaths });
 
       if (window.navigator.vibrate) window.navigator.vibrate([10, 30, 10]);
 
@@ -121,12 +147,12 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
       setTimeout(() => setLastFound(null), 2000);
     }
     
-    setSelectedCells([]);
-  }, [isSelecting, isAnswered, selectedCells, grid, targetWords, foundWords, foundPaths, onAnswer]);
+    setSelection([]);
+  }, [isAnswered, grid, targetWords, foundWords, foundPaths, onAnswer, normalizeWord, setSelection]);
 
   // Touch Handlers
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isSelecting || isAnswered) return;
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isSelectingRef.current || isAnswered) return;
     
     // Impede o scroll da página enquanto seleciona no mobile
     if (e.cancelable) e.preventDefault();
@@ -142,11 +168,14 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
         handleCellEnter(parseInt(row), parseInt(col));
       }
     }
-  };
+  }, [isAnswered, handleCellEnter]);
 
   useEffect(() => {
     const handleGlobalUp = () => {
-      if (isSelecting) finalizeSelection();
+      // Como o event listener é global, dependemos da ref atualizada para saber se estamos selecionando
+      if (isSelectingRef.current) {
+         finalizeSelection();
+      }
     };
     window.addEventListener('mouseup', handleGlobalUp);
     window.addEventListener('touchend', handleGlobalUp);
@@ -154,7 +183,7 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
       window.removeEventListener('mouseup', handleGlobalUp);
       window.removeEventListener('touchend', handleGlobalUp);
     };
-  }, [isSelecting, finalizeSelection]);
+  }, [finalizeSelection]);
 
   // Mapa de células para cores de palavras encontradas
   const cellHighlights = useMemo(() => {

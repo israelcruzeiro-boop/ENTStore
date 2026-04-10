@@ -342,6 +342,8 @@ export const AdminChecklistDashboard = () => {
       checklistRankingData,
       trendData,
       topFailures,
+      filteredSubs,
+      filteredAnswers,
       activeUserCount: staffUsers.length,
       donutData: [
         { name: 'Conforme', value: totalC },
@@ -627,47 +629,48 @@ export const AdminChecklistDashboard = () => {
                   </Button>
                </div>
             </CardHeader>
-            <CardContent className="p-0">
+             <CardContent className="p-0">
                <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                      <thead>
                         <tr className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500 border-b border-white/5">
-                           <th className="px-8 py-5">Submissão</th>
+                           <th className="px-8 py-5">Colaborador</th>
                            <th className="px-8 py-5">Checklist</th>
-                           <th className="px-8 py-5">Regional / Unidade</th>
-                           <th className="px-8 py-5">Pergunta</th>
-                           <th className="px-8 py-5 text-center">Resposta</th>
-                           <th className="px-8 py-5">Plano Ação</th>
-                           <th className="px-8 py-5 text-right">Ação</th>
+                           <th className="px-8 py-5">Local</th>
+                           <th className="px-8 py-5 text-center">Conformidade</th>
+                           <th className="px-8 py-5 text-center">Status</th>
+                           <th className="px-8 py-5 text-right">Ações</th>
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-white/5">
-                        {(detailedAnswers || [])
-                          .filter(ans => {
-                             const text = ans.checklist_questions?.text || '';
-                             const user = (users || []).find(u => u.id === ans.checklist_submissions?.user_id)?.name || '';
-                             return text.toLowerCase().includes(answerFilter.toLowerCase()) || user.toLowerCase().includes(answerFilter.toLowerCase());
+                        {(stats?.filteredSubs || [])
+                          .filter(sub => {
+                             const user = (users || []).find(u => u.id === sub.user_id)?.name || '';
+                             const cl = (checklists || []).find(c => c.id === sub.checklist_id)?.title || '';
+                             return user.toLowerCase().includes(answerFilter.toLowerCase()) || cl.toLowerCase().includes(answerFilter.toLowerCase());
                           })
-                          .slice(0, 50).map((ans) => {
-                           const cl = (checklists || []).find(c => c.id === ans.checklist_submissions?.checklist_id);
-                           const unit = (orgUnits || []).find(u => u.id === ans.checklist_submissions?.org_unit_id);
+                          .slice(0, 50).map((sub) => {
+                           const cl = (checklists || []).find(c => c.id === sub.checklist_id);
+                           const unit = (orgUnits || []).find(u => u.id === sub.org_unit_id);
                            const region = (orgTopLevels || []).find(t => t.id === unit?.parent_id);
-                           const user = (users || []).find(u => u.id === ans.checklist_submissions?.user_id);
+                           const user = (users || []).find(u => u.id === sub.user_id);
+
+                           const sAns = (stats?.filteredAnswers || []).filter(a => a.submission_id === sub.id && ['C', 'NC', 'CHECKED'].includes(a.value));
+                           const sC = sAns.filter(a => a.value === 'C' || a.value === 'CHECKED').length;
+                           const sRate = sAns.length > 0 ? Math.round((sC / sAns.length) * 100) : 0;
 
                            return (
-                              <tr key={ans.id} className="hover:bg-white/10 transition-colors group">
+                              <tr key={sub.id} className="hover:bg-white/10 transition-colors group">
                                  <td className="px-8 py-6">
                                     <div className="flex flex-col">
                                        <span className="text-sm font-black text-white">{user?.name || 'Anônimo'}</span>
                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
-                                          {format(new Date(ans.created_at), 'dd MMM yyyy, HH:mm', { locale: ptBR })}
+                                          {sub.created_at ? format(new Date(sub.created_at), 'dd MMM yyyy, HH:mm', { locale: ptBR }) : ''}
                                        </span>
                                     </div>
                                  </td>
                                  <td className="px-8 py-6">
-                                    <div className="flex items-center gap-2">
-                                       <span className="text-sm font-bold text-slate-400">{cl?.title || 'Checklist'}</span>
-                                    </div>
+                                    <span className="text-sm font-bold text-slate-400">{cl?.title || 'Checklist'}</span>
                                  </td>
                                  <td className="px-8 py-6">
                                     <div className="flex flex-col">
@@ -675,37 +678,29 @@ export const AdminChecklistDashboard = () => {
                                        <span className="text-[11px] font-bold text-slate-500">{unit?.name || 'Unidade'}</span>
                                     </div>
                                  </td>
-                                 <td className="px-8 py-6 max-w-[300px]">
-                                    <p className="text-xs text-white font-bold line-clamp-2">{ans.checklist_questions?.text}</p>
-                                 </td>
                                  <td className="px-8 py-6 text-center">
                                     <span className={`inline-block px-3 py-1 rounded-lg text-[10px] font-black border uppercase ${
-                                       ans.value === 'C' || ans.value === 'CHECKED' 
-                                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                          : ans.value === 'NC' 
-                                             ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.15)]' 
-                                             : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                       sRate >= 90 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                       sRate >= 70 ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                       'bg-rose-500/10 text-rose-400 border-rose-500/20'
                                     }`}>
-                                       {ans.value === 'C' ? 'Conforme' : ans.value === 'NC' ? 'Ñ Conforme' : ans.value}
+                                       {sRate}% Conforme
                                     </span>
                                  </td>
-                                 <td className="px-8 py-6">
-                                    {ans.action_plans && ans.action_plans.length > 0 ? (
-                                       <div className="flex items-center gap-2">
-                                          <div className={`w-2.5 h-2.5 rounded-full ${ans.action_plans[0].status === 'RESOLVED' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                                          <span className="text-[11px] font-bold text-slate-300">Em Aberto</span>
-                                       </div>
+                                 <td className="px-8 py-6 text-center">
+                                    {sub.status === 'COMPLETED' ? (
+                                       <span className="text-emerald-400 font-bold text-xs"><CheckCircle2 size={16} className="inline mr-1"/>Finalizado</span>
                                     ) : (
-                                       <span className="text-slate-600 text-[11px]">Nenhum</span>
+                                       <span className="text-amber-400 font-bold text-xs">Em Andamento</span>
                                     )}
                                  </td>
                                  <td className="px-8 py-6 text-right">
                                     <Button
                                       variant="ghost"
                                       className="text-indigo-400 hover:text-white hover:bg-white/10 rounded-xl font-bold text-[10px] uppercase tracking-widest gap-2"
-                                      onClick={() => { setSelectedResponse(ans); setIsResponseModalOpen(true); }}
+                                      onClick={() => { setSelectedResponse(sub); setIsResponseModalOpen(true); }}
                                     >
-                                      <FileText size={16} /> Ver Resposta
+                                      <FileText size={16} /> Ver Relatório
                                     </Button>
                                  </td>
                               </tr>
@@ -847,52 +842,85 @@ export const AdminChecklistDashboard = () => {
 
       {/* Response Modal */}
       <Dialog open={isResponseModalOpen} onOpenChange={setIsResponseModalOpen}>
-        <DialogContent className="max-w-xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left" hideCloseIcon>
+        <DialogContent className="max-w-2xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[90vh] flex flex-col" hideCloseIcon>
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
-          <DialogHeader className="p-8 pb-4">
-             <DialogTitle className="text-2xl font-black text-white">Visualização de Resposta</DialogTitle>
-             <p className="text-slate-400 font-bold text-sm">Log específico de checagem. Pode conter informações adicionais anexadas.</p>
+          <DialogHeader className="p-6 md:p-8 pb-4 shrink-0 border-b border-white/5">
+             <DialogTitle className="text-xl md:text-2xl font-black text-white">Relatório Completo de Checklist</DialogTitle>
+             <p className="text-slate-400 font-bold text-xs md:text-sm mt-1">Visão integral com todas as perguntas, respostas e evidências do checklist.</p>
           </DialogHeader>
-          <div id="exportable-detail" className="p-8 pt-4 space-y-6 bg-slate-900">
+          <div id="exportable-detail" className="p-6 md:p-8 space-y-6 bg-slate-900 overflow-y-auto flex-1 custom-scrollbar">
              {selectedResponse && (
-               <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                     <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Entrevistado / Revisor</p>
-                     <p className="font-bold text-white">{(users || []).find((u: any) => u.id === selectedResponse.checklist_submissions?.user_id)?.name || 'Anônimo'}</p>
-                     <p className="text-xs font-bold text-slate-500">{format(new Date(selectedResponse.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
+               <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                       <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Entrevistado / Revisor</p>
+                       <p className="font-bold text-white">{(users || []).find((u: any) => u.id === selectedResponse.user_id)?.name || 'Anônimo'}</p>
+                       <p className="text-xs font-bold text-slate-500">{selectedResponse.created_at ? format(new Date(selectedResponse.created_at), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR }) : ''}</p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-white/5 border border-white/5">
+                       <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Local Auditado</p>
+                       <p className="font-bold text-white">{(orgUnits || []).find((u: any) => u.id === selectedResponse.org_unit_id)?.name || 'Geral'}</p>
+                       <p className="text-xs font-bold text-slate-500">{(checklists || []).find((c: any) => c.id === selectedResponse.checklist_id)?.title}</p>
+                    </div>
                   </div>
-                  <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                     <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Local</p>
-                     <p className="font-bold text-white">{(orgUnits || []).find((u: any) => u.id === selectedResponse.checklist_submissions?.org_unit_id)?.name || 'Geral'}</p>
+
+                  <div className="space-y-4">
+                     <p className="text-[12px] font-black tracking-widest text-white/50 border-b border-white/10 pb-2">DETALHAMENTO DE CHECAGEM</p>
+                     
+                     {(stats?.filteredAnswers || []).filter((ans: any) => ans.submission_id === selectedResponse.id).map((ans: any, idx) => {
+                        const q = allQuestions.find((qst: any) => qst.id === ans.question_id);
+                        return (
+                           <div key={ans.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04]">
+                              <div className="flex gap-4 items-start">
+                                 <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</div>
+                                 <div className="flex-1 space-y-3">
+                                    <p className="text-sm font-bold text-white leading-relaxed">{q?.text || ans.checklist_questions?.text || 'Pergunta'}</p>
+                                    
+                                    <div className="flex flex-wrap items-center gap-3">
+                                       <div className={`px-3 py-1 rounded-lg text-[10px] font-black border uppercase ${
+                                          ans.value === 'C' || ans.value === 'CHECKED' 
+                                             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                             : ans.value === 'NC' 
+                                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                                       }`}>
+                                          <span className="font-black uppercase tracking-widest text-xs">
+                                             {ans.value === 'C' ? 'Conforme' : ans.value === 'NC' ? 'Não Conforme' : ans.value}
+                                          </span>
+                                       </div>
+                                       
+                                       {ans.comments && (
+                                          <div className="text-xs text-slate-400 max-w-sm italic">"{ans.comments}"</div>
+                                       )}
+                                    </div>
+
+                                    {/* Evidência Fotográfica */}
+                                    {ans.photo_url && (
+                                       <div className="mt-2 text-xs font-bold text-indigo-400 flex items-center gap-2">
+                                          <div className="h-16 w-16 md:h-24 md:w-24 rounded-lg overflow-hidden border border-white/20 bg-black">
+                                             <img src={ans.photo_url} alt="Evidência" className="w-full h-full object-cover" />
+                                          </div>
+                                          <span>↳ Evidência Fotográfica Anexada</span>
+                                       </div>
+                                    )}
+
+                                    {/* Plano de Ação */}
+                                    {ans.action_plans && ans.action_plans.length > 0 && (
+                                       <div className="mt-3 p-3 bg-rose-500/5 border border-rose-500/20 rounded-xl">
+                                          <p className="text-[10px] font-black text-rose-400 uppercase tracking-wider mb-1">Plano de Ação Requerido</p>
+                                          <p className="text-sm font-semibold text-rose-200">{ans.action_plans[0].description}</p>
+                                       </div>
+                                    )}
+                                 </div>
+                              </div>
+                           </div>
+                        );
+                     })}
                   </div>
-                  <div>
-                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2">Pergunta Avaliada</p>
-                     <p className="text-lg font-bold text-white leading-relaxed">{selectedResponse.checklist_questions?.text}</p>
-                  </div>
-                  <div>
-                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-2 mt-6">Resultado</p>
-                     <div className={`inline-flex px-4 py-2 rounded-xl border ${
-                        selectedResponse.value === 'C' || selectedResponse.value === 'CHECKED' 
-                           ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                           : selectedResponse.value === 'NC' 
-                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                              : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                     }`}>
-                        <span className="font-black uppercase tracking-widest text-xs">
-                           {selectedResponse.value === 'C' ? 'Conforme' : selectedResponse.value === 'NC' ? 'Não Conforme' : selectedResponse.value}
-                        </span>
-                     </div>
-                  </div>
-                  {/* Photo Emulation */}
-                  {selectedResponse.photo_url && (
-                     <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black overflow-hidden relative group cursor-pointer aspect-video flex-shrink-0">
-                        <img src={selectedResponse.photo_url} alt="Evidência" className="w-full h-full object-contain" />
-                     </div>
-                  )}
                </div>
              )}
           </div>
-          <div className="p-8 pt-0 flex gap-4 mt-4">
+          <div className="p-6 md:p-8 border-t border-white/5 shrink-0 flex gap-4 bg-slate-900/50 backdrop-blur-md">
              <Button 
                variant="default" 
                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-6 rounded-2xl"

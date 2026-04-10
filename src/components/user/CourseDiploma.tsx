@@ -1,4 +1,8 @@
 import { useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { toast } from 'sonner';
 import { CourseEnrollment } from '../../types';
 
 // Templates de diploma disponíveis
@@ -170,7 +174,7 @@ export function CourseDiploma({ studentName, courseTitle, companyName, enrollmen
   );
 }
 
-// Função utilitária para abrir a impressão diretamente
+// Função utilitária para gerar e baixar PDF diretamente (Perfeito para Mobile)
 export function printDiploma(
   studentName: string, 
   courseTitle: string, 
@@ -179,101 +183,68 @@ export function printDiploma(
   templateId: DiplomaTemplateId = 'azul',
   companyLogoUrl?: string | null
 ) {
-  const template = DIPLOMA_TEMPLATES.find(t => t.id === templateId) || DIPLOMA_TEMPLATES[0];
-  const styles = getTemplateStyles(template.id);
+  const tId = toast.loading('Preparando certificado...', { id: 'diploma-gen' });
+  
+  // Create an off-screen container
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  document.body.appendChild(container);
 
-  const completionDate = enrollment.completed_at
-    ? new Date(enrollment.completed_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-    : new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const root = createRoot(container);
+  
+  const generatePdf = async () => {
+    try {
+      toast.loading('Gerando imagem de alta qualidade...', { id: tId });
+      // Aguardar para garantir que a imagem de fundo (carregada via URL) esteja pronta
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      const el = container.firstElementChild as HTMLElement;
+      if (!el) throw new Error('Elemento do certificado não encontrado');
 
-  // A url da imagem agora já é absoluta do ImageKit
-  const templateImageUrl = template.image;
+      const canvas = await html2canvas(el, {
+        scale: 2, // Alta qualidade
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return false;
-
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Diploma - ${courseTitle}</title>
-      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Montserrat', sans-serif; }
-        @media print {
-          @page { size: landscape A4; margin: 0; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-        .diploma {
-          width: 297mm; min-height: 210mm;
-          background-image: url('${templateImageUrl}');
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          padding: 60px 100px; position: relative; overflow: hidden;
-        }
-        .content { text-align: center; position: relative; z-index: 1; width: 100%; max-width: 800px; }
-        .label { font-size: 13px; letter-spacing: 8px; text-transform: uppercase; color: ${styles.subtext}; font-weight: 700; margin-bottom: 24px; }
-        .title { font-size: 40px; font-weight: 900; color: ${styles.text}; margin-bottom: 30px; line-height: 1.2; word-wrap: break-word; padding: 0 40px; }
-        .given-to { font-size: 14px; color: ${styles.subtext}; margin-bottom: 8px; font-weight: 600; }
-        .student { font-size: 42px; font-family: 'Playfair Display', serif; font-style: italic; font-weight: 700; color: ${styles.text}; margin-bottom: 24px; display: inline-block; min-width: 350px; }
-        .desc { font-size: 13px; color: ${styles.subtext}; max-width: 580px; margin: 0 auto 50px; line-height: 1.8; }
-        .score { color: ${styles.accent}; font-weight: 800; }
-        .footer { display: flex; justify-content: center; gap: 150px; margin-top: 16px; }
-        .footer-col { text-align: center; display: flex; flex-direction: column; align-items: center; }
-        .footer-line { border-top: 2px solid ${styles.line}; width: 220px; margin-bottom: 12px; }
-        .footer-label { font-size: 11px; color: ${styles.subtext}; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
-        .footer-value { font-size: 14px; font-weight: 700; color: ${styles.text}; }
-        .company-logo { width: 85px; height: 85px; border-radius: 50%; object-fit: contain; margin-top: 4px; border: 2px solid rgba(255,255,255,0.8); background: white; padding: 4px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
-      </style>
-    </head>
-    <body>
-      <div class="diploma">
-        <div class="content">
-          <p class="label">Certificado de Conclusão</p>
-          <h1 class="title">${courseTitle}</h1>
-          <p class="given-to">Concedido a</p>
-          <h2 class="student">${studentName}</h2>
-          <p class="desc">
-            Por ter concluído com sucesso este treinamento com aproveitamento de
-            <span class="score"> ${enrollment.score_percent || 0}%</span>,
-            demonstrando domínio das competências exigidas.
-          </p>
-          <div class="footer">
-            <div class="footer-col">
-              <div class="footer-line"></div>
-              <p class="footer-label">Data</p>
-              <p class="footer-value">${completionDate}</p>
-            </div>
-            <div class="footer-col">
-              <div class="footer-line"></div>
-              <p class="footer-label">${companyName}</p>
-              ${companyLogoUrl 
-                ? `<img src="${companyLogoUrl}" class="company-logo" alt="Logo" crossorigin="anonymous" />` 
-                : `<p class="footer-value" style="color: ${styles.text}">Instituição</p>`}
-            </div>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `);
-  printWindow.document.close();
-  // Aguardar imagem carregar antes de imprimir
-  const img = new Image();
-  img.src = templateImageUrl;
-  img.onload = () => {
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
+      toast.loading('Finalizando PDF...', { id: tId });
+      const imgData = canvas.toDataURL('image/png');
+      
+      // A4 landscape possui aproximadamente 297 x 210 mm
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      pdf.addImage(imgData, 'PNG', 0, 0, 297, 210);
+      
+      const safeTitle = courseTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      pdf.save(`Certificado_${safeTitle}.pdf`);
+      
+      toast.success('Certificado baixado com sucesso!', { id: tId });
+    } catch (error) {
+      console.error('Error generating diploma PDF:', error);
+      toast.error('Erro ao gerar certificado', { id: tId });
+    } finally {
+      // Limpeza
+      root.unmount();
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+    }
   };
-  img.onerror = () => {
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
-  };
+
+  // Renderiza o componente React dentro do off-screen container
+  root.render(
+    <CourseDiploma 
+      studentName={studentName}
+      courseTitle={courseTitle}
+      companyName={companyName}
+      enrollment={enrollment as any}
+      templateId={templateId}
+      companyLogo={companyLogoUrl || undefined}
+    />
+  );
+  
+  // Dispara a conversão logo após montar o componente principal
+  setTimeout(generatePdf, 100);
 }
 
