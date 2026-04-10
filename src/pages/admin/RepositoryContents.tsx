@@ -67,7 +67,7 @@ export const AdminRepositoryContents = () => {
   const { link_name, repoId } = useParams();
 
   const { companies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
 
   const { repositories } = useRepositories(company?.id);
   const repo = repositories.find(r => r.id === repoId && r.company_id === company?.id);

@@ -18,7 +18,7 @@ export const AdminRepositories = () => {
   const { companySlug } = useParams();
   
   const { companies, isLoading: loadingCompanies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
   const { users, isLoading: loadingUsers } = useUsers(company?.id);
   const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories(company?.id);

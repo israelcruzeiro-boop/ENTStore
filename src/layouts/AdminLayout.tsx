@@ -28,15 +28,21 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
     if (user?.role === 'SUPER_ADMIN' && superAdmin) {
       document.title = 'Super Admin | Store Page';
     } else if (companySlug) {
-      const company = companies.find(c => c.slug === companySlug);
-      if (company?.name) {
-        document.title = `${company.name} | Admin`;
+      const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+      if (company) {
+        if (company.name) document.title = `${company.name} | Admin`;
+        
+        // Redireciona para o lug correto se estiver usando o slug antigo
+        if (company.link_name && company.link_name !== companySlug) {
+          const newPath = location.pathname.replace(`/admin/${companySlug}`, `/admin/${company.link_name}`);
+          navigate(newPath, { replace: true });
+        }
       }
     }
-  }, [user, superAdmin, companySlug, companies]);
+  }, [user, superAdmin, companySlug, companies, location.pathname, navigate]);
 
   // 1. Identifica a empresa alvo a partir da URL
-  const targetCompany = companySlug ? companies.find(c => c.slug === companySlug) : undefined;
+  const targetCompany = companySlug ? companies.find(c => c.link_name === companySlug || c.slug === companySlug) : undefined;
 
   // 2. Estado de Carregamento (Apenas se não hover dados e estiver carregando)
   if (isLoading && companies.length === 0) {
@@ -81,17 +87,20 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
     }
   }
 
+  // Usa o lug correto para os links de navegação
+  const activeSlug = targetCompany?.link_name || companySlug;
+
   const navItems = superAdmin ? [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/super-admin' },
   ] : [
-    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${companySlug}` },
-    { label: 'Repositórios', icon: FolderTree, path: `/admin/${companySlug}/repos` },
-    ...(targetCompany?.checklists_enabled ? [{ label: 'Checklists', icon: ClipboardCheck, path: `/admin/${companySlug}/checklists` }] : []),
-    { label: 'Cursos', icon: BookOpen, path: `/admin/${companySlug}/courses` },
-    { label: 'Usuários', icon: Users, path: `/admin/${companySlug}/users` },
-    { label: 'Estrutura Org.', icon: Network, path: `/admin/${companySlug}/structure` },
-    { label: 'Aparência', icon: Palette, path: `/admin/${companySlug}/appearance` },
-    { label: 'Configurações', icon: Settings, path: `/admin/${companySlug}/settings` },
+    { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${activeSlug}` },
+    { label: 'Repositórios', icon: FolderTree, path: `/admin/${activeSlug}/repos` },
+    ...(targetCompany?.checklists_enabled ? [{ label: 'Checklists', icon: ClipboardCheck, path: `/admin/${activeSlug}/checklists` }] : []),
+    { label: 'Cursos', icon: BookOpen, path: `/admin/${activeSlug}/courses` },
+    { label: 'Usuários', icon: Users, path: `/admin/${activeSlug}/users` },
+    { label: 'Estrutura Org.', icon: Network, path: `/admin/${activeSlug}/structure` },
+    { label: 'Aparência', icon: Palette, path: `/admin/${activeSlug}/appearance` },
+    { label: 'Configurações', icon: Settings, path: `/admin/${activeSlug}/settings` },
   ];
 
   const SidebarContent = () => (
@@ -127,7 +136,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (location.pathname === `/admin/${companySlug}` && item.path === `/admin/${companySlug}`);
+            const isActive = location.pathname === item.path || (location.pathname === `/admin/${activeSlug}` && item.path === `/admin/${activeSlug}`);
             const Icon = item.icon;
             return (
               <Link 

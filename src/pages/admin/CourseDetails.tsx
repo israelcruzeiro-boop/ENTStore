@@ -117,7 +117,7 @@ export const AdminCourseDetails = () => {
   const [wordSearchWords, setWordSearchWords] = useState<string[]>(['']);
   const [wordSearchDifficulty, setWordSearchDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('MEDIUM');
   const [orderingItems, setOrderingItems] = useState<string[]>(['']);
-  const [hotspotPoints, setHotspotPoints] = useState<any[]>([]);
+  const [hotspotPoints, setHotspotPoints] = useState<{ x: number; y: number; radius?: number }[]>([]);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetUserId, setResetUserId] = useState('');
 
@@ -1079,7 +1079,7 @@ export const AdminCourseDetails = () => {
                       <button
                         key={level}
                         type="button"
-                        onClick={() => setWordSearchDifficulty(level as any)}
+                        onClick={() => setWordSearchDifficulty(level as 'EASY' | 'MEDIUM' | 'HARD')}
                         className={cn(
                           "py-2 rounded-md text-[10px] font-bold transition-all",
                           wordSearchDifficulty === level 
@@ -1292,10 +1292,12 @@ export const AdminCourseDetails = () => {
                 setIsSubmitting(true);
                 try {
                   // Preparar configuração baseada no tipo
-                  let config: any = {};
+                  let config: Record<string, unknown> = {};
                   if (questionType === 'WORD_SEARCH') {
                     const wordsForGrid = wordSearchWords.map(w => w.trim().toUpperCase()).filter(Boolean);
-                    const size = wordSearchDifficulty === 'HARD' ? 12 : wordSearchDifficulty === 'MEDIUM' ? 10 : 8;
+                    const longestWord = Math.max(...wordsForGrid.map(w => w.length));
+                    const baseSize = wordSearchDifficulty === 'HARD' ? 12 : wordSearchDifficulty === 'MEDIUM' ? 10 : 8;
+                    const size = Math.max(baseSize, longestWord + 2); // Garante que a maior palavra caiba com folga
                     const grid = Array(size).fill(null).map(() => Array(size).fill(''));
                     
                     const directionsByDifficulty = {
@@ -1306,10 +1308,11 @@ export const AdminCourseDetails = () => {
                     const directions = directionsByDifficulty[wordSearchDifficulty];
 
                     // Posicionar palavras
+                    const placedWords: string[] = [];
                     for (const word of wordsForGrid) {
                       let placed = false;
                       let attempts = 0;
-                      while (!placed && attempts < 100) {
+                      while (!placed && attempts < 500) {
                         const [dr, dc] = directions[Math.floor(Math.random() * directions.length)];
                         const r = Math.floor(Math.random() * size);
                         const c = Math.floor(Math.random() * size);
@@ -1335,6 +1338,7 @@ export const AdminCourseDetails = () => {
                             grid[r + i * dr][c + i * dc] = word[i];
                           }
                           placed = true;
+                          placedWords.push(word);
                         }
                         attempts++;
                       }
@@ -1348,7 +1352,7 @@ export const AdminCourseDetails = () => {
                         }
                       }
                     }
-                    config = { words: wordsForGrid, grid, difficulty: wordSearchDifficulty };
+                    config = { words: placedWords, grid, difficulty: wordSearchDifficulty };
                   } else if (questionType === 'ORDERING') {
                     config = { items: orderingItems.map(i => i.trim()).filter(Boolean) };
                   } else if (questionType === 'HOTSPOT') {

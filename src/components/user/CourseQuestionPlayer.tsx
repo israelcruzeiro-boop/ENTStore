@@ -114,6 +114,7 @@ export function CourseQuestionPlayer({
       case 'WORD_SEARCH':
         return (
           <WordSearchQuestion 
+            key={currentQuestion.id}
             configuration={currentQuestion.configuration}
             onAnswer={setComplexAnswer}
             isAnswered={isAnswered}

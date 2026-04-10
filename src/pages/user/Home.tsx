@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext'; // Restaurado pois é necessário para o slug
-import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses, useUserCourseHistory } from '../../hooks/useSupabaseData';
 import { checkRepoAccess, checkCourseAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
@@ -25,6 +25,7 @@ export const UserHome = () => {
   const { courses, isLoading: loadingCourses } = useCourses(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
   const { contentViews, contentRatings, isLoading: loadingMetrics } = useCompanyMetrics(company?.id);
+  const { history: userEnrollments } = useUserCourseHistory(user?.id, company?.id);
 
   const isLoading = loadingRepos || loadingContents || loadingLinks || loadingCourses || loadingOrg || loadingMetrics;
 
@@ -225,9 +226,10 @@ export const UserHome = () => {
            <div className="animate-in fade-in duration-300">
              {companyCourses.length > 0 && !activeFilter && (
                 <ContentRow title="Seus Treinamentos">
-                  {companyCourses.slice(0, 6).map(course => (
-                    <CourseCard key={course.id} course={course} />
-                  ))}
+                  {companyCourses.slice(0, 6).map(course => {
+                    const enrollment = userEnrollments.find(e => e.course_id === course.id);
+                    return <CourseCard key={course.id} course={course} status={enrollment?.status || 'NOT_STARTED'} />;
+                  })}
                 </ContentRow>
              )}
 

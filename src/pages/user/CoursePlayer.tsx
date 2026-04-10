@@ -104,7 +104,7 @@ export const UserCoursePlayer = () => {
   const currentModuleIndex = modules.findIndex(m => m.id === activeModuleId);
   const currentContentIndex = activeModuleContents.findIndex(c => c.id === activeContentId);
 
-  // Inicia enrollment ao abrir o curso
+  // Inicia enrollment ao abrir o curso (APENAS se não existir ou se não estiver COMPLETED)
   useEffect(() => {
     if (courseId && user?.id && course?.company_id && !enrollment) {
       startEnrollment(courseId, user.id, course.company_id)

@@ -37,10 +37,10 @@ export const Login = () => {
         navigate('/super-admin', { replace: true });
       } else if (user.role === 'ADMIN') {
         const adminCompany = companies.find(c => c.id === user.company_id);
-        if (adminCompany) navigate(`/admin/${adminCompany.slug}`, { replace: true });
+        if (adminCompany) navigate(`/admin/${adminCompany.link_name || adminCompany.slug}`, { replace: true });
       } else {
         const userCompany = companies.find(c => c.id === user.company_id);
-        const slugPrefix = companySlug || tenantCompany?.slug || userCompany?.slug;
+        const slugPrefix = companySlug || tenantCompany?.link_name || tenantCompany?.slug || userCompany?.link_name || userCompany?.slug;
         if (slugPrefix) navigate(`/${slugPrefix}/home`, { replace: true });
       }
     }
@@ -79,13 +79,13 @@ export const Login = () => {
         } else if (loggedUser.role === 'ADMIN') {
           const adminCompany = companies.find(c => c.id === loggedUser.company_id);
           if (adminCompany) {
-            navigate(`/admin/${adminCompany.slug}`);
+            navigate(`/admin/${adminCompany.link_name || adminCompany.slug}`);
           } else {
             setError('Empresa não encontrada ou inativa.');
           }
         } else {
           const userCompany = companies.find(c => c.id === loggedUser.company_id);
-          const slugPrefix = companySlug || tenantCompany?.slug || userCompany?.slug;
+          const slugPrefix = companySlug || tenantCompany?.link_name || tenantCompany?.slug || userCompany?.link_name || userCompany?.slug;
           if (slugPrefix) navigate(`/${slugPrefix}/home`);
         }
       } else {

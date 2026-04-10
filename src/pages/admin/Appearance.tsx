@@ -14,7 +14,7 @@ import { Link } from 'react-router-dom';
 export const AdminAppearance = () => {
   const { companySlug } = useParams();
   const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
   const [activeThemeKey, setActiveThemeKey] = useState('custom');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,7 +171,7 @@ export const AdminAppearance = () => {
                  <div className={`transition-all duration-300 ${!landingPageActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                    <div className="flex items-center justify-between mb-2">
                       <label className="text-sm font-semibold text-slate-700">Bio Descritiva</label>
-                      <Link to={`/${company.slug || company.companySlug}/landing`} target="_blank" className="text-xs font-semibold text-indigo-600 flex items-center gap-1 hover:text-indigo-800 transition-colors">
+                      <Link to={`/${company.link_name || company.slug}/landing`} target="_blank" className="text-xs font-semibold text-indigo-600 flex items-center gap-2 hover:text-indigo-800 transition-colors">
                          <ExternalLink size={14} /> Acessar Landing Page
                       </Link>
                    </div>

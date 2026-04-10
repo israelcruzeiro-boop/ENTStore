@@ -15,7 +15,7 @@ export const AdminStructure = () => {
   const { companySlug } = useParams();
   
   const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
 
   const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutateTopLevels, mutateUnits, isLoading } = useOrgStructure(company?.id);
 

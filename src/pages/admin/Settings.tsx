@@ -19,7 +19,7 @@ export const AdminSettings = () => {
   const navigate = useNavigate();
   const { companies, mutate: mutateCompanies } = useCompanies();
   
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -221,12 +221,30 @@ export function useAllSubmissions(companyId?: string) {
 export function useAllAnswers(companyId?: string) {
   const { data, error, isLoading } = useSWR<ChecklistAnswer[]>(
     companyId ? `all_answers_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_answers')
-      .select('*, checklist_submissions!inner(company_id, status)')
-      .eq('checklist_submissions.company_id', companyId)
-      .eq('checklist_submissions.status', 'COMPLETED')
-    )
+    async () => {
+      // 1. Primeiro buscamos os IDs das submissões finalizadas desta empresa
+      const { data: subs, error: subErr } = await supabase
+        .from('checklist_submissions')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('status', 'COMPLETED');
+      
+      if (subErr) throw subErr;
+      if (!subs || subs.length === 0) return [];
+
+      const submissionIds = subs.map(s => s.id);
+
+      // 2. Buscamos todas as respostas dessas submissões
+      // Nota: Supabase tem um limite de itens em queries 'in'. 
+      // Para dashboards muito grandes (>1000 submissões), pode ser necessário paginar ou usar RPC.
+      const { data: answers, error: ansErr } = await supabase
+        .from('checklist_answers')
+        .select('*')
+        .in('submission_id', submissionIds);
+      
+      if (ansErr) throw ansErr;
+      return answers || [];
+    }
   );
 
   return {
@@ -630,3 +648,126 @@ export const checklistActions = {
     if (firstError) throw firstError.error;
   }
 };
+
+// ============================================================================
+// HOOKS AVANÇADOS PARA DASHBOARD
+// ============================================================================
+
+interface DetailedAnswer {
+  id: string;
+  submission_id: string;
+  question_id: string;
+  value: string;
+  note: string | null;
+  action_plan: string | null;
+  assigned_user_id: string | null;
+  action_plan_status: string | null;
+  action_plan_due_date: string | null;
+  action_plan_created_by: string | null;
+  photo_urls: string[];
+  created_at: string;
+  checklist_questions: {
+    text: string;
+    type: string;
+    section_id: string | null;
+    checklist_id: string;
+  } | null;
+  checklist_submissions: {
+    id: string;
+    user_id: string;
+    checklist_id: string;
+    org_unit_id: string | null;
+    status: string;
+    completed_at: string | null;
+    created_at: string;
+  } | null;
+}
+
+/**
+ * Hook para buscar respostas detalhadas com JOINs 
+ * (pergunta, submissão, usuário) — para tabela analítica no dashboard.
+ */
+export function useChecklistDetailedAnswers(companyId?: string) {
+  const { data, error, isLoading } = useSWR<DetailedAnswer[]>(
+    companyId ? `detailed_answers_${companyId}` : null,
+    async () => {
+      // 1. Buscamos todas as submissões finalizadas da empresa
+      const { data: subs, error: subErr } = await supabase
+        .from('checklist_submissions')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('status', 'COMPLETED');
+      
+      if (subErr) throw subErr;
+      if (!subs || subs.length === 0) return [];
+
+      const submissionIds = subs.map(s => s.id);
+
+      // 2. Buscamos todas as respostas dessas submissões
+      const { data: answers, error: ansErr } = await supabase
+        .from('checklist_answers')
+        .select(`
+          *,
+          checklist_questions(text, type, section_id, checklist_id)
+        `)
+        .in('submission_id', submissionIds);
+      
+      if (ansErr) throw ansErr;
+
+      // 3. Buscamos planos de ação vinculados a estas respostas
+      const answerIds = (answers || []).map(a => a.id);
+      const { data: aps } = await supabase
+        .from('checklist_action_plans')
+        .select('*')
+        .in('answer_id', answerIds);
+
+      // 4. Mapeamos as submissões e planos de ação de volta para as respostas
+      const detailedAnswers = (answers || []).map(ans => ({
+        ...ans,
+        checklist_submissions: subs.find(s => s.id === ans.submission_id) || null,
+        action_plans: (aps || []).filter(ap => ap.answer_id === ans.id)
+      }));
+
+      return detailedAnswers as DetailedAnswer[];
+    }
+  );
+
+  return {
+    detailedAnswers: (data || []) as DetailedAnswer[],
+    isLoading,
+    isError: error
+  };
+}
+
+interface UserChecklistEntry {
+  id: string;
+  checklist_id: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  org_unit_id: string | null;
+  created_at: string;
+  checklists: { title: string } | null;
+}
+
+/**
+ * Hook para buscar o histórico completo de checklists de um usuário específico.
+ */
+export function useUserChecklistHistory(userId?: string, companyId?: string) {
+  const { data, error, isLoading } = useSWR<UserChecklistEntry[]>(
+    userId && companyId ? `user_cl_history_${userId}_${companyId}` : null,
+    () => fetcher(() => supabase
+      .from('checklist_submissions')
+      .select('*, checklists(title)')
+      .eq('user_id', userId)
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+    )
+  );
+
+  return {
+    history: (data || []) as UserChecklistEntry[],
+    isLoading,
+    isError: error
+  };
+}

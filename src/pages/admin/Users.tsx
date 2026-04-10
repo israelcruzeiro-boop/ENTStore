@@ -59,7 +59,7 @@ export const AdminUsers = () => {
   const { user: currentUser } = useAuth();
   
   const { companies } = useCompanies();
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
 
   const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(company?.id);
   const { orgUnits } = useOrgStructure(company?.id);

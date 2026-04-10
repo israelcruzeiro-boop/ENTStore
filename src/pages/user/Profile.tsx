@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useOrgStructure, updateSupabaseUser, useUsers } from '../../hooks/useSupabaseData';
-import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store, Trophy, Coins } from 'lucide-react';
+import { useOrgStructure, updateSupabaseUser, useUsers, useCourses, useUserCourseHistory } from '../../hooks/useSupabaseData';
+import { useChecklists, useAllSubmissions } from '../../hooks/useChecklists';
+import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store, BookOpen, CheckSquare, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { isValidCPF } from '../../utils/validators';
 import { uploadToSupabase } from '../../lib/storage';
+import { checkCourseAccess } from '../../lib/permissions';
 
 export const UserProfile = () => {
   const { user, company, logout, refreshUser } = useAuth();
@@ -16,6 +18,28 @@ export const UserProfile = () => {
   // SWR Hooks para dados do Supabase
   const { users, mutate: mutateUsers } = useUsers(company?.id);
   const { orgUnits, orgTopLevels } = useOrgStructure(company?.id);
+  
+  // Hooks de Cursos e Checklists
+  const { courses } = useCourses(company?.id);
+  const { history: courseEnrollments } = useUserCourseHistory(user?.id, company?.id);
+  const { checklists } = useChecklists(company?.id);
+  const { submissions: allSubmissions } = useAllSubmissions(company?.id);
+
+  // Métricas de Cursos
+  const accessibleCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
+  const coursesCompleted = courseEnrollments.filter(e => e.status === 'COMPLETED').length;
+  const coursesInProgress = courseEnrollments.filter(e => e.status === 'IN_PROGRESS').length;
+  const coursesNotStarted = Math.max(0, accessibleCourses.length - coursesCompleted - coursesInProgress);
+  const courseCompletionRate = accessibleCourses.length > 0 ? Math.round((coursesCompleted / accessibleCourses.length) * 100) : 0;
+  const courseAvgScore = coursesCompleted > 0 ? Math.round(courseEnrollments.filter(e => e.status === 'COMPLETED').reduce((a, b) => a + (b.score_percent || 0), 0) / coursesCompleted) : 0;
+
+  // Métricas de Checklists
+  const userSubmissions = allSubmissions.filter(s => s.user_id === user?.id);
+  const checklistsCompleted = userSubmissions.filter(s => s.status === 'COMPLETED').length;
+  const checklistsInProgress = userSubmissions.filter(s => s.status === 'IN_PROGRESS').length;
+  const activeChecklists = checklists.filter(c => c.status === 'ACTIVE').length;
+  const checklistsNotStarted = Math.max(0, activeChecklists - checklistsCompleted - checklistsInProgress);
+  const checklistCompletionRate = activeChecklists > 0 ? Math.round((checklistsCompleted / activeChecklists) * 100) : 0;
 
   const unitLabel = company?.org_unit_name || 'Unidade';
   const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }];
@@ -180,16 +204,44 @@ export const UserProfile = () => {
                  )}
                </div>
 
-               {/* Gamificação - XP e Coins */}
-               <div className="flex items-center justify-center gap-4 mt-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-xl transition-all hover:scale-105 cursor-default group" title="Sua experiência total">
-                     <Trophy size={14} className="text-yellow-500 group-hover:rotate-12 transition-transform" />
-                     <span className="text-sm font-black text-yellow-500">{user?.xp_total || 0} XP</span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-1.5 rounded-xl transition-all hover:scale-105 cursor-default group" title="Suas moedas acumuladas">
-                     <Coins size={14} className="text-emerald-500 group-hover:rotate-12 transition-transform" />
-                     <span className="text-sm font-black text-emerald-500">{user?.coins_total || 0} MOEDAS</span>
-                  </div>
+            </div>
+
+            {/* Desempenho Acadêmico - Inline no Header */}
+            <div className="w-full grid grid-cols-2 gap-3 mt-2 mb-10 animate-in fade-in slide-in-from-bottom-3 duration-500">
+               {/* Cursos Card */}
+               <div className="bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 border border-white/5 hover:border-blue-500/20 transition-colors">
+                 <div className="flex items-center gap-2 mb-3">
+                   <BookOpen size={14} className="text-blue-400" />
+                   <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Cursos</span>
+                 </div>
+                 <div className="text-3xl font-black text-white tabular-nums mb-1">{courseCompletionRate}<span className="text-lg text-white/30">%</span></div>
+                 <div className="flex items-center gap-3 text-[10px] mt-2">
+                   <span className="flex items-center gap-1 text-emerald-400 font-bold"><CheckCircle2 size={10}/>{coursesCompleted}</span>
+                   <span className="flex items-center gap-1 text-blue-400 font-bold"><Clock size={10}/>{coursesInProgress}</span>
+                   <span className="flex items-center gap-1 text-zinc-500 font-bold"><AlertCircle size={10}/>{coursesNotStarted}</span>
+                 </div>
+                 {courseAvgScore > 0 && (
+                   <div className="mt-3 flex items-center gap-2">
+                     <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                       <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-500" style={{ width: `${courseAvgScore}%` }} />
+                     </div>
+                     <span className="text-[10px] font-black text-white/60 tabular-nums">{courseAvgScore}%</span>
+                   </div>
+                 )}
+               </div>
+
+               {/* Checklists Card */}
+               <div className="bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 border border-white/5 hover:border-emerald-500/20 transition-colors">
+                 <div className="flex items-center gap-2 mb-3">
+                   <CheckSquare size={14} className="text-emerald-400" />
+                   <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Checklists</span>
+                 </div>
+                 <div className="text-3xl font-black text-white tabular-nums mb-1">{checklistCompletionRate}<span className="text-lg text-white/30">%</span></div>
+                 <div className="flex items-center gap-3 text-[10px] mt-2">
+                   <span className="flex items-center gap-1 text-emerald-400 font-bold"><CheckCircle2 size={10}/>{checklistsCompleted}</span>
+                   <span className="flex items-center gap-1 text-blue-400 font-bold"><Clock size={10}/>{checklistsInProgress}</span>
+                   <span className="flex items-center gap-1 text-zinc-500 font-bold"><AlertCircle size={10}/>{checklistsNotStarted}</span>
+                 </div>
                </div>
             </div>
 
@@ -280,6 +332,7 @@ export const UserProfile = () => {
                   />
                </div>
             </div>
+
 
             <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-white/10">
                <button 

@@ -568,15 +568,29 @@ export function useCourseEnrollment(courseId?: string, userId?: string) {
  * Inicia uma matrícula em um curso
  */
 export async function startEnrollment(courseId: string, userId: string, companyId: string) {
+  // Verifica se já existe uma matrícula — protege cursos COMPLETED de serem resetados
+  const { data: existing } = await supabase
+    .from('course_enrollments')
+    .select('*')
+    .eq('course_id', courseId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existing) {
+    // Se já está COMPLETED, retorna sem modificar
+    return existing as CourseEnrollment;
+  }
+
+  // Cria nova matrícula apenas se não existir
   const { data, error } = await supabase
     .from('course_enrollments')
-    .upsert({
+    .insert({
       course_id: courseId,
       user_id: userId,
       company_id: companyId,
       status: 'IN_PROGRESS',
       started_at: new Date().toISOString()
-    }, { onConflict: 'course_id,user_id' })
+    })
     .select()
     .single();
   if (error) throw error;
@@ -718,7 +732,7 @@ export function useCourseDashboard(companyId?: string) {
     async () => {
       const { data: enrollments, error } = await supabase
         .from('course_enrollments')
-        .select('*, users:user_id(name, email), courses:course_id(title)')
+        .select('*, courses(title)')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -782,4 +796,95 @@ export async function resetEnrollment(courseId: string, userId: string) {
     .eq('course_id', courseId)
     .eq('user_id', userId);
   if (error) throw error;
+}
+
+/**
+ * Hook para buscar o histórico de cursos de um usuário específico
+ */
+export function useUserCourseHistory(userId?: string, companyId?: string) {
+  const { data, error, isLoading } = useSWR(
+    userId && companyId ? `user_course_history_${userId}_${companyId}` : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('course_enrollments')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    }
+  );
+
+  return {
+    history: data || [],
+    isLoading,
+    isError: error
+  };
+}
+
+/**
+ * Hook centralizado para Analytics do Dashboard de Cursos (Admin)
+ */
+export function useCourseAnalytics(companyId?: string) {
+  const { data: enrollments, isLoading: loadingEnrollments, mutate: mutateEnrollments } = useSWR<CourseEnrollment[]>(
+    companyId ? `course_enrollments_all_${companyId}` : null,
+    () => fetcher(() => supabase.from('course_enrollments').select('*').eq('company_id', companyId))
+  );
+
+  const { data: answers, isLoading: loadingAnswers, mutate: mutateAnswers } = useSWR(
+    companyId ? `course_analytics_answers_${companyId}` : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('course_answers')
+        .select(`
+          *,
+          course_enrollments!inner(company_id)
+        `)
+        .eq('course_enrollments.company_id', companyId);
+      if (error) throw error;
+      return data;
+    }
+  );
+
+  const { data: questions, isLoading: loadingQuestions, mutate: mutateQuestions } = useSWR(
+    companyId ? `course_analytics_questions_${companyId}` : null,
+    async () => {
+      const { data, error } = await supabase
+        .from('course_phase_questions')
+        .select(`
+          *,
+          course_modules!inner(
+            course_id,
+            courses!inner(company_id)
+          )
+        `)
+        .eq('course_modules.courses.company_id', companyId);
+      
+      if (error) throw error;
+      
+      const { data: options, error: optErr } = await supabase
+        .from('course_question_options')
+        .select('*');
+      
+      if (optErr) throw optErr;
+
+      return data.map(q => ({
+        ...q,
+        options: options.filter(o => o.question_id === q.id)
+      }));
+    }
+  );
+
+  const mutate = async () => {
+    await Promise.all([mutateEnrollments(), mutateAnswers(), mutateQuestions()]);
+  };
+
+  return {
+    enrollments: enrollments || [],
+    answers: (answers as any[]) || [],
+    questions: (questions as any[]) || [],
+    isLoading: loadingEnrollments || loadingAnswers || loadingQuestions,
+    mutate
+  };
 }

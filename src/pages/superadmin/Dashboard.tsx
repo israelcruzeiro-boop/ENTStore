@@ -331,9 +331,9 @@ export const SuperAdminDashboard = () => {
                          <div className="flex items-center gap-2">
                             <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/{company.link_name}</span>
                             <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50">
-                               <Link to={`/admin/${company.link_name}`}>
-                                 Admin <ExternalLink size={12} />
-                               </Link>
+                             <Link to={`/admin/${company.link_name || company.slug}`}>
+                               Admin <ExternalLink size={12} />
+                             </Link>
                             </Button>
                          </div>
                       </td>

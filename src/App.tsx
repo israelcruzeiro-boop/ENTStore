@@ -78,7 +78,7 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: Re
      // 1. Se acessar um slug de empresa que não existe (ou foi inativada)
      if (!targetCompany && companies.length > 0) {
         const userCompany = companies.find(c => c.id === user.company_id);
-        if (userCompany) return <Navigate to={`/${userCompany.slug}/home`} replace />;
+        if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
         // Evita loop: se não sabemos para onde ir, força login global
         return <Navigate to="/login" replace />;
      }
@@ -86,7 +86,7 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: Re
      // 2. Se tentar acessar o painel/slug de uma empresa que não é a sua (Proteção de Tenant)
      if (targetCompany && user.company_id !== targetCompany.id && user.role !== 'SUPER_ADMIN') {
         const userCompany = companies.find(c => c.id === user.company_id);
-        if (userCompany) return <Navigate to={`/${userCompany.slug}/home`} replace />;
+        if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
         return <Navigate to="/login" replace />;
      }
   }
@@ -97,12 +97,12 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: Re
      if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
      if (user.role === 'ADMIN') {
         const adminCompany = companies.find(c => c.id === user.company_id);
-        if (adminCompany) return <Navigate to={`/admin/${adminCompany.slug}`} replace />;
+        if (adminCompany) return <Navigate to={`/admin/${adminCompany.link_name || adminCompany.slug}`} replace />;
         return <Navigate to="/login" replace />;
      }
      
      const userCompany = companies.find(c => c.id === user.company_id);
-     if (userCompany) return <Navigate to={`/${userCompany.slug}/home`} replace />;
+     if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
      return <Navigate to="/login" replace />;
   }
   

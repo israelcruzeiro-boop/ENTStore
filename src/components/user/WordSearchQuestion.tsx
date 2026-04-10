@@ -10,8 +10,8 @@ interface WordSearchProps {
   };
   onAnswer: (foundWords: string[]) => void;
   isAnswered?: boolean;
-  correctAnswer?: any;
-  userAnswer?: any;
+  correctAnswer?: unknown;
+  userAnswer?: { foundWords: string[], foundPaths: { word: string, cells: { r: number, c: number }[], color: string }[] };
 }
 
 // Paleta de cores vibrantes e premium para o caça-palavras
@@ -39,12 +39,14 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
   const grid = configuration.grid;
   const targetWords = configuration.words;
 
-  // Carregar caminhos já encontrados se o userAnswer existir
+  // Resetar estado quando a configuração mudar (ex: nova pergunta)
   useEffect(() => {
-    if (userAnswer?.foundPaths) {
-      setFoundPaths(userAnswer.foundPaths);
-    }
-  }, [userAnswer]);
+    setFoundWords(userAnswer?.foundWords || []);
+    setFoundPaths(userAnswer?.foundPaths || []);
+    setSelectedCells([]);
+    setIsSelecting(false);
+    setLastFound(null);
+  }, [configuration, userAnswer]);
 
   const handleCellClick = (r: number, c: number) => {
     if (isAnswered) return;
@@ -126,6 +128,9 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isSelecting || isAnswered) return;
     
+    // Impede o scroll da página enquanto seleciona no mobile
+    if (e.cancelable) e.preventDefault();
+    
     const touch = e.touches[0];
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     
@@ -192,8 +197,8 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
         })}
       </div>
 
-      {/* Grid do Caça-Palavras com Suporte Mobile */}
-      <div className="relative group max-w-full flex justify-center overflow-visible">
+      {/* Grid do Caça-Palavras com Suporte Mobile e Scroll Horizontal */}
+      <div className="relative group w-full flex justify-center overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-white/10">
         <div 
           ref={gridRef}
           onTouchMove={handleTouchMove}

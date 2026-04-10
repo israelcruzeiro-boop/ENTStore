@@ -1,15 +1,16 @@
 import { Link, useParams } from 'react-router-dom';
 import { BookOpen, PlayCircle, Layers, ChevronRight } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Course } from '../../types';
 import { useCourseModuleStats } from '../../hooks/useSupabaseData';
+import { CourseNeonStatus } from './CourseNeonStatus';
 
 interface CourseCardProps {
   course: Course;
   fullWidth?: boolean;
+  status?: 'COMPLETED' | 'IN_PROGRESS' | 'NOT_STARTED' | string;
 }
 
-export const CourseCard = ({ course, fullWidth = false }: CourseCardProps) => {
+export const CourseCard = ({ course, fullWidth = false, status = 'NOT_STARTED' }: CourseCardProps) => {
   const { companySlug } = useParams();
   const { moduleStats } = useCourseModuleStats(course.id);
 
@@ -32,10 +33,8 @@ export const CourseCard = ({ course, fullWidth = false }: CourseCardProps) => {
         )}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 to-transparent"></div>
         
-        <div className="absolute top-4 left-4">
-           <Badge className="bg-blue-600/20 text-blue-400 border-blue-500/30 backdrop-blur-md px-3 py-1 text-[10px] uppercase font-black tracking-widest">
-             Treinamento
-           </Badge>
+        <div className="absolute top-5 left-5">
+            <CourseNeonStatus status={status} />
         </div>
       </div>
 

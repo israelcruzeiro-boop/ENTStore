@@ -1,13 +1,13 @@
 import { useParams, Link } from 'react-router-dom';
 import { useCompanies, useRepositories, useContents, useUsers } from '../../hooks/useSupabaseData';
-import { Users, FolderTree, FileVideo, ArrowRight, Loader2 } from 'lucide-react';
+import { Users, FolderTree, FileVideo, ArrowRight, Loader2, BookOpen, CheckSquare } from 'lucide-react';
 
 export const AdminDashboard = () => {
   const { companySlug } = useParams();
   const { companies, isLoading: loadingCompanies } = useCompanies();
   
   // 1. Identifica a empresa atual pela URL
-  const company = companies.find(c => c.slug === companySlug);
+  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
   // 2. Busca os dados filtrados por empresa
   const { repositories: companyRepos, isLoading: loadingRepos } = useRepositories(company?.id);
@@ -40,7 +40,44 @@ export const AdminDashboard = () => {
         </p>
       </div>
       
-      {/* MÉTRICAS */}
+      {/* ATALHOS RÁPIDOS PARA DASHBOARDS ESPECIALIZADOS */}
+      <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">Painéis Especializados</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <Link to={`/admin/${companySlug}/courses/dashboard`} className="group relative overflow-hidden bg-gradient-to-br from-indigo-900 to-indigo-800 p-8 rounded-2xl border border-indigo-700 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between transition-all hover:scale-[1.02] hover:shadow-indigo-500/20 gap-4">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-white/10 transition-all opacity-50" />
+           <div className="relative z-10 flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 backdrop-blur-sm shrink-0">
+                <BookOpen size={32} className="text-white drop-shadow-md" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-black text-white mb-1">Dashboard de Cursos</h3>
+                <p className="text-indigo-200 font-medium text-sm md:text-base pr-4">Acesse métricas avançadas, conclusões, engajamento e painel de rankeamentos das trilhas educacionais.</p>
+              </div>
+           </div>
+           <div className="relative z-10 w-12 h-12 shrink-0 bg-white/10 rounded-full flex items-center justify-center border border-white/20 group-hover:bg-white/20 group-hover:translate-x-1 transition-all">
+              <ArrowRight className="text-white" />
+           </div>
+        </Link>
+
+        <Link to={`/admin/${companySlug}/checklists/dashboard`} className="group relative overflow-hidden bg-gradient-to-br from-emerald-900 to-emerald-800 p-8 rounded-2xl border border-emerald-700 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between transition-all hover:scale-[1.02] hover:shadow-emerald-500/20 gap-4">
+           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-white/10 transition-all opacity-50" />
+           <div className="relative z-10 flex items-center gap-6">
+              <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center border border-white/20 backdrop-blur-sm shrink-0">
+                <CheckSquare size={32} className="text-white drop-shadow-md" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-black text-white mb-1">Dashboard de Checklist</h3>
+                <p className="text-emerald-200 font-medium text-sm md:text-base pr-4">Analise a adesão às avaliações, monitoramentos e notas gerais através do painel de mapas táticos corporativos.</p>
+              </div>
+           </div>
+           <div className="relative z-10 w-12 h-12 shrink-0 bg-white/10 rounded-full flex items-center justify-center border border-white/20 group-hover:bg-white/20 group-hover:translate-x-1 transition-all">
+              <ArrowRight className="text-white" />
+           </div>
+        </Link>
+      </div>
+
+      {/* MÉTRICAS GERAIS */}
+      <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">Métricas Globais</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
