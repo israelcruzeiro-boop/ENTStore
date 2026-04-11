@@ -113,7 +113,6 @@ export interface Course {
   company_id: string;
   title: string;
   description: string;
-  cover_image?: string;
   thumbnail_url?: string;
   status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
   access_type?: 'ALL' | 'RESTRICTED';

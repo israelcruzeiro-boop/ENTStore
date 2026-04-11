@@ -755,8 +755,6 @@ export const Viewer = ({ content }: { content: Content }) => {
         />
         <QuizButton />
       </div>
-        </div>
-      </div>
     );
   }
 

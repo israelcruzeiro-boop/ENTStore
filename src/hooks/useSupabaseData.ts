@@ -436,7 +436,7 @@ export function useCourses(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Course[]>(
     companyId ? `courses_${companyId}` : null,
     () => fetcher(() => supabase.from('courses')
-      .select('id, company_id, title, description, cover_image, thumbnail_url, status, access_type, created_at, deleted_at')
+      .select('id, company_id, title, description, thumbnail_url, status, access_type, created_at, deleted_at')
       .eq('company_id', companyId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }))
