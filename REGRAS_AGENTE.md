@@ -28,5 +28,6 @@
 - **Linguagem**: Sempre responda em **Português - BR**. Comentários e código permanecem em Inglês.
 - **Minimalismo**: Faça o **menor ajuste possível** para não retirar nada importante.
 - **Transparência**: Antes de cada tarefa, apresente o plano e peça aprovação.
+- **Controle de Banco de Dados**: NUNCA execute mutações ou alterações de schema no banco de dados sem aviso prévio e sem fornecer o código SQL exato para execução manual pelo usuário nos bancos de dev e prod.
 - **Documentação**: Documente toda dívida técnica criada no `DIVIDA_TECNICA.md`.
 - **Segurança**: Antes de salvar, verifique se os inputs estão sanitizados e se o RLS está sendo respeitado via isolamento de `company_id`.

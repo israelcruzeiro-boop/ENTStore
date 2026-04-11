@@ -17,7 +17,8 @@ import {
   checklistFolderSchema,
   checklistSchema,
   checklistSectionSchema,
-  checklistQuestionSchema
+  checklistQuestionSchema,
+  reorderListSchema
 } from '../types/schemas';
 
 /**
@@ -30,6 +31,7 @@ export function useChecklists(companyId?: string) {
       .from('checklists')
       .select('id, company_id, folder_id, title, description, access_type, status, created_at')
       .eq('company_id', companyId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
     )
   );
@@ -52,6 +54,7 @@ export function useChecklistFolders(companyId?: string) {
       .from('checklist_folders')
       .select('id, company_id, name, color, order_index, created_at')
       .eq('company_id', companyId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
     )
   );
@@ -74,6 +77,7 @@ export function useChecklistQuestions(checklistId?: string) {
       .from('checklist_questions')
       .select('id, checklist_id, section_id, text, type, required, order_index, description, config')
       .eq('checklist_id', checklistId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
     )
   );
@@ -94,8 +98,9 @@ export function useAllCompanyQuestions(companyId?: string) {
     companyId ? `all_company_questions_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklist_questions')
-      .select('*, checklists!inner(company_id)')
+      .select('id, checklist_id, section_id, text, type, required, order_index, description, config, checklists!inner(company_id)')
       .eq('checklists.company_id', companyId)
+      .is('deleted_at', null)
     )
   );
 
@@ -116,6 +121,7 @@ export function useChecklistSections(checklistId?: string) {
       .from('checklist_sections')
       .select('id, checklist_id, title, description, order_index')
       .eq('checklist_id', checklistId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
     )
   );
@@ -468,12 +474,17 @@ export const checklistActions = {
    * Finaliza o checklist.
    */
   async completeSubmission(submissionId: string) {
+    const payload = {
+      status: 'COMPLETED' as const,
+      completed_at: new Date().toISOString()
+    };
+
+    const validation = checklistSubmissionSchema.partial().safeParse(payload);
+    if (!validation.success) throw new Error("Falha na validação de conclusão: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklist_submissions')
-      .update({
-        status: 'COMPLETED',
-        completed_at: new Date().toISOString()
-      })
+      .update(validation.data)
       .eq('id', submissionId);
 
     if (error) throw error;
@@ -483,12 +494,17 @@ export const checklistActions = {
    * Resolve um plano de ação
    */
   async resolveActionPlan(answerId: string) {
+    const payload = {
+      action_plan_status: 'RESOLVED',
+      updated_at: new Date().toISOString()
+    };
+
+    const validation = checklistAnswerSchema.partial().safeParse(payload);
+    if (!validation.success) throw new Error("Falha na validação da resolução: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklist_answers')
-      .update({
-        action_plan_status: 'RESOLVED',
-        updated_at: new Date().toISOString()
-      })
+      .update(validation.data)
       .eq('id', answerId);
 
     if (error) throw error;
@@ -527,14 +543,17 @@ export const checklistActions = {
   async deleteFolder(id: string) {
     const { error } = await supabase
       .from('checklist_folders')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
   },
 
   async reorderFolders(folders: { id: string, order_index: number }[]) {
-    const updates = folders.map(f => 
+    const validation = reorderListSchema.safeParse(folders);
+    if (!validation.success) throw new Error("Dados de reordenação inválidos: " + validation.error.message);
+
+    const updates = validation.data.map(f => 
       supabase
         .from('checklist_folders')
         .update({ order_index: f.order_index })
@@ -578,7 +597,7 @@ export const checklistActions = {
   async deleteChecklist(id: string) {
     const { error } = await supabase
       .from('checklists')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
@@ -618,7 +637,7 @@ export const checklistActions = {
   async deleteSection(id: string) {
     const { error } = await supabase
       .from('checklist_sections')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
@@ -657,7 +676,7 @@ export const checklistActions = {
   async deleteQuestion(id: string) {
     const { error } = await supabase
       .from('checklist_questions')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
 
     if (error) throw error;
@@ -668,9 +687,10 @@ export const checklistActions = {
    */
 
   async reorderQuestions(questions: { id: string, order_index: number, section_id?: string | null }[]) {
-    // Supabase não tem bulk update nativo simples via JS client sem RPC
-    // Vamos fazer um loop ou sugerir um RPC. Para MVP com poucos itens, loop Promise.all resolve
-    const updates = questions.map(q => 
+    const validation = reorderListSchema.safeParse(questions);
+    if (!validation.success) throw new Error("Dados de reordenação de perguntas inválidos: " + validation.error.message);
+
+    const updates = validation.data.map(q => 
       supabase
         .from('checklist_questions')
         .update({ order_index: q.order_index, section_id: q.section_id })
@@ -683,7 +703,10 @@ export const checklistActions = {
   },
 
   async reorderSections(sections: { id: string, order_index: number }[]) {
-    const updates = sections.map(s => 
+    const validation = reorderListSchema.safeParse(sections);
+    if (!validation.success) throw new Error("Dados de reordenação de seções inválidos: " + validation.error.message);
+
+    const updates = validation.data.map(s => 
       supabase
         .from('checklist_sections')
         .update({ order_index: s.order_index })
@@ -765,7 +788,7 @@ export function useChecklistDetailedAnswers(companyId?: string) {
       const answerIds = (answers || []).map(a => a.id);
       const { data: aps } = await supabase
         .from('checklist_action_plans')
-        .select('*')
+        .select('id, answer_id, title, description, status, due_date, created_at')
         .in('answer_id', answerIds);
 
       // 4. Mapeamos as submissões e planos de ação de volta para as respostas

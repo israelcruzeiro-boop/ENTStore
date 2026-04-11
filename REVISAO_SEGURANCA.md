@@ -8,36 +8,32 @@ Este documento detalha os achados da auditoria de segurança realizada com base 
 
 | Item | Status | Prioridade |
 | :--- | :--- | :--- |
-| **1. Validação com Zod** | ❌ Ausente em Mutations | **Alta** |
-| **2. Filtragem de Dados** | ⚠️ Deficiente (`select *`) | **Crítica** |
+| **1. Validação com Zod** | ⚠️ Parcial (Checklists/Cursos) | **Alta** |
+| **2. Filtragem de Dados** | ⚠️ Melhorado (ainda há `select *`) | **Crítica** |
 | **3. Rotas Protegidas** | ✅ Implementado Corretamente | **Baixa** |
 | **4. Variáveis de Ambiente** | ✅ Seguras no Client | **Baixa** |
 | **5. Sanitização SQL** | ✅ Protegido via Supabase Client | **Média** |
-| **6. Tratamento de Erros** | ⚠️ Vazamento via Console | **Média** |
+| **6. Tratamento de Erros** | ⚠️ Migrando para Logger.ts | **Média** |
 
 ---
 
-## 🔍 Detalhamento dos Problemas
+## 🔍 Detalhamento dos Problemas (Atualizado)
 
-### 1. Ausência de Validação de Input (Zod)
-- **Descrição**: Funções que alteram o estado do banco (ex: `addContentView`, `rateContent`, `saveAnswer`, `createFolder`) aceitam objetos diretamente sem validação de esquema.
-- **Impacto**: Permite que dados malformados, tipos incorretos ou campos inesperados cheguem ao banco de dados ou causem erros de execução. Também viola a nova regra do `REGRAS_AGENTE.md`.
-- **Arquivos**: [useSupabaseData.ts](file:///c:/Users/israe/Downloads/StorePage/src/hooks/useSupabaseData.ts), [useChecklists.ts](file:///c:/Users/israe/Downloads/StorePage/src/hooks/useChecklists.ts).
-- **Correção sugerida**: Implementar esquemas Zod em `src/types/schemas.ts` e validar todos os payloads antes de chamar o `supabase.insert()` ou `.update()`.
+### 1. Validação de Input (Zod) - STATUS: EM PROGRESSO
+- **Auditado**: Mutations principais como `saveAnswer`, `createChecklist` e `updateSupabaseUser` já possuem validação rigorosa.
+- **Pendente**: Funções de **reordenação** (`reorderQuestions`, `reorderSections`) e finalização (`completeSubmission`) ainda não possuem validação de payload no frontend.
+- **Arquivos**: [useChecklists.ts](file:///c:/Users/israe/Downloads/StorePage/src/hooks/useChecklists.ts).
 - **Prioridade**: **ALTA**
 
-### 2. Superexposição de Dados (`select *`)
-- **Descrição**: A maioria das queries de busca utiliza o seletor universal `*`. 
-- **Impacto**: Se as tabelas `users` ou `companies` possuírem campos sensíveis (notas internas, flags de sistema, etc.), esses dados são enviados para o frontend desnecessariamente. 
-- **Arquivos**: [useSupabaseData.ts](file:///c:/Users/israe/Downloads/StorePage/src/hooks/useSupabaseData.ts) (hooks `useUsers`, `useCompanies`, `useOrgStructure`).
-- **Correção sugerida**: Substituir `select('*')` por uma lista explícita de campos necessários para a UI, seguindo o exemplo de `usePublicCompanyBySlug`.
-- **Prioridade**: **CRÍTICA** (Dependendo do conteúdo das colunas no banco).
+### 2. Superexposição de Dados (`select *`) - STATUS: EM PROGRESSO
+- **Auditado**: A maioria dos hooks foi migrada para selects explícitos.
+- **Pendente**: O hook `useAllCompanyQuestions` usado no Dashboard Administrativo ainda utiliza `select('*')`.
+- **Arquivos**: [useChecklists.ts](file:///c:/Users/israe/Downloads/StorePage/src/hooks/useChecklists.ts) (L100).
+- **Prioridade**: **CRÍTICA** (Exposição de metadados internos das perguntas).
 
-### 3. Vazamento de Detalhes Técnicos em Erros
-- **Descrição**: O uso sistemático de `console.error` despeja objetos de erro completos do Supabase (que podem conter nomes de tabelas, colunas e mensagens do Postgres) no console do navegador.
-- **Impacto**: Fornece informações valiosas para um atacante sobre a estrutura interna do banco e esquema.
-- **Arquivos**: [AuthContext.tsx](file:///c:/Users/israe/Downloads/StorePage/src/contexts/AuthContext.tsx), [supabaseClient.ts](file:///c:/Users/israe/Downloads/StorePage/src/lib/supabaseClient.ts), e ganchos gerais.
-- **Correção sugerida**: Migrar todos os logs para o novo utilitário [logger.ts](file:///c:/Users/israe/Downloads/StorePage/src/utils/logger.ts), garantindo que logs detalhados sejam omitidos em produção.
+### 3. Tratamento de Erros e Logs - STATUS: EM PROGRESSO
+- **Auditado**: Nova estrutura de `Logger` criada.
+- **Pendente**: Substituição de `console.error` em componentes de UI e no `AuthContext`.
 - **Prioridade**: **MÉDIA**
 
 ### 4. Chamadas RPC sem Controle de Segurança Visível

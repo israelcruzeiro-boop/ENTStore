@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2 } from 'lucide-react';
 import { Company, User, Theme } from '../../types';
+import { adminProvisioningSchema } from '../../types/schemas';
+import { Logger } from '../../utils/logger';
 
 // Proteção contra conflitos de rota
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
@@ -24,7 +26,17 @@ export const SuperAdminDashboard = () => {
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
   
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    link_name: '', 
+    logo_url: '', 
+    active: true, 
+    landing_page_enabled: true, 
+    checklists_enabled: false,
+    adminName: '',
+    adminEmail: '',
+    adminPassword: ''
+  });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
@@ -52,7 +64,17 @@ export const SuperAdminDashboard = () => {
       setActiveCompany(null);
       setAdminFormView(false);
       setEditingAdminId(null);
-      setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
+      setFormData({ 
+        name: '', 
+        link_name: '', 
+        logo_url: '', 
+        active: true, 
+        landing_page_enabled: true, 
+        checklists_enabled: false,
+        adminName: '',
+        adminEmail: '',
+        adminPassword: ''
+      });
       setAdminFormData({ name: '', email: '', password: '', active: true });
       setActiveTab('details');
     }, 300);
@@ -97,7 +119,17 @@ export const SuperAdminDashboard = () => {
   const openCreate = () => {
     setEditingId(null);
     setActiveCompany(null);
-    setFormData({ name: '', link_name: '', logo_url: '', active: true, landing_page_enabled: true, checklists_enabled: false });
+    setFormData({ 
+      name: '', 
+      link_name: '', 
+      logo_url: '', 
+      active: true, 
+      landing_page_enabled: true, 
+      checklists_enabled: false,
+      adminName: '',
+      adminEmail: '',
+      adminPassword: ''
+    });
     setActiveTab('details');
     setAdminFormView(false);
     setIsFormOpen(true);
@@ -136,19 +168,58 @@ export const SuperAdminDashboard = () => {
       if (error) toast.error(`Erro ao atualizar empresa: ${error.message}`);
       else toast.success('Empresa atualizada com sucesso!');
     } else {
-      const { error } = await supabase.from('companies').insert({
+      // Validação do Admin via Zod (Seguindo regra 19 do projeto)
+      const adminData = {
+        name: formData.adminName,
+        email: formData.adminEmail,
+        password: formData.adminPassword
+      };
+
+      const result = adminProvisioningSchema.safeParse(adminData);
+      if (!result.success) {
+        setIsSubmitting(false);
+        const firstError = result.error.errors[0]?.message || 'Dados do administrador inválidos';
+        return toast.error(firstError);
+      }
+
+      // 1. Criar a empresa
+      const { data: newCompany, error: companyError } = await supabase.from('companies').insert({
         name, 
         link_name, 
-        slug: link_name, // Adicionado slug obrigatório
+        slug: link_name,
         logo_url: formData.logo_url, 
         active: formData.active, 
         landing_page_enabled: formData.landing_page_enabled,
         checklists_enabled: formData.checklists_enabled,
         theme: mockThemes.corporateBlue as Theme
-      });
+      }).select('id').single();
       
-      if (error) toast.error(`Erro ao criar empresa: ${error.message}`);
-      else toast.success('Empresa criada com sucesso!');
+      if (companyError) {
+        Logger.error('Erro crítico ao criar empresa:', JSON.stringify(companyError, null, 2));
+        setIsSubmitting(false);
+        return toast.error(`Erro ao criar empresa: ${companyError.message}`);
+      }
+
+      // 2. Criar o administrador (Provisionamento)
+      const { error: adminError } = await supabase.from('users').insert({
+        name: adminData.name,
+        email: adminData.email,
+        password: adminData.password,
+        role: 'ADMIN',
+        company_id: newCompany.id,
+        active: true
+      });
+
+      if (adminError) {
+        Logger.error('Erro crítico ao criar administrador provisionado:', JSON.stringify(adminError, null, 2));
+        toast.error(`Empresa criada com ID ${newCompany.id}, mas erro ao criar admin: ${adminError.message}`);
+        // IMPORTANTE: NÃO fechamos o formulário aqui para o usuário poder tentar corrigir o admin
+        setIsSubmitting(false);
+        await mutateCompanies(); // Atualiza a lista para mostrar a empresa que foi criada
+        return; 
+      } else {
+        toast.success('Empresa e Administrador criados com sucesso!');
+      }
     }
     
     await mutateCompanies();
@@ -159,7 +230,9 @@ export const SuperAdminDashboard = () => {
   const handleDeleteCompany = async () => {
     if (companyToDelete) {
       setIsSubmitting(true);
-      const { error } = await supabase.from('companies').delete().eq('id', companyToDelete.id);
+      const { error } = await supabase.from('companies')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', companyToDelete.id);
       
       if (error) toast.error('Erro ao excluir empresa.');
       else {
@@ -193,36 +266,58 @@ export const SuperAdminDashboard = () => {
     e.preventDefault();
     if (!activeCompany) return;
     
-    if (!adminFormData.name || !adminFormData.email || (!editingAdminId && !adminFormData.password)) {
-      return toast.error('Preencha os campos obrigatórios.');
+    // Validação Zod (Seguindo regra 19)
+    const adminData = {
+      name: adminFormData.name,
+      email: adminFormData.email,
+      password: adminFormData.password
+    };
+
+    // Para edição, a senha é opcional
+    const schema = editingAdminId 
+      ? adminProvisioningSchema.partial({ password: true }) 
+      : adminProvisioningSchema;
+
+    const result = schema.safeParse(adminData);
+    if (!result.success) {
+      const firstError = result.error.errors[0]?.message || 'Dados inválidos';
+      return toast.error(firstError);
     }
 
-    const emailInUse = users.some(u => u.email === adminFormData.email && u.id !== editingAdminId);
+    const emailInUse = users.some(u => u.email === adminData.email && u.id !== editingAdminId);
     if (emailInUse) return toast.error('Este e-mail já está em uso.');
 
     setIsSubmitting(true);
     if (editingAdminId) {
       const { error } = await supabase.from('users').update({ 
-        name: adminFormData.name, 
-        email: adminFormData.email,
-        ...(adminFormData.password ? { password: adminFormData.password } : {}),
+        name: adminData.name, 
+        email: adminData.email,
+        ...(adminData.password ? { password: adminData.password } : {}),
         active: adminFormData.active 
       }).eq('id', editingAdminId);
       
-      if (error) toast.error(`Erro ao atualizar admin: ${error.message}`);
-      else toast.success('Admin atualizado!');
+      if (error) {
+        Logger.error('Erro ao atualizar administrador:', JSON.stringify(error, null, 2));
+        toast.error(`Erro ao atualizar admin: ${error.message}`);
+      } else {
+        toast.success('Admin atualizado!');
+      }
     } else {
       const { error } = await supabase.from('users').insert({
-        name: adminFormData.name,
-        email: adminFormData.email,
-        password: adminFormData.password,
+        name: adminData.name,
+        email: adminData.email,
+        password: adminData.password,
         role: 'ADMIN',
         company_id: activeCompany.id,
         active: adminFormData.active
       });
       
-      if (error) toast.error(`Erro ao criar admin: ${error.message}`);
-      else toast.success('Admin criado!');
+      if (error) {
+        Logger.error('Erro ao criar administrador manual:', JSON.stringify(error, null, 2));
+        toast.error(`Erro ao criar admin: ${error.message}`);
+      } else {
+        toast.success('Admin criado!');
+      }
     }
     
     await mutateUsers();
@@ -238,7 +333,9 @@ export const SuperAdminDashboard = () => {
   const handleDeleteAdmin = async () => {
     if (adminToDelete) {
       setIsSubmitting(true);
-      const { error } = await supabase.from('users').delete().eq('id', adminToDelete.id);
+      const { error } = await supabase.from('users')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', adminToDelete.id);
       if (error) toast.error('Erro ao remover admin.');
       else { toast.success('Admin removido.'); mutateUsers(); }
       setIsSubmitting(false);
@@ -462,6 +559,47 @@ export const SuperAdminDashboard = () => {
                   </div>
                   <Switch checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} />
                 </div>
+
+                {!editingId && (
+                  <div className="pt-4 mt-4 border-t border-slate-200 space-y-4">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Users size={16} className="text-blue-600" />
+                      Configuração do Primeiro Acesso (Admin)
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome do Responsável *</Label>
+                        <Input 
+                          placeholder="Ex: João Silva" 
+                          value={formData.adminName} 
+                          onChange={(e) => setFormData({...formData, adminName: e.target.value})} 
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>E-mail Administrativo *</Label>
+                        <Input 
+                          type="email" 
+                          placeholder="admin@empresa.com" 
+                          value={formData.adminEmail} 
+                          onChange={(e) => setFormData({...formData, adminEmail: e.target.value})} 
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Senha de Acesso *</Label>
+                        <Input 
+                          type="text" 
+                          placeholder="••••••••" 
+                          value={formData.adminPassword} 
+                          onChange={(e) => setFormData({...formData, adminPassword: e.target.value})} 
+                        />
+                        <p className="text-[10px] text-slate-500">A senha deve ter pelo menos 6 caracteres.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </form>
             ) : (
               <div className="px-1 mt-2">

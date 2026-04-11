@@ -5,11 +5,17 @@ export const userSchema = z.object({
   name: z.string().min(2, 'Nome muito curto'),
   email: z.string().email('E-mail inválido').or(z.string().regex(/^\d{11}@storepage\.com$/, 'Formato de e-mail de fallback inválido')),
   cpf: z.string().length(11, 'CPF deve ter 11 dígitos').nullable().optional(),
-  role: z.enum(['ADMIN', 'USER', 'MANAGER']),
+  role: z.enum(['ADMIN', 'USER', 'MANAGER', 'SUPER_ADMIN', 'MAESTRO']),
   active: z.boolean().default(true),
   org_unit_id: z.string().uuid().nullable().optional(),
   company_id: z.string().uuid(),
   deleted_at: z.string().datetime().nullable().optional(),
+});
+
+export const adminProvisioningSchema = z.object({
+  name: z.string().min(2, 'O nome do responsável deve ter pelo menos 2 caracteres'),
+  email: z.string().email('E-mail administrativo inválido'),
+  password: z.string().min(6, 'A senha deve ter pelo menos 6 caracteres'),
 });
 
 // --- ESTRUTURA ORGANIZACIONAL ---
@@ -173,6 +179,7 @@ export const courseEnrollmentSchema = z.object({
   current_module_id: z.string().uuid().nullable().optional(),
   current_content_id: z.string().uuid().nullable().optional(),
   time_spent_seconds: z.number().int().min(0).optional(),
+  updated_at: z.string().datetime().nullable().optional(),
 });
 
 export const courseAnswerSchema = z.object({
@@ -211,6 +218,7 @@ export const checklistSubmissionSchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED', 'ARCHIVED']).default('IN_PROGRESS'),
   started_at: z.string().datetime().optional(),
   completed_at: z.string().datetime().nullable().optional(),
+  updated_at: z.string().datetime().nullable().optional(),
 });
 
 export const checklistAnswerSchema = z.object({
@@ -223,6 +231,7 @@ export const checklistAnswerSchema = z.object({
   assigned_user_id: z.string().uuid().nullable().optional(),
   action_plan_due_date: z.string().datetime().nullable().optional(),
   action_plan_status: z.string().nullable().optional(),
+  updated_at: z.string().datetime().nullable().optional(),
 });
 
 export const checklistSchema = z.object({
@@ -260,3 +269,12 @@ export const checklistQuestionSchema = z.object({
   configuration: z.any().optional().nullable(),
   deleted_at: z.string().datetime().nullable().optional(),
 });
+
+// --- UTILITÁRIOS E REORDENAÇÃO ---
+export const reorderItemSchema = z.object({
+  id: z.string().uuid(),
+  order_index: z.number().int().min(0),
+  section_id: z.string().uuid().nullable().optional(), // Para perguntas que podem mudar de seção
+});
+
+export const reorderListSchema = z.array(reorderItemSchema);
