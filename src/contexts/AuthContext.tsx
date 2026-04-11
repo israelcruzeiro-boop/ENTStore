@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { User, Company, UserRole } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
+import { Logger } from '../utils/logger';
 
 interface AuthContextType {
   user: User | null;
@@ -33,17 +34,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('*')
+        .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at')
         .eq('id', userId)
         .single();
 
       if (userError) {
-        console.error('Core Auth Error [User Fetch]:', JSON.stringify(userError, null, 2));
+        Logger.error('Core Auth Error [User Fetch]:', JSON.stringify(userError, null, 2));
         return null;
       }
 
       if (!userData) {
-        console.error('User not found in public.users for ID:', userId);
+        Logger.error('User not found in public.users for ID:', userId);
         return null;
       }
 
@@ -52,12 +53,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userData.company_id) {
         const { data: compData, error: compError } = await supabase
           .from('companies')
-          .select('*')
+          .select('id, name, slug, link_name, theme, logo_url, active, checklists_enabled, org_unit_name, org_top_level_name')
           .eq('id', userData.company_id)
           .single();
         
         if (compError) {
-          console.error('Core Auth Error [Company Fetch]:', JSON.stringify(compError, null, 2));
+          Logger.error('Core Auth Error [Company Fetch]:', JSON.stringify(compError, null, 2));
         } else {
           companyData = compData;
         }
@@ -71,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         company: companyData as Company 
       };
     } catch (err) {
-      console.error('Critical Auth Exception:', err);
+      Logger.error('Critical Auth Exception:', err);
       return null;
     }
   }, []);
@@ -92,11 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Se falhou mas já temos user, mantemos (resiliência)
         const currentUser = userRef.current;
         if (!currentUser) {
-          console.warn('Profile fetch failed, no existing user. Setting null.');
+          Logger.warn('Profile fetch failed, no existing user. Setting null.');
           setUser(null);
           setCompany(null);
         } else {
-          console.warn('Profile fetch failed but keeping existing session.');
+          Logger.warn('Profile fetch failed but keeping existing session.');
         }
       }
       setLoading(false);
@@ -112,10 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
-          console.log('Initial session found for:', session.user.email);
+          Logger.info('Initial session found for:', session.user.email);
           await loadProfile(session.user.id, false); // loading já começa true
         } else {
-          console.log('No initial session.');
+          Logger.info('No initial session.');
           if (mountedRef.current) {
             setUser(null);
             setCompany(null);
@@ -123,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (err) {
-        console.error('Error getting initial session:', err);
+        Logger.error('Error getting initial session:', err);
         if (mountedRef.current) setLoading(false);
       }
     };
@@ -135,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // para evitar deadlock com o auth lock do Supabase.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const currentUser = userRef.current;
-      console.log(`Auth Event: ${event} | Has User: ${currentUser?.id ? 'Yes' : 'No'} | Session: ${session?.user?.email || 'none'}`);
+      Logger.info(`Auth Event: ${event} | Has User: ${currentUser?.id ? 'Yes' : 'No'} | Session: ${session?.user?.email || 'none'}`);
 
       // INITIAL_SESSION já foi tratada pelo getSession() acima — ignora
       if (event === 'INITIAL_SESSION') {
@@ -154,7 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (session?.user) {
         // Se já temos o mesmo user, nada muda (troca de aba, token refresh silencioso)
         if (currentUser && currentUser.id === session.user.id && event !== 'USER_UPDATED') {
-          console.log('Same user session, skipping profile reload.');
+          Logger.info('Same user session, skipping profile reload.');
           if (mountedRef.current) setLoading(false);
           return;
         }
@@ -189,7 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: publicUser } = await supabase.rpc('get_provisioned_user', { lookup_email: emailToUse });
         
         if (publicUser) {
-          console.log("Usuário provisionado detectado, criando conta de autenticação...");
+          Logger.info("Usuário provisionado detectado, criando conta de autenticação...");
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: emailToUse,
             password: pass,
@@ -203,7 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
 
           if (signUpError) {
-            console.error("SignUp Error (Provisioned):", signUpError.message);
+            Logger.error("SignUp Error (Provisioned):", signUpError.message);
             toast.error(`Sua conta está provisionada mas houve um erro ao ativá-la: ${signUpError.message}`);
           } else if (signUpData.user) {
             const retry = await supabase.auth.signInWithPassword({ email: emailToUse, password: pass });
@@ -214,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (error || !data.user) {
-        if (error) console.error("Supabase Auth Error:", error.message);
+        if (error) Logger.error("Supabase Auth Error:", error.message);
         setLoading(false);
         return null;
       }
@@ -236,7 +237,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return null;
     } catch (err) {
-      console.error("Login catch error:", err);
+      Logger.error("Login catch error:", err);
       setLoading(false);
       return null;
     }

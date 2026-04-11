@@ -308,7 +308,10 @@ export const AdminChecklistDashboard = () => {
     }
 
     filteredAnswers.forEach(a => {
-      const d = format(new Date(a.created_at), 'dd/MM');
+      if (!a.created_at) return;
+      const dateObj = new Date(a.created_at);
+      if (isNaN(dateObj.getTime())) return;
+      const d = format(dateObj, 'dd/MM');
       if (historyMap[d] && ['C', 'NC', 'CHECKED'].includes(a.value)) {
         historyMap[d].count++;
         if (a.value === 'C' || a.value === 'CHECKED') historyMap[d].conform++;
@@ -375,7 +378,7 @@ export const AdminChecklistDashboard = () => {
       const user = users.find(u => u.id === ans.checklist_submissions?.user_id);
       return {
         'ID Submissão': ans.submission_id,
-        'Data': format(new Date(ans.created_at), 'dd/MM/yyyy HH:mm'),
+        'Data': ans.created_at && !isNaN(new Date(ans.created_at).getTime()) ? format(new Date(ans.created_at), 'dd/MM/yyyy HH:mm') : 'N/A',
         'Checklist': cl?.title || 'N/A',
         'Usuário': user?.name || 'Anônimo',
         'Pergunta': ans.checklist_questions?.text || 'N/A',

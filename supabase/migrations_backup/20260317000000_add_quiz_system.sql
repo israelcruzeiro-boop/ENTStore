@@ -9,7 +9,7 @@ ALTER TABLE public.contents ADD CONSTRAINT contents_type_check
 
 -- 2. Tabela de Quizzes
 CREATE TABLE IF NOT EXISTS public.quizzes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   content_id UUID NOT NULL REFERENCES public.contents(id) ON DELETE CASCADE,
   passing_score INTEGER DEFAULT 70,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.quizzes (
 
 -- 3. Tabela de Perguntas
 CREATE TABLE IF NOT EXISTS public.quiz_questions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
   question_text TEXT NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.quiz_questions (
 
 -- 4. Tabela de Opções
 CREATE TABLE IF NOT EXISTS public.quiz_options (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   question_id UUID NOT NULL REFERENCES public.quiz_questions(id) ON DELETE CASCADE,
   option_text TEXT NOT NULL,
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS public.quiz_options (
 
 -- 5. Tabela de Tentativas (Progresso do Usuário)
 CREATE TABLE IF NOT EXISTS public.quiz_attempts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   quiz_id UUID NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,

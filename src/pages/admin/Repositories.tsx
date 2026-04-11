@@ -11,7 +11,9 @@ import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen, Lock, Globe, List, MonitorPlay, Loader2, Music, Sun, MoveVertical, PlaySquare } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Repository } from '../../types';
+import { repositorySchema } from '../../types/schemas';
 import { uploadToSupabase } from '../../lib/storage';
+import { Logger } from '../../utils/logger';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 
 export const AdminRepositories = () => {
@@ -209,12 +211,27 @@ export const AdminRepositories = () => {
 
     try {
       setIsSubmitting(true);
+      
+      const payload = { 
+        ...formData, 
+        name: repoName,
+        company_id: company.id 
+      };
+
+      const validation = editingId
+        ? repositorySchema.partial().safeParse(payload)
+        : repositorySchema.safeParse(payload);
+
+      if (!validation.success) {
+        return toast.error("Dados inválidos: " + validation.error.format());
+      }
+
       if (editingId) {
-        const { error } = await supabase.from('repositories').update({ ...formData, name: repoName }).eq('id', editingId);
+        const { error } = await supabase.from('repositories').update(validation.data).eq('id', editingId);
         if (error) throw error;
         toast.success('Repositório atualizado com sucesso!');
       } else {
-        const { error } = await supabase.from('repositories').insert({ company_id: company.id, ...formData, name: repoName });
+        const { error } = await supabase.from('repositories').insert(validation.data);
         if (error) throw error;
         toast.success('Repositório criado com sucesso!');
       }
@@ -222,8 +239,8 @@ export const AdminRepositories = () => {
       handleCloseForm();
     } catch (err) {
       const error = err as Error;
+      Logger.error(`Erro ao salvar repositório: ${error.message}`);
       toast.error(`Erro ao salvar repositório: ${error.message}`);
-      console.error("Supabase error:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -231,15 +248,24 @@ export const AdminRepositories = () => {
 
   const handleDeleteRepo = async () => {
     if (repoToDelete) {
-      setIsSubmitting(true);
-      const { error } = await supabase.from('repositories').delete().eq('id', repoToDelete.id);
-      setIsSubmitting(false);
-      
-      if (error) {
-        toast.error('Erro ao excluir repositório.');
-      } else {
-        toast.success('Repositório excluído.');
+      try {
+        setIsSubmitting(true);
+        // IMPLEMENTAÇÃO DE SOFT DELETE
+        const { error } = await supabase
+          .from('repositories')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', repoToDelete.id);
+          
+        if (error) throw error;
+        
+        toast.success('Repositório removido da lista (Soft Delete).');
         mutateRepos();
+      } catch (err) {
+        const error = err as Error;
+        Logger.error('Erro ao realizar soft delete de repositório:', error);
+        toast.error('Erro ao excluir repositório.');
+      } finally {
+        setIsSubmitting(false);
       }
     }
     handleCloseDelete();

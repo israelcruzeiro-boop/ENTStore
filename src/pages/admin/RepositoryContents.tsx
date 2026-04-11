@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
+import { repositoryContentSchema, repositoryCategorySchema, simpleLinkSchema } from '../../types/schemas';
+import { Logger } from '../../utils/logger';
 import {
   ArrowLeft,
   Plus,
@@ -225,12 +227,18 @@ export const AdminRepositoryContents = () => {
   const deleteCategory = async (id: string) => {
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('categories').delete().eq('id', id);
+      // IMPLEMENTAÇÃO DE SOFT DELETE
+      const { error } = await supabase
+        .from('categories')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+        
       if (error) throw error;
-      toast.success('Fase removida.');
+      toast.success('Fase removida da lista (Soft Delete).');
       mutateCategories();
     } catch (error) {
       const err = error as Error;
+      Logger.error('Erro ao realizar soft delete de categoria:', err);
       toast.error(`Erro ao remover fase: ${err.message}`);
     } finally {
       setIsSubmitting(false);
@@ -332,25 +340,37 @@ export const AdminRepositoryContents = () => {
 
   const handleSaveFull = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.url.trim()) return toast.error('Os campos Título e URL são obrigatórios.');
-
-    if (formData.thumbnail_url && formData.thumbnail_url.startsWith('data:image')) {
-      return toast.error('A URL base64 herdada é muito pesada e precisa ser reinserida usando upload.');
-    }
-
-    const payload = {
-      ...formData,
-      category_id: formData.category_id || null
-    };
-
     try {
       setIsSubmitting(true);
+
+      const payload = {
+        company_id: company.id,
+        repository_id: repo!.id,
+        category_id: formData.category_id || null,
+        title: formData.title,
+        description: formData.description,
+        thumbnail_url: formData.thumbnail_url,
+        type: formData.type,
+        url: formData.url,
+        featured: formData.featured,
+        status: formData.status,
+        order_index: contents.length
+      };
+
+      const validation = editingId
+        ? repositoryContentSchema.partial().safeParse(payload)
+        : repositoryContentSchema.safeParse(payload);
+
+      if (!validation.success) {
+        return toast.error("Dados do conteúdo inválidos: " + validation.error.format());
+      }
+
       if (editingId) {
-        const { error } = await supabase.from('contents').update(payload).eq('id', editingId);
+        const { error } = await supabase.from('contents').update(validation.data).eq('id', editingId);
         if (error) throw error;
         toast.success('Conteúdo atualizado com sucesso!');
       } else {
-        const { error } = await supabase.from('contents').insert({ company_id: company!.id, repository_id: repo!.id, ...payload });
+        const { error } = await supabase.from('contents').insert(validation.data).select('id');
         if (error) throw error;
         toast.success('Conteúdo adicionado com sucesso!');
       }
@@ -358,6 +378,7 @@ export const AdminRepositoryContents = () => {
       handleCloseForm();
     } catch (error) {
       const err = error as Error;
+      Logger.error(`Erro ao salvar conteúdo: ${err.message}`);
       toast.error(`Erro ao salvar conteúdo: ${err.message}`);
     } finally {
       setIsSubmitting(false);
@@ -431,60 +452,76 @@ export const AdminRepositoryContents = () => {
 
   const handleSaveSimple = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validLinks = batchLinks.filter(l => l.name.trim() || l.url.trim());
-    if (validLinks.length === 0) return toast.error('Nenhum link preenchido para salvar.');
-
-    const invalid = validLinks.find(l => !l.name.trim() || !l.url.trim());
-    if (invalid) return toast.error('Por favor, preencha o Nome e a URL em todas as linhas utilizadas.');
-
     try {
       setIsSubmitting(true);
+      
+      const validLinks = batchLinks.filter(l => l.name.trim() || l.url.trim());
+
       if (editingId) {
-        const originalLink = validLinks.find(l => l.id === editingId);
-        if (originalLink) {
-          const { error } = await supabase.from('simple_links').update({
-            name: originalLink.name,
-            url: originalLink.url,
-            type: originalLink.type || 'Link'
-          }).eq('id', editingId);
+        const linkToUpdate = validLinks.find(l => l.id === editingId);
+        if (linkToUpdate) {
+          const payload = {
+            company_id: company.id,
+            repository_id: repo!.id,
+            name: linkToUpdate.name,
+            url: linkToUpdate.url,
+            type: linkToUpdate.type || 'link',
+            status: linkToUpdate.status || 'ACTIVE',
+            order_index: simpleLinks.findIndex(l => l.id === editingId) ?? 0
+          };
+
+          const validation = simpleLinkSchema.partial().safeParse(payload);
+          if (!validation.success) throw new Error("Dados inválidos: " + JSON.stringify(validation.error.format()));
+
+          const { error } = await supabase.from('simple_links').update(validation.data).eq('id', editingId);
           if (error) throw error;
         }
 
-        const newLinks = validLinks.filter(l => l.id !== editingId);
-        if (newLinks.length > 0) {
-          const inserts = newLinks.map(link => ({
-            company_id: company!.id,
+        const newLinksInBatch = validLinks.filter(l => l.id !== editingId);
+        if (newLinksInBatch.length > 0) {
+          const payloads = newLinksInBatch.map((l, idx) => ({
+            company_id: company.id,
             repository_id: repo!.id,
-            name: link.name,
-            url: link.url,
-            type: link.type || 'Link',
-            date: new Date().toISOString().split('T')[0],
-            status: 'ACTIVE'
+            name: l.name,
+            url: l.url,
+            type: l.type || 'link',
+            status: 'ACTIVE',
+            order_index: simpleLinks.length + idx
           }));
-          const { error } = await supabase.from('simple_links').insert(inserts);
+
+          const validation = z.array(simpleLinkSchema).safeParse(payloads);
+          if (!validation.success) throw new Error("Dados de novos links inválidos");
+
+          const { error } = await supabase.from('simple_links').insert(validation.data);
           if (error) throw error;
         }
-        toast.success(`Link atualizado${newLinks.length > 0 ? ` + ${newLinks.length} novo(s) adicionado(s)` : ''}!`);
+        toast.success('Operação concluída com sucesso!');
       } else {
-        const inserts = validLinks.map(link => ({
-          company_id: company!.id,
+        const payloads = validLinks.map((l, idx) => ({
+          company_id: company.id,
           repository_id: repo!.id,
-          name: link.name,
-          url: link.url,
-          type: link.type || 'Link',
-          date: new Date().toISOString().split('T')[0],
-          status: 'ACTIVE'
+          name: l.name,
+          url: l.url,
+          type: l.type || 'link',
+          status: 'ACTIVE',
+          order_index: simpleLinks.length + idx
         }));
-        const { error } = await supabase.from('simple_links').insert(inserts);
+
+        const validation = z.array(simpleLinkSchema).safeParse(payloads);
+        if (!validation.success) {
+          return toast.error("Alguns links possuem dados inválidos.");
+        }
+
+        const { error } = await supabase.from('simple_links').insert(validation.data);
         if (error) throw error;
         toast.success(`${validLinks.length} link(s) adicionado(s)!`);
       }
       mutateLinks();
       handleCloseForm();
     } catch (err) {
-      const error = err as Error & { details?: string };
-      console.error("Simple Links Save Error:", error);
-      toast.error(`Erro ao salvar os links: ${error.message || error.details || 'Falha desconhecida'}`);
+      const error = err as Error;
+      Logger.error(`Erro ao salvar links: ${error.message}`);
+      toast.error(`Erro ao salvar links: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -499,18 +536,23 @@ export const AdminRepositoryContents = () => {
     if (itemToDelete) {
       try {
         setIsSubmitting(true);
+        // IMPLEMENTAÇÃO DE SOFT DELETE
+        const { error } = await supabase
+          .from(isSimple ? 'simple_links' : 'contents')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', itemToDelete.id);
+
+        if (error) throw error;
+        
         if (isSimple) {
-          const { error } = await supabase.from('simple_links').delete().eq('id', itemToDelete.id);
-          if (error) throw error;
           mutateLinks();
         } else {
-          const { error } = await supabase.from('contents').delete().eq('id', itemToDelete.id);
-          if (error) throw error;
           mutateContents();
         }
-        toast.success('Item excluído permanentemente.');
+        toast.success('Item removido da lista (Soft Delete).');
       } catch (error) {
         const err = error as Error;
+        Logger.error('Erro ao realizar soft delete de conteúdo/link:', err);
         toast.error(`Erro ao excluir: ${err.message}`);
       } finally {
         setIsSubmitting(false);

@@ -5,7 +5,7 @@
 
 -- 1. Tabela de Matrículas/Progresso do Curso
 CREATE TABLE IF NOT EXISTS public.course_enrollments (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.course_enrollments (
 
 -- 2. Tabela de Respostas do Aluno
 CREATE TABLE IF NOT EXISTS public.course_answers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   enrollment_id UUID NOT NULL REFERENCES public.course_enrollments(id) ON DELETE CASCADE,
   question_id UUID NOT NULL REFERENCES public.course_phase_questions(id) ON DELETE CASCADE,
   selected_option_id UUID REFERENCES public.course_question_options(id) ON DELETE SET NULL,

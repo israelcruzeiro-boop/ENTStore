@@ -1,6 +1,15 @@
 import useSWR from 'swr';
 import { supabase, fetcher } from '../lib/supabaseClient';
 import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseEnrollment, CourseAnswer } from '../types';
+import { 
+  userSchema,
+  contentViewMetricSchema, 
+  contentRatingSchema,
+  quizAttemptSchema,
+  courseEnrollmentSchema,
+  courseAnswerSchema
+} from '../types/schemas';
+import { Logger } from '../utils/logger';
 
 // ============================================================================
 
@@ -13,7 +22,7 @@ import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Categor
  */
 export function useCompanies() {
   const { data, error, isLoading, mutate } = useSWR<Company[]>('companies', () =>
-    fetcher(() => supabase.from('companies').select('*').order('name'))
+    fetcher(() => supabase.from('companies').select('id, name, slug, link_name, theme, logo_url, active, checklists_enabled, org_unit_name, org_top_level_name').order('name'))
   );
 
   return {
@@ -31,7 +40,10 @@ export function useUsers(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<User[]>(
     companyId ? `users_${companyId}` : 'users_all',
     () => fetcher(() => {
-      let query = supabase.from('users').select('*').order('name');
+      let query = supabase.from('users')
+        .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at, deleted_at')
+        .is('deleted_at', null)
+        .order('name');
       if (companyId) {
         query = query.eq('company_id', companyId);
       }
@@ -54,13 +66,13 @@ export function useOrgStructure(companyId?: string) {
   // Busca Níveis Macro (Top Levels)
   const { data: topLevels, isLoading: loadingTopLevels, mutate: mutateTopLevels } = useSWR<OrgTopLevel[]>(
     companyId ? `org_top_levels_${companyId}` : null,
-    () => fetcher(() => supabase.from('org_top_levels').select('*').eq('company_id', companyId).order('name'))
+    () => fetcher(() => supabase.from('org_top_levels').select('id, company_id, level_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name'))
   );
 
   // Busca Unidades Lojas
   const { data: units, isLoading: loadingUnits, mutate: mutateUnits } = useSWR<OrgUnit[]>(
     companyId ? `org_units_${companyId}` : null,
-    () => fetcher(() => supabase.from('org_units').select('*').eq('company_id', companyId).order('name'))
+    () => fetcher(() => supabase.from('org_units').select('id, company_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name'))
   );
 
   return {
@@ -78,7 +90,11 @@ export function useOrgStructure(companyId?: string) {
 export function useRepositories(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Repository[]>(
     companyId ? `repositories_${companyId}` : null,
-    () => fetcher(() => supabase.from('repositories').select('*').eq('company_id', companyId).order('created_at', { ascending: false }))
+    () => fetcher(() => supabase.from('repositories')
+      .select('id, company_id, name, description, cover_image, banner_image, featured, show_in_landing, type, status, access_type, created_at, deleted_at')
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false }))
   );
 
   return {
@@ -97,7 +113,10 @@ export function useContents(filter?: { repositoryId?: string; companyId?: string
   const { data, error, isLoading, mutate } = useSWR<Content[]>(
     key,
     () => fetcher(() => {
-      let query = supabase.from('contents').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('contents')
+        .select('id, company_id, repository_id, category_id, title, description, thumbnail_url, type, url, embed_url, featured, recent, status, created_at, deleted_at')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
       if (filter?.contentId) query = query.eq('id', filter.contentId);
       else if (filter?.repositoryId) query = query.eq('repository_id', filter.repositoryId);
       else if (filter?.companyId) query = query.eq('company_id', filter.companyId);
@@ -121,7 +140,10 @@ export function useSimpleLinks(filter?: { repositoryId?: string; companyId?: str
   const { data, error, isLoading, mutate } = useSWR<SimpleLink[]>(
     key,
     () => fetcher(() => {
-      let query = supabase.from('simple_links').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('simple_links')
+        .select('id, company_id, repository_id, name, url, type, date, status, created_at, deleted_at')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
       if (filter?.repositoryId) query = query.eq('repository_id', filter.repositoryId);
       else if (filter?.companyId) query = query.eq('company_id', filter.companyId);
       return query;
@@ -142,7 +164,11 @@ export function useSimpleLinks(filter?: { repositoryId?: string; companyId?: str
 export function useCategories(repositoryId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Category[]>(
     repositoryId ? `categories_${repositoryId}` : null,
-    () => fetcher(() => supabase.from('categories').select('*').eq('repository_id', repositoryId).order('created_at', { ascending: true }))
+    () => fetcher(() => supabase.from('categories')
+      .select('id, repository_id, name, order_index, created_at, deleted_at')
+      .eq('repository_id', repositoryId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true }))
   );
 
   return {
@@ -159,12 +185,12 @@ export function useCategories(repositoryId?: string) {
 export function useRepositoryMetrics(repositoryId?: string) {
   const { data: views, isLoading: loadingViews, mutate: mutateViews } = useSWR<ContentViewMetric[]>(
     repositoryId ? `content_views_${repositoryId}` : null,
-    () => fetcher(() => supabase.from('content_views').select('*').eq('repository_id', repositoryId))
+    () => fetcher(() => supabase.from('content_views').select('id, user_id, content_id, company_id, repository_id, content_type, viewed_at').eq('repository_id', repositoryId))
   );
 
   const { data: ratings, isLoading: loadingRatings, mutate: mutateRatings } = useSWR<ContentRating[]>(
     repositoryId ? `content_ratings_${repositoryId}` : null,
-    () => fetcher(() => supabase.from('content_ratings').select('*').eq('repository_id', repositoryId))
+    () => fetcher(() => supabase.from('content_ratings').select('id, user_id, content_id, company_id, repository_id, rating, created_at').eq('repository_id', repositoryId))
   );
 
   const mutate = async () => {
@@ -186,12 +212,12 @@ export function useRepositoryMetrics(repositoryId?: string) {
 export function useCompanyMetrics(companyId?: string) {
   const { data: views, isLoading: loadingViews, mutate: mutateViews } = useSWR<ContentViewMetric[]>(
     companyId ? `company_views_${companyId}` : null,
-    () => fetcher(() => supabase.from('content_views').select('*').eq('company_id', companyId))
+    () => fetcher(() => supabase.from('content_views').select('id, user_id, content_id, company_id, repository_id, content_type, viewed_at').eq('company_id', companyId))
   );
 
   const { data: ratings, isLoading: loadingRatings, mutate: mutateRatings } = useSWR<ContentRating[]>(
     companyId ? `company_ratings_${companyId}` : null,
-    () => fetcher(() => supabase.from('content_ratings').select('*').eq('company_id', companyId))
+    () => fetcher(() => supabase.from('content_ratings').select('id, user_id, content_id, company_id, repository_id, rating, created_at').eq('company_id', companyId))
   );
 
   const mutate = async () => {
@@ -213,7 +239,7 @@ export function useCompanyMetrics(companyId?: string) {
 export function useUserActivity(userId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ContentViewMetric[]>(
     userId ? `user_activity_${userId}` : null,
-    () => fetcher(() => supabase.from('content_views').select('*').eq('user_id', userId).order('viewed_at', { ascending: false }))
+    () => fetcher(() => supabase.from('content_views').select('id, user_id, content_id, company_id, repository_id, content_type, viewed_at').eq('user_id', userId).order('viewed_at', { ascending: false }))
   );
 
   return {
@@ -228,12 +254,18 @@ export function useUserActivity(userId?: string) {
  * Função para registrar uma visualização de conteúdo
  */
 export async function addContentView(metric: Omit<ContentViewMetric, 'id' | 'viewed_at'>) {
-  const { error } = await supabase.from('content_views').insert({
+  const validation = contentViewMetricSchema.safeParse({
     ...metric,
     viewed_at: new Date().toISOString()
   });
+
+  if (!validation.success) {
+    throw new Error("Dados de métrica inválidos: " + validation.error.message);
+  }
+
+  const { error } = await supabase.from('content_views').insert(validation.data);
   if (error) {
-    console.error('Error adding content view:', error);
+    Logger.error('Error adding content view:', error);
     throw error;
   }
 }
@@ -242,29 +274,37 @@ export async function addContentView(metric: Omit<ContentViewMetric, 'id' | 'vie
  * Função para avaliar um conteúdo
  */
 export async function rateContent(metric: Omit<ContentRating, 'id' | 'created_at' | 'updated_at'>) {
+  const validation = contentRatingSchema.safeParse({
+    ...metric,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+
+  if (!validation.success) {
+    throw new Error("Dados de avaliação inválidos: " + validation.error.message);
+  }
+
+  const validatedData = validation.data;
+
   // Tenta bucar uma avaliação existente para atualizar, ou insere uma nova
   const { data: existing } = await supabase
     .from('content_ratings')
     .select('id')
-    .eq('user_id', metric.user_id)
-    .eq('content_id', metric.content_id)
+    .eq('user_id', validatedData.user_id)
+    .eq('content_id', validatedData.content_id)
     .single();
 
   if (existing) {
     const { error } = await supabase
       .from('content_ratings')
       .update({ 
-        rating: metric.rating,
-        updated_at: new Date().toISOString()
+        rating: validatedData.rating,
+        updated_at: validatedData.updated_at
       })
       .eq('id', existing.id);
     if (error) throw error;
   } else {
-    const { error } = await supabase.from('content_ratings').insert({
-      ...metric,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    });
+    const { error } = await supabase.from('content_ratings').insert(validatedData);
     if (error) throw error;
   }
 }
@@ -273,13 +313,22 @@ export async function rateContent(metric: Omit<ContentRating, 'id' | 'created_at
  * Função para atualizar dados do usuário no Supabase
  */
 export async function updateSupabaseUser(userId: string, data: Partial<User>) {
+  // Validação estrita via Zod (schemas.ts)
+  const validation = userSchema.partial().safeParse(data);
+  
+  if (!validation.success) {
+    const errorMsg = "Dados de usuário inválidos: " + validation.error.errors.map(e => e.message).join(', ');
+    Logger.error(errorMsg, validation.error);
+    throw new Error(errorMsg);
+  }
+
   const { error } = await supabase
     .from('users')
-    .update(data)
+    .update(validation.data)
     .eq('id', userId);
     
   if (error) {
-    console.error('Error updating user:', error);
+    Logger.error('Error updating user:', error);
     throw error;
   }
 }
@@ -339,7 +388,7 @@ export function usePublicRepositoryContents(repositoryId?: string) {
     repositoryId ? `public_contents_repo_${repositoryId}` : null,
     () => fetcher(() => supabase
         .from('contents')
-        .select('*')
+        .select('id, company_id, repository_id, category_id, title, description, thumbnail_url, type, url, embed_url, featured, recent, status')
         .eq('repository_id', repositoryId)
         .order('created_at', { ascending: false })
     )
@@ -360,7 +409,7 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
     repositoryId ? `public_simple_links_repo_${repositoryId}` : null,
     () => fetcher(() => supabase
         .from('simple_links')
-        .select('*')
+        .select('id, company_id, repository_id, name, url, type, status')
         .eq('repository_id', repositoryId)
         .order('created_at', { ascending: false })
     )
@@ -380,7 +429,11 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
 export function useCourses(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Course[]>(
     companyId ? `courses_${companyId}` : null,
-    () => fetcher(() => supabase.from('courses').select('*').eq('company_id', companyId).order('created_at', { ascending: false }))
+    () => fetcher(() => supabase.from('courses')
+      .select('id, company_id, title, description, cover_image, thumbnail_url, status, access_type, created_at, deleted_at')
+      .eq('company_id', companyId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false }))
   );
 
   return {
@@ -397,7 +450,11 @@ export function useCourses(companyId?: string) {
 export function useCourseModules(courseId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CourseModule[]>(
     courseId ? `course_modules_${courseId}` : null,
-    () => fetcher(() => supabase.from('course_modules').select('*').eq('course_id', courseId).order('order_index', { ascending: true }))
+    () => fetcher(() => supabase.from('course_modules')
+      .select('id, course_id, title, description, order_index, created_at, deleted_at')
+      .eq('course_id', courseId)
+      .is('deleted_at', null)
+      .order('order_index', { ascending: true }))
   );
 
   return {
@@ -417,8 +474,9 @@ export function useCourseContents(moduleId?: string) {
     async () => {
       const { data: contents, error } = await supabase
         .from('course_contents')
-        .select('*, quizzes(id)')
+        .select('id, module_id, title, description, type, url, content_url, order_index, created_at, deleted_at, quizzes(id)')
         .eq('module_id', moduleId)
+        .is('deleted_at', null)
         .order('order_index', { ascending: true });
         
       if (error) throw error;
@@ -446,7 +504,7 @@ export function useQuiz(params: { contentId?: string; courseContentId?: string }
   const { data, error, isLoading, mutate } = useSWR<Quiz>(
     key,
     () => fetcher(() => {
-      let query = supabase.from('quizzes').select('*');
+      let query = supabase.from('quizzes').select('id, company_id, content_id, course_content_id, title, passing_score, time_limit, points_reward');
       if (params.courseContentId) query = query.eq('course_content_id', params.courseContentId);
       else if (params.contentId) query = query.eq('content_id', params.contentId);
       return query.maybeSingle();
@@ -469,7 +527,7 @@ export function useQuizQuestions(quizId?: string) {
     quizId ? `quiz_questions_${quizId}` : null,
     () => fetcher(() => supabase
       .from('quiz_questions')
-      .select('*, quiz_options(*)')
+      .select('id, quiz_id, question_text, explanation, order_index, quiz_options(id, question_id, option_text, is_correct, order_index)')
       .eq('quiz_id', quizId)
       .order('order_index', { ascending: true })
     )
@@ -487,10 +545,16 @@ export function useQuizQuestions(quizId?: string) {
  * Função para registrar uma tentativa de quiz
  */
 export async function submitQuizAttempt(attempt: Omit<QuizAttempt, 'id' | 'completed_at'>) {
-  const { error } = await supabase.from('quiz_attempts').insert({
+  const validation = quizAttemptSchema.safeParse({
     ...attempt,
     completed_at: new Date().toISOString()
   });
+
+  if (!validation.success) {
+    throw new Error("Dados de tentativa de quiz inválidos: " + validation.error.message);
+  }
+
+  const { error } = await supabase.from('quiz_attempts').insert(validation.data);
   if (error) throw error;
 }
 
@@ -522,8 +586,9 @@ export function useCourseQuestions(moduleId?: string) {
     async () => {
       const { data: questions, error } = await supabase
         .from('course_phase_questions')
-        .select('*, options:course_question_options(*)')
+        .select('id, module_id, question_text, question_type, configuration, image_url, explanation, order_index, deleted_at, options:course_question_options(id, question_id, option_text, is_correct, order_index)')
         .eq('module_id', moduleId)
+        .is('deleted_at', null)
         .order('order_index', { ascending: true });
       if (error) throw error;
       return questions as CoursePhaseQuestion[];
@@ -547,7 +612,7 @@ export function useCourseEnrollment(courseId?: string, userId?: string) {
     async () => {
       const { data, error } = await supabase
         .from('course_enrollments')
-        .select('*')
+        .select('id, course_id, user_id, company_id, status, started_at, completed_at, score_percent, total_correct, total_questions, current_module_id, current_content_id')
         .eq('course_id', courseId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -571,7 +636,7 @@ export async function startEnrollment(courseId: string, userId: string, companyI
   // Verifica se já existe uma matrícula — protege cursos COMPLETED de serem resetados
   const { data: existing } = await supabase
     .from('course_enrollments')
-    .select('*')
+    .select('id, status, course_id, user_id')
     .eq('course_id', courseId)
     .eq('user_id', userId)
     .maybeSingle();
@@ -582,16 +647,22 @@ export async function startEnrollment(courseId: string, userId: string, companyI
   }
 
   // Cria nova matrícula apenas se não existir
+  const validation = courseEnrollmentSchema.safeParse({
+    course_id: courseId,
+    user_id: userId,
+    company_id: companyId,
+    status: 'IN_PROGRESS',
+    started_at: new Date().toISOString()
+  });
+
+  if (!validation.success) {
+    throw new Error("Dados de matrícula inválidos: " + validation.error.message);
+  }
+
   const { data, error } = await supabase
     .from('course_enrollments')
-    .insert({
-      course_id: courseId,
-      user_id: userId,
-      company_id: companyId,
-      status: 'IN_PROGRESS',
-      started_at: new Date().toISOString()
-    })
-    .select()
+    .insert(validation.data)
+    .select('id')
     .single();
   if (error) throw error;
   return data as CourseEnrollment;
@@ -622,16 +693,22 @@ export async function submitCourseAnswer(
   isCorrect: boolean,
   complexAnswer?: any
 ) {
+  const validation = courseAnswerSchema.safeParse({
+    enrollment_id: enrollmentId,
+    question_id: questionId,
+    selected_option_id: selectedOptionId || null,
+    complex_answer: complexAnswer || null,
+    is_correct: isCorrect,
+    answered_at: new Date().toISOString()
+  });
+
+  if (!validation.success) {
+    throw new Error("Dados de resposta inválidos: " + validation.error.message);
+  }
+
   const { error } = await supabase
     .from('course_answers')
-    .upsert({
-      enrollment_id: enrollmentId,
-      question_id: questionId,
-      selected_option_id: selectedOptionId || null,
-      complex_answer: complexAnswer || null,
-      is_correct: isCorrect,
-      answered_at: new Date().toISOString()
-    }, { onConflict: 'enrollment_id,question_id' });
+    .upsert(validation.data, { onConflict: 'enrollment_id,question_id' });
   if (error) throw error;
 }
 
@@ -649,19 +726,25 @@ export async function completeEnrollment(
   const timeSpent = isNaN(startTime.getTime()) ? 0 : Math.round((now.getTime() - startTime.getTime()) / 1000);
   const scorePercent = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 100;
 
+  const validation = courseEnrollmentSchema.safeParse({
+    status: 'COMPLETED',
+    completed_at: now.toISOString(),
+    score_percent: scorePercent,
+    total_correct: totalCorrect,
+    total_questions: totalQuestions,
+    time_spent_seconds: timeSpent,
+    updated_at: now.toISOString()
+  });
+
+  if (!validation.success) {
+    throw new Error("Dados de finalização inválidos: " + validation.error.message);
+  }
+
   const { data, error } = await supabase
     .from('course_enrollments')
-    .update({
-      status: 'COMPLETED',
-      completed_at: now.toISOString(),
-      score_percent: scorePercent,
-      total_correct: totalCorrect,
-      total_questions: totalQuestions,
-      time_spent_seconds: timeSpent,
-      updated_at: now.toISOString()
-    })
+    .update(validation.data)
     .eq('id', enrollmentId)
-    .select()
+    .select('id')
     .single();
   if (error) throw error;
   return data as CourseEnrollment;
@@ -675,7 +758,7 @@ export function useCourseAnswers(enrollmentId?: string) {
     enrollmentId ? `course_answers_${enrollmentId}` : null,
     () => fetcher(() => supabase
       .from('course_answers')
-      .select('*')
+      .select('id, enrollment_id, question_id, selected_option_id, complex_answer, is_correct, answered_at')
       .eq('enrollment_id', enrollmentId)
     )
   );
@@ -697,7 +780,7 @@ export function useCourseStats(courseId?: string) {
     async () => {
       const { data: enrollments, error } = await supabase
         .from('course_enrollments')
-        .select('*')
+        .select('id, course_id, user_id, company_id, status, score_percent, time_spent_seconds')
         .eq('course_id', courseId);
       if (error) throw error;
 
@@ -734,7 +817,7 @@ export function useCourseDashboard(companyId?: string) {
     async () => {
       const { data: enrollments, error } = await supabase
         .from('course_enrollments')
-        .select('*, courses(title)')
+        .select('id, status, course_id, user_id, created_at, courses(id, title)')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -831,7 +914,9 @@ export function useUserCourseHistory(userId?: string, companyId?: string) {
 export function useCourseAnalytics(companyId?: string) {
   const { data: enrollments, isLoading: loadingEnrollments, mutate: mutateEnrollments } = useSWR<CourseEnrollment[]>(
     companyId ? `course_enrollments_all_${companyId}` : null,
-    () => fetcher(() => supabase.from('course_enrollments').select('*').eq('company_id', companyId))
+    () => fetcher(() => supabase.from('course_enrollments')
+      .select('id, user_id, course_id, company_id, status, score_percent, started_at, completed_at, created_at')
+      .eq('company_id', companyId))
   );
 
   const { data: answers, isLoading: loadingAnswers, mutate: mutateAnswers } = useSWR(
@@ -858,16 +943,21 @@ export function useCourseAnalytics(companyId?: string) {
           *,
           course_modules!inner(
             course_id,
-            courses!inner(company_id)
+           deleted_at,
+            courses!inner(company_id, deleted_at)
           )
         `)
-        .eq('course_modules.courses.company_id', companyId);
+        .eq('course_modules.courses.company_id', companyId)
+        .is('deleted_at', null)
+        .is('course_modules.deleted_at', null)
+        .is('course_modules.courses.deleted_at', null);
       
       if (error) throw error;
       
       const { data: options, error: optErr } = await supabase
         .from('course_question_options')
-        .select('*');
+        .select('id, question_id, option_text, is_correct, created_at, deleted_at')
+        .is('deleted_at', null);
       
       if (optErr) throw optErr;
 

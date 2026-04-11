@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Content } from '../../types';
-import { ExternalLink, Maximize, Minimize, FileText, Music, Pause, Play, Volume2, Loader2 } from 'lucide-react';
+import { ExternalLink, Maximize, Minimize, FileText, Music, Pause, Play, Volume2, Loader2, ZoomIn, ZoomOut, X } from 'lucide-react';
 import { QuizPlayer } from './QuizPlayer';
 import { useQuiz, useQuizQuestions } from '../../hooks/useSupabaseData';
 import { useAuth } from '../../contexts/AuthContext';
@@ -558,10 +558,36 @@ export const VideoPlayer = ({
 };
 
 export const Viewer = ({ content }: { content: Content }) => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { tenantCompany } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [isZoomMode, setIsZoomMode] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const { user } = useAuth();
+  
+  // Lógica de Viewport Dinâmico para Zoom Restrito
+  useEffect(() => {
+    if (isZoomMode) {
+      const meta = document.querySelector('meta[name="viewport"]');
+      const original = meta?.getAttribute('content');
+      
+      // Habilita zoom
+      meta?.setAttribute('content', 'width=device-width, initial-scale=1.0, user-scalable=yes, minimum-scale=1.0, maximum-scale=5.0');
+      
+      // Bloqueia scroll do corpo para focar na mídia
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        // Restaura restrições ao fechar
+        meta?.setAttribute('content', original || 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+        document.body.style.overflow = '';
+      };
+    }
+  }, [isZoomMode]);
+
+  useEffect(() => {
+    setIsLoading(true);
+  }, [content.url]);
   
   // Quiz specific data - Detecta se é conteúdo de curso ou repositório legado
   const quizParams = (content as Record<string, unknown>).module_id 
@@ -577,17 +603,6 @@ export const Viewer = ({ content }: { content: Content }) => {
     setIsLoading(true);
     setShowQuiz(false);
   }, [content.id, contentUrl]);
-
-  useEffect(() => {
-    if (isFullscreen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [isFullscreen]);
 
   const QuizButton = () => {
     if (!quiz || questions.length === 0) return null;
@@ -740,87 +755,56 @@ export const Viewer = ({ content }: { content: Content }) => {
         />
         <QuizButton />
       </div>
+        </div>
+      </div>
     );
   }
 
-  // ============================================================
-  // RENDERIZADOR: PDF, DOCUMENTO, LINK (formato "Navegador" vertical)
-  // ============================================================
+  // Lógica de URL
   let iframeUrl = content.url;
-  
   try {
     if (iframeUrl.includes('drive.google.com/file/d/')) {
-      const match = iframeUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        iframeUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
-      }
-    }
-    else if (iframeUrl.includes('docs.google.com/') && iframeUrl.includes('/d/')) {
-      const match = iframeUrl.match(/(.*\/d\/[a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        iframeUrl = `${match[1]}/preview`;
-      }
-    }
-    else if ((content.type === 'DOCUMENT' || content.type === 'PDF') && !iframeUrl.includes('google.com')) {
-      // Forçar o modo de visualização caso a URL já seja do Drive mas sem preview ou para PDFs/Documentos
-      if (iframeUrl.includes('drive.google.com/')) {
-        const driveIdMatch = iframeUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-        if (driveIdMatch && driveIdMatch[1]) {
-           iframeUrl = `https://drive.google.com/file/d/${driveIdMatch[1]}/preview`;
-        } else {
-           iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
-        }
-      } else {
+        const match = iframeUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match?.[1]) iframeUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+    } else if (iframeUrl.includes('docs.google.com/') && iframeUrl.includes('/d/')) {
+        const match = iframeUrl.match(/(.*\/d\/[a-zA-Z0-9_-]+)/);
+        if (match?.[1]) iframeUrl = `${match[1]}/preview`;
+    } else if ((content.type === 'DOCUMENT' || content.type === 'PDF') && !iframeUrl.includes('google.com')) {
         iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(content.url)}&embedded=true`;
-      }
     }
 
-    // NOVA LÓGICA: Converter YouTube/Vimeo mesmo se o tipo for LINK
     const ytId = extractYouTubeId(iframeUrl);
-    if (ytId) {
-      iframeUrl = `https://www.youtube.com/embed/${ytId}`;
-    } else if (iframeUrl.includes('vimeo.com/') && !iframeUrl.includes('player.vimeo.com')) {
-      const vId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
-      if (vId) iframeUrl = `https://player.vimeo.com/video/${vId}`;
+    if (ytId) iframeUrl = `https://www.youtube.com/embed/${ytId}`;
+    else if (iframeUrl.includes('vimeo.com/') && !iframeUrl.includes('player.vimeo.com')) {
+        const vId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
+        if (vId) iframeUrl = `https://player.vimeo.com/video/${vId}`;
     }
-  } catch (e) {
-    console.error("Erro ao formatar URL do documento", e);
-  }
+  } catch (e) { console.error("URL Format Error", e); }
 
   const isExternalLink = content.type === 'LINK' && !content.url.includes('google.com') && !content.url.includes('youtube.com');
 
   const IframeContent = ({ full }: { full?: boolean }) => (
-    <div className="relative w-full h-full bg-white group/iframe">
+    <div className="relative w-full h-full bg-white group/iframe flex items-center justify-center overflow-hidden">
         {isLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-zinc-950/20 backdrop-blur-sm animate-in fade-in duration-300">
                 <div className="w-12 h-12 border-4 border-zinc-300 border-t-[var(--c-primary)] rounded-full animate-spin mb-4" />
-                <p className="text-zinc-500 font-bold text-sm uppercase tracking-widest animate-pulse">Carregando conteúdo...</p>
+                <p className="text-zinc-500 font-bold text-sm uppercase tracking-widest animate-pulse">Carregando...</p>
             </div>
         )}
         
-        {isExternalLink && !isLoading && (
-            <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-30 transition-all duration-500 ${full ? 'opacity-100' : 'opacity-0 group-hover/iframe:opacity-100'}`}>
-                <div className="bg-amber-500/90 backdrop-blur-md text-black px-4 py-2 rounded-full text-xs font-bold shadow-2xl border border-amber-400/50 flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-black animate-ping" />
-                    Se o site não carregar, use o botão "Nova aba" acima.
-                </div>
-            </div>
-        )}
-
         {(content.type === 'IMAGE' || content.url.match(/\.(jpg|jpeg|png|webp|gif)$/i)) ? (
-            <div className="w-full h-full flex items-center justify-center p-4 bg-zinc-950">
+            <div className={`w-full h-full flex items-center justify-center p-4 ${full ? 'bg-black' : 'bg-zinc-950'}`}>
               <img 
                 src={content.url} 
-                alt={content.title}
-                className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+                className="max-w-full max-h-full object-contain shadow-2xl transition-all duration-300"
                 onLoad={() => setIsLoading(false)}
               />
             </div>
         ) : (
             <iframe 
+                ref={iframeRef}
                 src={iframeUrl} 
                 className="w-full h-full border-0 absolute inset-0 z-10"
-                title={content.title}
                 onLoad={() => setIsLoading(false)}
                 allowFullScreen
             />
@@ -830,9 +814,8 @@ export const Viewer = ({ content }: { content: Content }) => {
 
   return (
     <>
-      {/* VISUALIZAÇÃO PADRÃO (INLINE) */}
-      <div className="w-full max-w-6xl mx-auto bg-zinc-950 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col h-[75vh] max-h-[900px]">
-        {/* Barra de Navegação Falsa / Top Bar */}
+      <div className="w-full max-w-6xl mx-auto bg-zinc-950 rounded-xl overflow-hidden shadow-2xl border border-zinc-800 flex flex-col h-[75vh] max-h-[900px] relative">
+        <QuizButton />
         <div className="bg-zinc-900 px-4 py-2.5 border-b border-zinc-800 flex justify-between items-center w-full z-10 shrink-0">
            <div className="flex items-center gap-4 overflow-hidden">
               <div className="flex gap-1.5 shrink-0">
@@ -840,71 +823,62 @@ export const Viewer = ({ content }: { content: Content }) => {
                  <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
                  <div className="w-3 h-3 rounded-full bg-emerald-500/80"></div>
               </div>
-              <span className="text-zinc-500 text-xs font-mono truncate hidden sm:block bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800 w-48 md:w-96">
+              <span className="text-zinc-500 text-[10px] font-mono truncate hidden sm:block bg-zinc-950 px-3 py-1 rounded-md border border-zinc-800 w-64">
                  {content.url}
               </span>
            </div>
            
-           <div className="flex items-center gap-2 shrink-0">
+           <div className="flex items-center gap-2">
                <button 
-                 onClick={() => setIsFullscreen(true)}
-                 className="text-white flex items-center gap-1.5 text-xs md:text-sm bg-[var(--c-primary)] hover:bg-opacity-80 px-4 py-1.5 rounded-md transition-colors font-bold shadow-lg"
+                 onClick={() => setIsZoomMode(true)}
+                 className="text-white flex items-center gap-1.5 text-xs md:text-sm bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-md transition-colors font-bold shadow-lg shadow-blue-500/20 active:scale-95"
                >
-                   <Maximize size={16} /> Tela Cheia
+                   <ZoomIn size={16} /> <span className="hidden sm:inline">Zoom e Foco</span>
                </button>
                <a 
                  href={content.url} 
                  target="_blank" 
                  rel="noreferrer" 
-                 className="text-zinc-300 hover:text-white items-center gap-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 rounded-md transition-colors hidden md:flex"
-                 title="Abrir em uma nova aba caso o link bloqueie a visualização interna"
+                 className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs bg-zinc-800 px-3 py-1.5 rounded-md transition-colors"
                >
-                   Nova aba <ExternalLink size={14} />
+                   <ExternalLink size={14} />
                </a>
            </div>
         </div>
         
-        {/* Container do Iframe Inline */}
         <div className="flex-1 w-full bg-white relative">
           <IframeContent />
         </div>
-        <QuizButton />
       </div>
 
-      {/* MODAL DE TELA CHEIA (POPUP OVERLAY) */}
-      {isFullscreen && (
-        <div className="fixed inset-0 z-[9999] bg-zinc-950 flex flex-col w-screen h-screen">
-           <div className="bg-zinc-900 px-4 py-3 border-b border-zinc-800 flex justify-between items-center w-full shrink-0 shadow-md">
+      {/* MODAL DE ZOOM E FOCO */}
+      {isZoomMode && (
+        <div className="fixed inset-0 z-[99999] bg-black flex flex-col animate-in fade-in duration-300">
+           <div className="bg-zinc-950 px-4 py-3 border-b border-white/10 flex justify-between items-center shrink-0">
              <div className="flex items-center gap-3">
-               <div className="p-1.5 bg-[var(--c-primary)] rounded-md text-white hidden sm:block">
-                  <FileText size={18} />
+               <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400">
+                  <Maximize size={18} />
                </div>
-               <h2 className="text-white font-semibold truncate max-w-[200px] md:max-w-md text-sm md:text-base">
-                 {content.title}
-               </h2>
+               <div className="min-w-0">
+                  <h3 className="text-white font-bold text-sm truncate">{content.title}</h3>
+                  <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Gesto de pinça habilitado para zoom</p>
+               </div>
              </div>
-             <div className="flex items-center gap-2 md:gap-3">
-                <a 
-                  href={content.url} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="text-zinc-300 hover:text-white flex items-center gap-1.5 text-xs md:text-sm bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-md transition-colors"
-                >
-                    <span className="hidden sm:inline">Abrir no Navegador</span> <ExternalLink size={16} />
-                </a>
-                <button 
-                  onClick={() => setIsFullscreen(false)}
-                  className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-zinc-700 hover:bg-red-600 px-4 py-2 rounded-md transition-colors font-bold shadow-lg"
-                >
-                    <Minimize size={16} /> Fechar
-                </button>
-             </div>
+             <button 
+              onClick={() => setIsZoomMode(false)}
+              className="p-2 bg-white/10 hover:bg-red-500 rounded-lg text-white transition-all active:scale-90"
+             >
+               <X size={20} />
+             </button>
            </div>
-           
-           <div className="flex-1 w-full bg-white relative">
+           <div className="flex-1 relative overflow-auto touch-auto bg-black flex items-center justify-center">
               <IframeContent full />
            </div>
-           <QuizButton />
+           <div className="p-4 bg-zinc-950/90 border-t border-white/5 text-center shrink-0">
+              <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.2em]">
+                 Foque na leitura e use o zoom nativo do seu aparelho
+              </p>
+           </div>
         </div>
       )}
     </>

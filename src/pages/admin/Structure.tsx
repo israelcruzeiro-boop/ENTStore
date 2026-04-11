@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Network, Save, Building2, Store, CheckCircle2, XCircle, Edit2, Trash2, Plus, Loader2 } from 'lucide-react';
 import { OrgTopLevel, OrgUnit } from '../../types';
+import { orgTopLevelSchema, orgUnitSchema } from '../../types/schemas';
+import { Logger } from '../../utils/logger';
 
 export const AdminStructure = () => {
   const { companySlug } = useParams();
@@ -179,22 +181,29 @@ export const AdminStructure = () => {
 
     try {
       setIsSubmitting(true);
+      
+      const payload = { 
+        company_id: company.id,
+        level_id: currentActiveLevel?.id || null,
+        name, 
+        parent_id: topLevelFormData.parent_id || null, 
+        active: topLevelFormData.active 
+      };
+
+      const validation = editingTopLevelId 
+        ? orgTopLevelSchema.partial().safeParse(payload)
+        : orgTopLevelSchema.safeParse(payload);
+
+      if (!validation.success) {
+        return toast.error("Dados inválidos: " + validation.error.issues.map(i => i.message).join(', '));
+      }
+
       if (editingTopLevelId) {
-        const { error } = await supabase.from('org_top_levels').update({ 
-          name, 
-          parent_id: topLevelFormData.parent_id || null, 
-          active: topLevelFormData.active 
-        }).eq('id', editingTopLevelId);
+        const { error } = await supabase.from('org_top_levels').update(validation.data).eq('id', editingTopLevelId);
         if (error) throw error;
         toast.success(`${currentActiveLevel?.name} atualizado(a) com sucesso!`);
       } else {
-        const { error } = await supabase.from('org_top_levels').insert({ 
-          company_id: company.id, 
-          level_id: currentActiveLevel?.id, 
-          name, 
-          parent_id: topLevelFormData.parent_id || null, 
-          active: topLevelFormData.active 
-        });
+        const { error } = await supabase.from('org_top_levels').insert(validation.data);
         if (error) throw error;
         toast.success(`${currentActiveLevel?.name} cadastrado(a) com sucesso!`);
       }
@@ -202,6 +211,7 @@ export const AdminStructure = () => {
       handleCloseTopLevelForm();
     } catch (err) {
       const error = err as Error;
+      Logger.error(`Erro ao salvar grupo: ${error.message}`);
       toast.error(`Erro ao salvar grupo: ${error.message}`);
     } finally {
       setIsSubmitting(false);
@@ -244,21 +254,28 @@ export const AdminStructure = () => {
 
     try {
       setIsSubmitting(true);
+      
+      const payload = { 
+        company_id: company.id, 
+        name, 
+        parent_id: unitFormData.parent_id || null, 
+        active: unitFormData.active 
+      };
+
+      const validation = editingUnitId
+        ? orgUnitSchema.partial().safeParse(payload)
+        : orgUnitSchema.safeParse(payload);
+
+      if (!validation.success) {
+        return toast.error("Dados inválidos: " + validation.error.issues.map(i => i.message).join(', '));
+      }
+
       if (editingUnitId) {
-        const { error } = await supabase.from('org_units').update({ 
-          name, 
-          parent_id: unitFormData.parent_id || null, 
-          active: unitFormData.active 
-        }).eq('id', editingUnitId);
+        const { error } = await supabase.from('org_units').update(validation.data).eq('id', editingUnitId);
         if (error) throw error;
         toast.success(`${l3Name} atualizada!`);
       } else {
-        const { error } = await supabase.from('org_units').insert({ 
-          company_id: company.id, 
-          name, 
-          parent_id: unitFormData.parent_id || null, 
-          active: unitFormData.active 
-        });
+        const { error } = await supabase.from('org_units').insert(validation.data);
         if (error) throw error;
         toast.success(`${l3Name} cadastrada!`);
       }
@@ -266,6 +283,7 @@ export const AdminStructure = () => {
       handleCloseUnitForm();
     } catch (err) {
       const error = err as Error;
+      Logger.error(`Erro ao salvar unidade: ${error.message}`);
       toast.error(`Erro ao salvar unidade: ${error.message}`);
     } finally {
       setIsSubmitting(false);
@@ -292,19 +310,24 @@ export const AdminStructure = () => {
     if (itemToDelete) {
       try {
         setIsSubmitting(true);
+        // Implementação de Soft Delete
+        const { error } = await supabase
+          .from(itemToDelete.type === 'TOP_LEVEL' ? 'org_top_levels' : 'org_units')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', itemToDelete.id);
+
+        if (error) throw error;
+        
         if (itemToDelete.type === 'TOP_LEVEL') {
-          const { error } = await supabase.from('org_top_levels').delete().eq('id', itemToDelete.id);
-          if (error) throw error;
           mutateTopLevels();
-          toast.success(`Registro excluído.`);
+          toast.success(`Registro removido da lista.`);
         } else {
-          const { error } = await supabase.from('org_units').delete().eq('id', itemToDelete.id);
-          if (error) throw error;
           mutateUnits();
-          toast.success(`Unidade excluída.`);
+          toast.success(`Unidade removida da lista.`);
         }
       } catch (err) {
         const error = err as Error;
+        Logger.error(`Erro ao excluir item da estrutura: ${error.message}`);
         toast.error(`Erro ao excluir: ${error.message}`);
       } finally {
         setIsSubmitting(false);

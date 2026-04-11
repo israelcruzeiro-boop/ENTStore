@@ -41,6 +41,14 @@ import {
   MousePointer2
 } from 'lucide-react';
 import { Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseQuestionType } from '../../types';
+import { 
+  courseSchema, 
+  courseModuleSchema, 
+  courseContentSchema,
+  coursePhaseQuestionSchema,
+  courseQuestionOptionSchema
+} from '../../types/schemas';
+import { Logger } from '../../utils/logger';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -178,42 +186,35 @@ export const AdminCourseDetails = () => {
 
   const handleUpdateCourse = async () => {
     const finalTitle = courseTitle || course?.title;
-    if (!courseId || !finalTitle) return;
+    if (!courseId || !finalTitle || !company?.id) return;
 
     setIsSubmitting(true);
     try {
-      // Monta o payload base (colunas que sempre existem)
-      const payload: Record<string, unknown> = {
+      const payload = {
+        company_id: company.id,
         title: finalTitle,
         status: courseStatus,
+        thumbnail_url: thumbnailUrl,
         access_type: accessType,
         allowed_user_ids: allowedUserIds,
         allowed_region_ids: allowedRegionIds,
         allowed_store_ids: allowedStoreIds,
         excluded_user_ids: excludedUserIds,
-        thumbnail_url: thumbnailUrl
+        passing_score: passingScore,
+        diploma_template: diplomaTemplate,
       };
 
-      // Tenta incluir colunas opcionais (podem não existir no banco)
-      payload.passing_score = passingScore;
-      payload.diploma_template = diplomaTemplate;
+      const validation = courseSchema.partial().safeParse(payload);
+      if (!validation.success) {
+        return toast.error("Dados do curso inválidos: " + validation.error.message);
+      }
 
-      const { error } = await supabase.from('courses').update(payload).eq('id', courseId);
+      const { error } = await supabase.from('courses').update(validation.data).eq('id', courseId);
       
       if (error) {
-        // Se o erro for de coluna inexistente, tenta salvar sem os campos opcionais
         if (error.message?.includes('passing_score') || error.message?.includes('diploma_template') || error.code === 'PGRST204') {
-          const safePayload = {
-            title: finalTitle,
-            status: courseStatus,
-            access_type: accessType,
-            allowed_user_ids: allowedUserIds,
-            allowed_region_ids: allowedRegionIds,
-            allowed_store_ids: allowedStoreIds,
-            excluded_user_ids: excludedUserIds,
-            thumbnail_url: thumbnailUrl
-          };
-          const { error: retryErr } = await supabase.from('courses').update(safePayload).eq('id', courseId);
+          const { passing_score, diploma_template, ...safeData } = validation.data;
+          const { error: retryErr } = await supabase.from('courses').update(safeData).eq('id', courseId);
           if (retryErr) throw retryErr;
           toast.info('Salvo! (Nota mínima e diploma precisam de migração no banco)');
         } else {
@@ -226,10 +227,10 @@ export const AdminCourseDetails = () => {
       await mutateCourses();
       setIsEditingTitle(false);
       setIsSettingsOpen(false);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error('Erro: ' + error.message);
-      }
+    } catch (err: unknown) {
+      const error = err as Error;
+      Logger.error(`Erro ao atualizar curso: ${error.message}`);
+      toast.error('Erro ao atualizar curso: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -256,20 +257,24 @@ export const AdminCourseDetails = () => {
 
   const handleDeleteCourse = async () => {
     if (!courseId) return;
-    if (!confirm("⚠️ ATENÇÃO: Deseja realmente excluir este curso? Esta ação é irreversível e removerá todos os módulos e aulas vinculados.")) return;
+    if (!confirm("⚠️ ATENÇÃO: Deseja realmente remover este curso da lista ativa? Os dados não serão apagados permanentemente, mas o curso não será mais exibido.")) return;
     
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('courses').delete().eq('id', courseId);
+      // IMPLEMENTAÇÃO DE SOFT DELETE
+      const { error } = await supabase
+        .from('courses')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', courseId);
       
       if (error) throw error;
       
-      toast.success("Curso excluído com sucesso!");
+      toast.success("Curso removido com sucesso!");
       navigate(`/admin/${companySlug}/courses`);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error("Erro ao excluir curso: " + error.message);
-      }
+    } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao realizar soft delete de curso:", error);
+      toast.error("Erro ao excluir curso: " + error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -278,33 +283,42 @@ export const AdminCourseDetails = () => {
   const handleAddModule = async () => {
     if (!courseId) return;
     try {
-      const nextOrder = modules.length;
-      const { error } = await supabase.from('course_modules').insert({
+      const payload = {
         course_id: courseId,
         title: `Módulo ${modules.length + 1}`,
-        order_index: nextOrder
-      });
+        order_index: modules.length
+      };
+
+      const validation = courseModuleSchema.safeParse(payload);
+      if (!validation.success) throw new Error("Dados do módulo inválidos");
+
+      const { error } = await supabase.from('course_modules').insert(validation.data);
       if (error) throw error;
       toast.success("Módulo adicionado!");
       mutateModules();
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error("Erro ao adicionar módulo: " + error.message);
-      }
+    } catch (err: unknown) {
+      const error = err as Error;
+      Logger.error(`Erro ao adicionar módulo: ${error.message}`);
+      toast.error("Erro ao adicionar módulo: " + error.message);
     }
   };
 
   const handleDeleteModule = async (id: string) => {
-    if (!confirm("Deseja realmente excluir este módulo e todos os seus conteúdos?")) return;
+    if (!confirm("Deseja marcar este módulo como excluído?")) return;
     try {
-      const { error } = await supabase.from('course_modules').delete().eq('id', id);
+      // IMPLEMENTAÇÃO DE SOFT DELETE
+      const { error } = await supabase
+        .from('course_modules')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+        
       if (error) throw error;
       toast.success("Módulo removido");
       mutateModules();
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error("Erro ao remover: " + error.message);
-      }
+    } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao excluir módulo:", error);
+      toast.error("Erro ao remover modulo.");
     }
   };
 
@@ -329,29 +343,34 @@ export const AdminCourseDetails = () => {
 
       if (!publicUrl) throw new Error("URL não definida");
 
-      const { data: inserted, error } = await supabase.from('course_contents').insert({
+      const payload = {
         module_id: selectedModuleId,
         company_id: company.id,
         title: newContent.title,
         description: newContent.description,
         type: newContent.type,
         url: publicUrl,
-        size_bytes: newContent.file?.size || 0,
         order_index: 0
-      }).select().single();
+      };
 
+      const validation = courseContentSchema.safeParse(payload);
+      if (!validation.success) {
+        return toast.error("Dados da aula inválidos: " + validation.error.message);
+      }
+
+      const { error } = await supabase.from('course_contents').insert(validation.data).select('id').single();
       if (error) throw error;
 
       toast.success("Conteúdo adicionado!");
       setIsAddContentOpen(false);
-      setNewContent({ title: '', description: '', type: 'PDF', file: null, url: '' });
+      setNewContent({ title: '', description: '', type: 'PDF', file: null, url: '', html_content: '' });
       setAddMethod('upload');
       mutateModules();
 
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error("Erro no upload: " + error.message);
-      }
+      const err = error as Error;
+      Logger.error(`Erro no upload: ${err.message}`);
+      toast.error("Erro no upload: " + err.message);
     } finally {
       setUploadProgress(false);
     }
@@ -361,12 +380,19 @@ export const AdminCourseDetails = () => {
   const handleDeleteContent = async (id: string) => {
     if (!confirm("Deseja remover esta aula?")) return;
     try {
-      const { error } = await supabase.from('course_contents').delete().eq('id', id);
+      // IMPLEMENTAÇÃO DE SOFT DELETE
+      const { error } = await supabase
+        .from('course_contents')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+        
       if (error) throw error;
-      toast.success("Conteúdo removido");
+      toast.success("Conteúdo removido da lista");
       mutateModules();
-    } catch (error: unknown) {
-      toast.error("Erro ao remover");
+    } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao excluir conteúdo:", error);
+      toast.error("Erro ao remover aula.");
     }
   };
 
@@ -1289,42 +1315,38 @@ export const AdminCourseDetails = () => {
                 try {
                   // Preparar configuração baseada no tipo
                   let config: Record<string, unknown> = {};
-                    if (questionType === 'WORD_SEARCH') {
+                  if (questionType === 'WORD_SEARCH') {
                     const wordsForGrid = wordSearchWords.map(w => w.trim().toUpperCase()).filter(Boolean);
                     if (wordsForGrid.length === 0) throw new Error("Adicione pelo menos uma palavra.");
                     
                     const longestWord = Math.max(...wordsForGrid.map(w => w.length));
                     const baseSize = wordSearchDifficulty === 'HARD' ? 14 : wordSearchDifficulty === 'MEDIUM' ? 12 : 10;
-                    // Aumentamos um pouco o tamanho base para garantir que palavras como COMPUTADOR (10) caibam com folga
                     const size = Math.max(baseSize, longestWord + 2); 
                     const grid = Array(size).fill(null).map(() => Array(size).fill(''));
                     
                     const directionsByDifficulty = {
-                      EASY: [[0, 1], [1, 0]], // Horiz, Vert
-                      MEDIUM: [[0, 1], [1, 0], [1, 1], [-1, 1]], // + Diagonais
-                      HARD: [[0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1]] // + Invertidas
+                      EASY: [[0, 1], [1, 0]], 
+                      MEDIUM: [[0, 1], [1, 0], [1, 1], [-1, 1]], 
+                      HARD: [[0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1]] 
                     };
                     const directions = directionsByDifficulty[wordSearchDifficulty];
 
                     // Posicionar palavras
                     const placedWords: string[] = [];
-                    // Ordenar por tamanho decrescente para facilitar o encaixe das maiores primeiro
                     const sortedWords = [...wordsForGrid].sort((a, b) => b.length - a.length);
 
                     for (const word of sortedWords) {
                       let placed = false;
                       let attempts = 0;
-                      while (!placed && attempts < 1000) { // Aumentado para 1000 tentativas
+                      while (!placed && attempts < 1000) { 
                         const [dr, dc] = directions[Math.floor(Math.random() * directions.length)];
                         const r = Math.floor(Math.random() * size);
                         const c = Math.floor(Math.random() * size);
                         
-                        // Verificar se cabe no grid
                         let fits = true;
                         if (r + dr * (word.length - 1) < 0 || r + dr * (word.length - 1) >= size) fits = false;
                         if (c + dc * (word.length - 1) < 0 || c + dc * (word.length - 1) >= size) fits = false;
                         
-                        // Verificar colisões
                         if (fits) {
                           for (let i = 0; i < word.length; i++) {
                             const currChar = grid[r + i * dr][c + i * dc];
@@ -1346,7 +1368,6 @@ export const AdminCourseDetails = () => {
                       }
                     }
 
-                    // VALIDAR SE TODAS FORAM COLOCADAS
                     if (placedWords.length < sortedWords.length) {
                        const missing = sortedWords.filter(w => !placedWords.includes(w));
                        toast.error(`Falha ao gerar grid: Não foi possível encaixar "${missing.join(', ')}". Tente reduzir o número de palavras ou simplificar.`);
@@ -1354,7 +1375,6 @@ export const AdminCourseDetails = () => {
                        return;
                     }
 
-                    // Preencher espaços vazios com letras aleatórias
                     for (let r = 0; r < size; r++) {
                       for (let c = 0; c < size; c++) {
                         if (grid[r][c] === '') {
@@ -1369,47 +1389,63 @@ export const AdminCourseDetails = () => {
                     config = { hotspots: hotspotPoints };
                   }
 
+                  // Validar Pergunta via Zod
+                  const questionPayload = {
+                    module_id: questionModuleId,
+                    question_text: questionText.trim(),
+                    explanation: questionExplanation.trim() || null,
+                    question_type: questionType,
+                    configuration: config,
+                    image_url: questionImageUrl || null,
+                    order_index: 0
+                  };
+
+                  const qValidation = coursePhaseQuestionSchema.safeParse(questionPayload);
+                  if (!qValidation.success) {
+                    return toast.error("Dados da pergunta inválidos: " + qValidation.error.message);
+                  }
+
                   let questionId = editingQuestionId;
 
                   if (editingQuestionId) {
-                    // Atualizar pergunta existente
-                    const { error: qErr } = await supabase.from('course_phase_questions').update({
-                      question_text: questionText.trim(),
-                      explanation: questionExplanation.trim() || null,
-                      question_type: questionType,
-                      configuration: config,
-                      image_url: questionImageUrl || null
-                    }).eq('id', editingQuestionId);
+                    const { error: qErr } = await supabase
+                      .from('course_phase_questions')
+                      .update(qValidation.data)
+                      .eq('id', editingQuestionId);
                     if (qErr) throw qErr;
                   } else {
-                    // Criar nova pergunta
-                    const { data: q, error: qErr } = await supabase.from('course_phase_questions').insert({
-                      module_id: questionModuleId,
-                      question_text: questionText.trim(),
-                      explanation: questionExplanation.trim() || null,
-                      question_type: questionType,
-                      configuration: config,
-                      image_url: questionImageUrl || null,
-                      order_index: 0
-                    }).select().single();
+                    const { data: q, error: qErr } = await supabase
+                      .from('course_phase_questions')
+                      .insert(qValidation.data)
+                      .select('id')
+                      .single();
                     if (qErr) throw qErr;
                     questionId = q.id;
                   }
 
-                  // Gerenciar alternativas apenas se for múltipla escolha
+                  // Gerenciar alternativas via Zod se for MULTIPLE_CHOICE
                   if (questionType === 'MULTIPLE_CHOICE') {
-                    // Se estiver editando, limpar as antigas primeiro
-                    if (editingQuestionId) {
-                      await supabase.from('course_question_options').delete().eq('question_id', editingQuestionId);
-                    }
-
                     const optionsToInsert = questionOptions.map((opt, idx) => ({
                       question_id: questionId,
                       option_text: opt.text.trim(),
                       is_correct: opt.isCorrect,
                       order_index: idx
                     }));
-                    const { error: oErr } = await supabase.from('course_question_options').insert(optionsToInsert);
+
+                    const oValidation = z.array(courseQuestionOptionSchema).safeParse(optionsToInsert);
+                    if (!oValidation.success) {
+                      return toast.error("Alternativas inválidas: " + oValidation.error.message);
+                    }
+
+                    if (editingQuestionId) {
+                      // SOFT DELETE DAS OPÇÕES ANTERIORES PARA RE-SYNC
+                      await supabase
+                        .from('course_question_options')
+                        .update({ deleted_at: new Date().toISOString() })
+                        .eq('question_id', editingQuestionId);
+                    }
+
+                    const { error: oErr } = await supabase.from('course_question_options').insert(oValidation.data);
                     if (oErr) throw oErr;
                   }
 
@@ -1431,7 +1467,9 @@ export const AdminCourseDetails = () => {
                   ]);
                   globalMutate(`course_questions_${questionModuleId}`);
                   mutateModules();
-                } catch (err) {
+                } catch (err: unknown) {
+                  const error = err as Error;
+                  Logger.error(`Erro ao salvar pergunta: ${error.message}`);
                   toast.error(editingQuestionId ? 'Erro ao atualizar pergunta' : 'Erro ao criar pergunta');
                 } finally {
                   setIsSubmitting(false);
@@ -1586,12 +1624,20 @@ const ModuleQuestionsSection = ({
   const { questions, mutate } = useCourseQuestions(moduleId);
   
   const handleDeleteQuestion = async (questionId: string) => {
+    if (!confirm("Remover esta pergunta?")) return;
     try {
-      const { error } = await supabase.from('course_phase_questions').delete().eq('id', questionId);
+      // IMPLEMENTAÇÃO DE SOFT DELETE
+      const { error } = await supabase
+        .from('course_phase_questions')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', questionId);
+        
       if (error) throw error;
       mutate();
       toast.success('Pergunta removida');
     } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao excluir pergunta:", error);
       toast.error('Erro ao remover pergunta');
     }
   };

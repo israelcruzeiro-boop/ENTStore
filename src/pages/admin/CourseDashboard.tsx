@@ -76,7 +76,12 @@ export const AdminCourseDashboard = () => {
 
     // Filtro por Data
     if (startDate) {
-      filtered = filtered.filter(e => isWithinInterval(new Date(e.created_at), { start: startDate, end: endOfDay(now) }));
+      filtered = filtered.filter(e => {
+        if (!e.created_at) return false;
+        const d = new Date(e.created_at);
+        if (isNaN(d.getTime())) return false;
+        return isWithinInterval(d, { start: startDate, end: endOfDay(now) });
+      });
     }
 
     const completed = filtered.filter(e => e.status === 'COMPLETED');
@@ -212,11 +217,20 @@ export const AdminCourseDashboard = () => {
       trendMap[d] = { date: d, matr: 0, concl: 0 };
     }
     filtered.forEach(e => {
-      const dMatr = format(new Date(e.created_at), 'dd/MM');
-      if (trendMap[dMatr]) trendMap[dMatr].matr++;
+      if (e.created_at) {
+        const dObjMatr = new Date(e.created_at);
+        if (!isNaN(dObjMatr.getTime())) {
+          const dMatr = format(dObjMatr, 'dd/MM');
+          if (trendMap[dMatr]) trendMap[dMatr].matr++;
+        }
+      }
+      
       if (e.status === 'COMPLETED' && e.completed_at) {
-        const dConcl = format(new Date(e.completed_at), 'dd/MM');
-        if (trendMap[dConcl]) trendMap[dConcl].concl++;
+        const dObjConcl = new Date(e.completed_at);
+        if (!isNaN(dObjConcl.getTime())) {
+          const dConcl = format(dObjConcl, 'dd/MM');
+          if (trendMap[dConcl]) trendMap[dConcl].concl++;
+        }
       }
     });
 
@@ -257,8 +271,12 @@ export const AdminCourseDashboard = () => {
         'Curso': course?.title || '-',
         'Status': e.status === 'COMPLETED' ? 'Concluído' : 'Em Andamento',
         'Nota (%)': e.score_percent || 0,
-        'Início': format(new Date(e.started_at), 'dd/MM/yyyy HH:mm'),
-        'Fim': e.completed_at ? format(new Date(e.completed_at), 'dd/MM/yyyy HH:mm') : '-'
+        'Início': e.started_at && !isNaN(new Date(e.started_at).getTime()) 
+                   ? format(new Date(e.started_at), 'dd/MM/yyyy HH:mm') 
+                   : '-',
+        'Fim': e.completed_at && !isNaN(new Date(e.completed_at).getTime()) 
+                 ? format(new Date(e.completed_at), 'dd/MM/yyyy HH:mm') 
+                 : '-'
       };
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(granularData), 'Relatório Granular');

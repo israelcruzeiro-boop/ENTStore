@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Companies (Tenants)
 CREATE TABLE public.companies (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT NOT NULL,
   link_name TEXT NOT NULL UNIQUE,
@@ -26,7 +26,7 @@ CREATE TABLE public.companies (
 
 -- Org Top Levels (Ex: Diretorias, Regionais)
 CREATE TABLE public.org_top_levels (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   level_id TEXT,
   parent_id UUID REFERENCES public.org_top_levels(id) ON DELETE SET NULL,
@@ -38,7 +38,7 @@ CREATE TABLE public.org_top_levels (
 
 -- Org Units (Ex: Lojas, Filiais)
 CREATE TABLE public.org_units (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   parent_id UUID REFERENCES public.org_top_levels(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
@@ -96,7 +96,7 @@ CREATE TRIGGER on_auth_user_created
 -- ==========================================
 
 CREATE TABLE public.repositories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -115,7 +115,7 @@ CREATE TABLE public.repositories (
 );
 
 CREATE TABLE public.categories (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   repository_id UUID NOT NULL REFERENCES public.repositories(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   "order" INTEGER DEFAULT 0,
@@ -124,7 +124,7 @@ CREATE TABLE public.categories (
 );
 
 CREATE TABLE public.contents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   repository_id UUID NOT NULL REFERENCES public.repositories(id) ON DELETE CASCADE,
   category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
@@ -142,7 +142,7 @@ CREATE TABLE public.contents (
 );
 
 CREATE TABLE public.simple_links (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   repository_id UUID NOT NULL REFERENCES public.repositories(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -159,7 +159,7 @@ CREATE TABLE public.simple_links (
 -- ==========================================
 
 CREATE TABLE public.content_views (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   content_id UUID NOT NULL, -- Pode ser simple_links ou contents
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -171,7 +171,7 @@ CREATE TABLE public.content_views (
 );
 
 CREATE TABLE public.content_ratings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   content_id UUID NOT NULL,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,

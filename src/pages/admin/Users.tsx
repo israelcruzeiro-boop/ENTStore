@@ -36,6 +36,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { User, Content, SimpleLink, Repository } from '../../types';
+import { userSchema } from '../../types/schemas';
 import * as XLSX from 'xlsx';
 
 const isValidCPF = (cpf: string) => {
@@ -72,7 +73,7 @@ export const AdminUsers = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    name: '', email: '', cpf: '', password: '', role: 'USER' as 'ADMIN' | 'USER', active: true, org_unit_id: ''
+    name: '', email: '', cpf: '', role: 'USER' as 'ADMIN' | 'USER', active: true, org_unit_id: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -153,7 +154,7 @@ export const AdminUsers = () => {
 
   const openCreate = () => {
     setEditingId(null);
-    setFormData({ name: '', email: '', cpf: '', password: '', role: 'USER', active: true, org_unit_id: '' });
+    setFormData({ name: '', email: '', cpf: '', role: 'USER', active: true, org_unit_id: '' });
     setIsFormOpen(true);
   };
 
@@ -163,7 +164,6 @@ export const AdminUsers = () => {
       name: user.name, 
       email: user.email || '', 
       cpf: user.cpf || '', 
-      password: '', 
       role: user.role as 'ADMIN' | 'USER', 
       active: user.active !== false, 
       org_unit_id: user.org_unit_id || '' 
@@ -178,61 +178,55 @@ export const AdminUsers = () => {
 
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name) return toast.error('Nome é obrigatório.');
-    if (!editingId && !formData.password) return toast.error('A senha é obrigatória para novos usuários.');
-
-    const cleanCpf = formData.cpf.replace(/\D/g, '');
-
-    if (!formData.email && !cleanCpf) {
-       return toast.error('É obrigatório informar o E-mail ou o CPF.');
-    }
-
-    if (formData.email) {
-       const emailExists = users.some(u => u.email && u.email === formData.email && u.id !== editingId);
-       if (emailExists) return toast.error('Este e-mail já está em uso por outro usuário.');
-    }
-
-    if (cleanCpf) {
-       if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
-       const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== editingId);
-       if (cpfExists) return toast.error('Este CPF já está cadastrado no sistema.');
-    }
-
-    const generatedEmail = formData.email || `${cleanCpf}@storepage.com`;
-
-    const payload: Partial<User> & { password?: string } = {
-      name: formData.name,
-      email: generatedEmail,
-      cpf: cleanCpf || null,
-      role: formData.role,
-      active: formData.active,
-      org_unit_id: formData.org_unit_id || null,
-    };
+    setIsSubmitting(true);
 
     try {
-      setIsSubmitting(true);
+      const cleanCpf = formData.cpf.replace(/\D/g, '');
+      const generatedEmail = formData.email || (cleanCpf ? `${cleanCpf}@storepage.com` : '');
+
+      if (!generatedEmail) {
+        throw new Error('É obrigatório informar o E-mail ou o CPF.');
+      }
+
+      const payload = {
+        name: formData.name,
+        email: generatedEmail,
+        cpf: cleanCpf || null,
+        role: formData.role,
+        active: formData.active,
+        org_unit_id: formData.org_unit_id || null,
+        company_id: company.id
+      };
+
+      // Validação agressiva via Zod
+      const validation = editingId 
+        ? userSchema.partial().safeParse(payload)
+        : userSchema.safeParse(payload);
+
+      if (!validation.success) {
+        const errorMsg = "Dados inválidos: " + validation.error.errors.map(err => err.message).join(', ');
+        throw new Error(errorMsg);
+      }
+
       if (editingId) {
-        if (formData.password) {
-          payload.password = formData.password;
-        }
-        const { error } = await supabase.from('users').update(payload).eq('id', editingId);
+        const { error } = await supabase.from('users').update(validation.data).eq('id', editingId);
         if (error) throw error;
         toast.success('Usuário atualizado com sucesso!');
       } else {
         const { error } = await supabase.from('users').insert({
-          ...payload,
-          company_id: company.id,
-          password: formData.password,
+          ...validation.data,
           status: 'ACTIVE'
         });
         if (error) throw error;
         toast.success('Usuário criado com sucesso!');
       }
+      
       mutateUsers();
       handleCloseForm();
     } catch (err) {
       const error = err as Error;
-      toast.error(`Erro ao salvar usuário: ${error.message}`);
+      Logger.error('Erro ao salvar usuário:', error);
+      toast.error(error.message || 'Erro inesperado ao salvar usuário.');
     } finally {
       setIsSubmitting(false);
     }
@@ -245,12 +239,18 @@ export const AdminUsers = () => {
       } else {
          try {
            setIsSubmitting(true);
-           const { error } = await supabase.from('users').delete().eq('id', userToDelete.id);
+           // IMPLEMENTAÇÃO DE SOFT DELETE
+           const { error } = await supabase
+            .from('users')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', userToDelete.id);
+            
            if (error) throw error;
            mutateUsers();
-           toast.success('Usuário excluído.');
+           toast.success('Usuário removido da lista (Soft Delete).');
          } catch (err) {
            const error = err as Error;
+           Logger.error('Erro ao realizar soft delete de usuário:', error);
            toast.error(`Erro ao excluir usuário: ${error.message}`);
          } finally {
            setIsSubmitting(false);
@@ -359,12 +359,19 @@ export const AdminUsers = () => {
         name: row.nome,
         cpf: row.cpf,
         email: `${row.cpf}@storepage.com`,
-        password: '123456',
         role: 'USER' as const,
         status: 'PENDING_SETUP',
         first_access: true,
         active: true,
       }));
+
+      // Validação em lote via Zod
+      for (const u of newUsers) {
+        const v = userSchema.safeParse(u);
+        if (!v.success) {
+          throw new Error(`Dados inválidos para ${u.name}: ${v.error.errors.map(e => e.message).join(', ')}`);
+        }
+      }
 
       const { error } = await supabase.from('users').insert(newUsers);
       if (error) throw error;
@@ -374,6 +381,7 @@ export const AdminUsers = () => {
       handleCloseImport();
     } catch (err) {
       const error = err as Error;
+      Logger.error('Erro na importação em lote:', error);
       toast.error(`Erro na importação: ${error.message}`);
     } finally {
       setIsSubmitting(false);
@@ -710,9 +718,9 @@ export const AdminUsers = () => {
                </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>{editingId ? 'Nova Senha (deixe em branco para manter a atual)' : 'Senha *'}</Label>
-              <Input type="text" placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} disabled={isSubmitting} />
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex gap-3 text-amber-800 text-xs">
+              <AlertCircle className="shrink-0" size={16} />
+              <p>O acesso é realizado via <strong>CPF (apenas números)</strong> ou E-mail. Senhas são gerenciadas pelo sistema de autenticação segura.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

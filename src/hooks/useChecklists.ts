@@ -11,6 +11,15 @@ import {
 
 // ============================================================================
 
+import { 
+  checklistSubmissionSchema, 
+  checklistAnswerSchema,
+  checklistFolderSchema,
+  checklistSchema,
+  checklistSectionSchema,
+  checklistQuestionSchema
+} from '../types/schemas';
+
 /**
  * Hook para buscar checklists disponíveis para a empresa.
  */
@@ -19,7 +28,7 @@ export function useChecklists(companyId?: string) {
     companyId ? `checklists_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklists')
-      .select('*')
+      .select('id, company_id, folder_id, title, description, access_type, status, created_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
     )
@@ -41,7 +50,7 @@ export function useChecklistFolders(companyId?: string) {
     companyId ? `checklist_folders_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklist_folders')
-      .select('*')
+      .select('id, company_id, name, color, order_index, created_at')
       .eq('company_id', companyId)
       .order('order_index', { ascending: true })
     )
@@ -63,7 +72,7 @@ export function useChecklistQuestions(checklistId?: string) {
     checklistId ? `checklist_questions_${checklistId}` : null,
     () => fetcher(() => supabase
       .from('checklist_questions')
-      .select('*')
+      .select('id, checklist_id, section_id, text, type, required, order_index, description, config')
       .eq('checklist_id', checklistId)
       .order('order_index', { ascending: true })
     )
@@ -105,7 +114,7 @@ export function useChecklistSections(checklistId?: string) {
     checklistId ? `checklist_sections_${checklistId}` : null,
     () => fetcher(() => supabase
       .from('checklist_sections')
-      .select('*')
+      .select('id, checklist_id, title, description, order_index')
       .eq('checklist_id', checklistId)
       .order('order_index', { ascending: true })
     )
@@ -127,7 +136,7 @@ export function useChecklistSubmission(submissionId?: string) {
     submissionId ? `submission_${submissionId}` : null,
     () => fetcher(() => supabase
       .from('checklist_submissions')
-      .select('*, checklist:checklists(title)')
+      .select('id, checklist_id, user_id, company_id, org_unit_id, status, started_at, completed_at, checklist:checklists(title)')
       .eq('id', submissionId)
       .single()
     ),
@@ -153,7 +162,7 @@ export function useChecklistAnswers(submissionId?: string) {
     submissionId ? `answers_${submissionId}` : null,
     () => fetcher(() => supabase
       .from('checklist_answers')
-      .select('*')
+      .select('id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status')
       .eq('submission_id', submissionId)
     ),
     {
@@ -178,7 +187,7 @@ export function useUserSubmissions(userId?: string, companyId?: string) {
     userId && companyId ? `user_submissions_${userId}_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklist_submissions')
-      .select('*')
+      .select('id, checklist_id, user_id, company_id, status, started_at, completed_at')
       .eq('user_id', userId)
       .eq('company_id', companyId)
       .eq('status', 'IN_PROGRESS')
@@ -201,7 +210,7 @@ export function useAllSubmissions(companyId?: string) {
     companyId ? `all_submissions_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklist_submissions')
-      .select('*')
+      .select('id, checklist_id, user_id, company_id, status, created_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
     )
@@ -239,7 +248,7 @@ export function useAllAnswers(companyId?: string) {
       // Para dashboards muito grandes (>1000 submissões), pode ser necessário paginar ou usar RPC.
       const { data: answers, error: ansErr } = await supabase
         .from('checklist_answers')
-        .select('*')
+        .select('id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status')
         .in('submission_id', submissionIds);
       
       if (ansErr) throw ansErr;
@@ -281,7 +290,7 @@ export function useAllActionPlans(companyId?: string) {
       return supabase
         .from('checklist_answers')
         .select(`
-          *,
+          id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status, created_at,
           checklist_submissions!inner(
             id, status, checklist_id, user_id, company_id, created_at,
             checklists(title)
@@ -375,7 +384,7 @@ export const checklistActions = {
     // 1. Verifica se já existe uma em progresso
     const { data: existing } = await supabase
       .from('checklist_submissions')
-      .select('*')
+      .select('id, checklist_id, user_id, status')
       .eq('checklist_id', checklistId)
       .eq('user_id', userId)
       .eq('status', 'IN_PROGRESS')
@@ -383,17 +392,24 @@ export const checklistActions = {
 
     if (existing) return existing;
 
+    // Validação com Zod
+    const validation = checklistSubmissionSchema.safeParse({
+      checklist_id: checklistId,
+      user_id: userId,
+      company_id: companyId,
+      org_unit_id: orgUnitId,
+      status: 'IN_PROGRESS'
+    });
+
+    if (!validation.success) {
+      throw new Error("Dados de submissão inválidos: " + validation.error.message);
+    }
+
     // 2. Cria uma nova
     const { data: created, error } = await supabase
       .from('checklist_submissions')
-      .insert({
-        checklist_id: checklistId,
-        user_id: userId,
-        company_id: companyId,
-        org_unit_id: orgUnitId,
-        status: 'IN_PROGRESS'
-      })
-      .select()
+      .insert(validation.data)
+      .select('id')
       .single();
 
     if (error) throw error;
@@ -433,9 +449,15 @@ export const checklistActions = {
       payload.action_plan_status = 'PENDING';
     }
 
+    // Validação com Zod
+    const validation = checklistAnswerSchema.safeParse(payload);
+    if (!validation.success) {
+      throw new Error("Dados de resposta inválidos: " + validation.error.message);
+    }
+
     const { error } = await supabase
       .from('checklist_answers')
-      .upsert(payload, {
+      .upsert(validation.data, {
         onConflict: 'submission_id,question_id'
       });
 
@@ -477,9 +499,12 @@ export const checklistActions = {
    */
 
   async createFolder(data: Partial<ChecklistFolder>) {
+    const validation = checklistFolderSchema.safeParse(data);
+    if (!validation.success) throw new Error("Dados da pasta inválidos: " + validation.error.message);
+
     const { data: created, error } = await supabase
       .from('checklist_folders')
-      .insert(data)
+      .insert(validation.data)
       .select()
       .single();
 
@@ -488,9 +513,12 @@ export const checklistActions = {
   },
 
   async updateFolder(id: string, data: Partial<ChecklistFolder>) {
+    const validation = checklistFolderSchema.partial().safeParse(data);
+    if (!validation.success) throw new Error("Dados de atualização da pasta inválidos: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklist_folders')
-      .update(data)
+      .update(validation.data)
       .eq('id', id);
 
     if (error) throw error;
@@ -522,9 +550,12 @@ export const checklistActions = {
    */
 
   async createChecklist(data: Partial<Checklist>) {
+    const validation = checklistSchema.safeParse(data);
+    if (!validation.success) throw new Error("Dados do checklist inválidos: " + validation.error.message);
+
     const { data: created, error } = await supabase
       .from('checklists')
-      .insert(data)
+      .insert(validation.data)
       .select()
       .single();
 
@@ -533,9 +564,12 @@ export const checklistActions = {
   },
 
   async updateChecklist(id: string, data: Partial<Checklist>) {
+    const validation = checklistSchema.partial().safeParse(data);
+    if (!validation.success) throw new Error("Dados de atualização do checklist inválidos: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklists')
-      .update(data)
+      .update(validation.data)
       .eq('id', id);
 
     if (error) throw error;
@@ -555,9 +589,13 @@ export const checklistActions = {
    */
 
   async createSection(checklistId: string, title: string, orderIndex: number) {
+    const payload = { checklist_id: checklistId, title, order_index: orderIndex };
+    const validation = checklistSectionSchema.safeParse(payload);
+    if (!validation.success) throw new Error("Dados da seção inválidos: " + validation.error.message);
+
     const { data: created, error } = await supabase
       .from('checklist_sections')
-      .insert({ checklist_id: checklistId, title, order_index: orderIndex })
+      .insert(validation.data)
       .select()
       .single();
 
@@ -566,9 +604,12 @@ export const checklistActions = {
   },
 
   async updateSection(id: string, data: Partial<ChecklistSection>) {
+    const validation = checklistSectionSchema.partial().safeParse(data);
+    if (!validation.success) throw new Error("Dados de atualização da seção inválidos: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklist_sections')
-      .update(data)
+      .update(validation.data)
       .eq('id', id);
 
     if (error) throw error;
@@ -588,9 +629,12 @@ export const checklistActions = {
    */
 
   async createQuestion(data: Partial<ChecklistQuestion>) {
+    const validation = checklistQuestionSchema.safeParse(data);
+    if (!validation.success) throw new Error("Dados da pergunta inválidos: " + validation.error.message);
+
     const { data: created, error } = await supabase
       .from('checklist_questions')
-      .insert(data)
+      .insert(validation.data)
       .select()
       .single();
 
@@ -599,9 +643,12 @@ export const checklistActions = {
   },
 
   async updateQuestion(id: string, data: Partial<ChecklistQuestion>) {
+    const validation = checklistQuestionSchema.partial().safeParse(data);
+    if (!validation.success) throw new Error("Dados de atualização da pergunta inválidos: " + validation.error.message);
+
     const { error } = await supabase
       .from('checklist_questions')
-      .update(data)
+      .update(validation.data)
       .eq('id', id);
 
     if (error) throw error;
@@ -694,7 +741,7 @@ export function useChecklistDetailedAnswers(companyId?: string) {
       // 1. Buscamos todas as submissões finalizadas da empresa
       const { data: subs, error: subErr } = await supabase
         .from('checklist_submissions')
-        .select('*')
+        .select('id, company_id, status, user_id, checklist_id, org_unit_id, created_at, completed_at')
         .eq('company_id', companyId)
         .eq('status', 'COMPLETED');
       
@@ -707,7 +754,7 @@ export function useChecklistDetailedAnswers(companyId?: string) {
       const { data: answers, error: ansErr } = await supabase
         .from('checklist_answers')
         .select(`
-          *,
+          id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status, created_at,
           checklist_questions(text, type, section_id, checklist_id)
         `)
         .in('submission_id', submissionIds);
@@ -758,7 +805,7 @@ export function useUserChecklistHistory(userId?: string, companyId?: string) {
     userId && companyId ? `user_cl_history_${userId}_${companyId}` : null,
     () => fetcher(() => supabase
       .from('checklist_submissions')
-      .select('*, checklists(title)')
+      .select('id, checklist_id, user_id, company_id, status, started_at, completed_at, created_at, checklists(title)')
       .eq('user_id', userId)
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })

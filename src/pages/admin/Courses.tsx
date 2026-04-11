@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'sonner';
+import { courseSchema } from '../../types/schemas';
+import { Logger } from '../../utils/logger';
 
 export const AdminCourses = () => {
   const { companySlug } = useParams();
@@ -33,13 +35,18 @@ export const AdminCourses = () => {
     
     setIsSubmitting(true);
     try {
-      const { data, error } = await supabase.from('courses').insert({
+      const payload = {
         company_id: company.id,
         title: newCourse.title,
         description: newCourse.description,
         thumbnail_url: newCourse.thumbnail_url,
-        status: 'DRAFT'
-      }).select().single();
+        status: 'DRAFT' as const
+      };
+
+      const validation = courseSchema.safeParse(payload);
+      if (!validation.success) throw new Error("Dados inválidos");
+
+      const { data, error } = await supabase.from('courses').insert(validation.data).select('id').single();
 
       if (error) throw error;
 
@@ -50,10 +57,10 @@ export const AdminCourses = () => {
       
       // Navegar para o construtor de módulos
       navigate(`/admin/${companySlug}/courses/${data.id}`);
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        toast.error("Erro ao criar curso: " + error.message);
-      }
+    } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao criar curso:", error);
+      toast.error(error.message || "Erro inesperado ao criar curso.");
     } finally {
       setIsSubmitting(false);
     }

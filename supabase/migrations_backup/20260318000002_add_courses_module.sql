@@ -4,7 +4,7 @@
 
 -- 1. Tabela de Cursos
 CREATE TABLE IF NOT EXISTS public.courses (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
 
 -- 2. Tabela de Módulos
 CREATE TABLE IF NOT EXISTS public.course_modules (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   order_index INTEGER DEFAULT 0,
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.course_modules (
 
 -- 3. Tabela de Conteúdos do Curso (Aulas)
 CREATE TABLE IF NOT EXISTS public.course_contents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
   module_id UUID NOT NULL REFERENCES public.course_modules(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
