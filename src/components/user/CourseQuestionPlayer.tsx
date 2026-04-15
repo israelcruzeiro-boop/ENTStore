@@ -15,6 +15,7 @@ interface CourseQuestionPlayerProps {
   primaryColor?: string | null;
   onComplete: (correct: number, total: number, answers: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>) => void;
   initialAnswers?: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>;
+  reviewMode?: boolean;
 }
 
 export function CourseQuestionPlayer({ 
@@ -23,7 +24,8 @@ export function CourseQuestionPlayer({
   courseThumbnail, 
   primaryColor, 
   onComplete, 
-  initialAnswers = {} 
+  initialAnswers = {},
+  reviewMode = false
 }: CourseQuestionPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentQuestion = questions[currentIndex];
@@ -31,8 +33,8 @@ export function CourseQuestionPlayer({
   const preAnswered = initialAnswers[currentQuestion?.id];
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(preAnswered?.optionId || null);
   const [complexAnswer, setComplexAnswer] = useState<any>(preAnswered?.complexAnswer || null);
-  const [isAnswered, setIsAnswered] = useState(!!preAnswered);
-  const [answersMap, setAnswersMap] = useState<Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>>(initialAnswers);
+  const [isAnswered, setIsAnswered] = useState(!!preAnswered || reviewMode);
+  const [answersMap, setAnswersMap] = useState<Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>>(reviewMode ? initialAnswers : initialAnswers);
 
   if (questions.length === 0) return null;
 
@@ -43,9 +45,9 @@ export function CourseQuestionPlayer({
     setCurrentIndex(newIndex);
     const qId = questions[newIndex].id;
     const existing = answersMap[qId];
-    if (existing) {
-      setSelectedOptionId(existing.optionId || null);
-      setComplexAnswer(existing.complexAnswer || null);
+    if (existing || reviewMode) {
+      setSelectedOptionId(existing?.optionId || null);
+      setComplexAnswer(existing?.complexAnswer || null);
       setIsAnswered(true);
     } else {
       setSelectedOptionId(null);
@@ -102,9 +104,15 @@ export function CourseQuestionPlayer({
   const handleNext = () => {
     if (currentIndex < questions.length - 1) {
       handleCurrentQuestionChange(currentIndex + 1);
-    } else {
+    } else if (!reviewMode) {
       const finalCorrect = Object.values(answersMap).filter(a => a.isCorrect).length;
       onComplete(finalCorrect, questions.length, answersMap);
+    }
+  };
+
+  const handlePreviousQuestion = () => {
+    if (currentIndex > 0) {
+      handleCurrentQuestionChange(currentIndex - 1);
     }
   };
 
@@ -230,8 +238,29 @@ export function CourseQuestionPlayer({
         )}
       </CardContent>
 
-      <CardFooter className="pt-2 pb-8 flex flex-col items-center">
-        {!isAnswered ? (
+      <CardFooter className="pt-2 pb-8 flex flex-col items-center gap-3">
+        {reviewMode ? (
+          <div className="w-full flex gap-3">
+            <Button 
+              variant="outline" 
+              className="flex-1 bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10 h-12 rounded-xl disabled:opacity-30" 
+              onClick={handlePreviousQuestion} 
+              disabled={currentIndex === 0}
+            >
+              <ChevronRight className="w-5 h-5 mr-1 rotate-180" /> Anterior
+            </Button>
+            {currentIndex < questions.length - 1 ? (
+              <Button className="flex-1 bg-white text-black hover:bg-white/90 h-12 font-bold group rounded-xl" onClick={handleNext}>
+                Próxima Questão
+                <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            ) : (
+              <div className="flex-1 flex items-center justify-center h-12 bg-white/5 rounded-xl border border-white/10 text-white/40 text-sm font-bold">
+                Última Questão
+              </div>
+            )}
+          </div>
+        ) : !isAnswered ? (
           <Button 
             className="w-full text-black hover:opacity-90 h-12 text-lg font-bold transition-transform active:scale-95 disabled:opacity-50" 
             style={isCurrentValid() ? { backgroundColor: primaryColor || '#ffffff', color: '#000' } : { backgroundColor: '#ffffff', color: '#000' }}

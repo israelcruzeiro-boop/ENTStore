@@ -1,4 +1,4 @@
-import { Trophy, Clock, Target, BarChart3, CheckCircle2, XCircle, Printer, ArrowLeft } from 'lucide-react';
+import { Trophy, Clock, Target, BarChart3, CheckCircle2, XCircle, Printer, ArrowLeft, Eye } from 'lucide-react';
 import { Button } from '../ui/button';
 import { CourseEnrollment } from '../../types';
 
@@ -8,12 +8,13 @@ interface CourseResultScreenProps {
   passingScore: number;
   onGoHome: () => void;
   onPrintDiploma?: () => void;
+  onReviewQuestions?: () => void;
   // Dados locais (fallback quando enrollment é null)
   localCorrect?: number;
   localTotal?: number;
 }
 
-export function CourseResultScreen({ enrollment, courseTitle, passingScore, onGoHome, onPrintDiploma, localCorrect = 0, localTotal = 0 }: CourseResultScreenProps) {
+export function CourseResultScreen({ enrollment, courseTitle, passingScore, onGoHome, onPrintDiploma, onReviewQuestions, localCorrect = 0, localTotal = 0 }: CourseResultScreenProps) {
   // Usa dados do enrollment se disponível, senão usa dados locais
   const totalCorrect = enrollment?.total_correct ?? localCorrect;
   const totalQuestionsVal = enrollment?.total_questions ?? localTotal;
@@ -115,6 +116,15 @@ export function CourseResultScreen({ enrollment, courseTitle, passingScore, onGo
               >
                 <Printer className="w-5 h-5" />
                 Imprimir Diploma
+              </Button>
+            )}
+            {onReviewQuestions && (
+              <Button
+                onClick={onReviewQuestions}
+                className="w-full bg-gradient-to-r from-blue-500/20 to-blue-600/20 hover:from-blue-500/30 hover:to-blue-600/30 text-blue-300 font-bold border border-blue-500/30 h-12 rounded-xl gap-3"
+              >
+                <Eye className="w-5 h-5" />
+                Revisar Questões e Respostas
               </Button>
             )}
             <Button

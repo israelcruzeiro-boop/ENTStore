@@ -33,7 +33,8 @@ import {
   Menu,
   BookOpen,
   Trophy,
-  Zap
+  Zap,
+  Eye
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -43,6 +44,7 @@ import { LMSMentor } from '../../components/user/LMSMentor';
 import { Viewer } from '../../components/user/Viewer';
 import { CourseQuestionPlayer } from '../../components/user/CourseQuestionPlayer';
 import { CourseResultScreen } from '../../components/user/CourseResultScreen';
+import type { Content } from '../../types';
 import { printDiploma, type DiplomaTemplateId } from '../../components/user/CourseDiploma';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -123,6 +125,7 @@ export const UserCoursePlayer = () => {
   const [showNav, setShowNav] = useState(false);
   const [showPhaseQuestions, setShowPhaseQuestions] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
   
   // Enrollment (matrícula e tracking)
   const { enrollment, mutate: mutateEnrollment } = useCourseEnrollment(courseId, user?.id);
@@ -163,12 +166,12 @@ export const UserCoursePlayer = () => {
     }
   }, [courseId, user?.id, course?.company_id, enrollment, mutateEnrollment]);
 
-  // Se enrollment já está completed, mostra resultado
+  // Se enrollment já está completed, mostra resultado (mas não se estiver em modo revisão)
   useEffect(() => {
-    if (enrollment?.status === 'COMPLETED') {
+    if (enrollment?.status === 'COMPLETED' && !isReviewMode) {
       setShowResult(true);
     }
-  }, [enrollment]);
+  }, [enrollment, isReviewMode]);
 
   // Recuperação de Progresso Salvo
   useEffect(() => {
@@ -184,6 +187,14 @@ export const UserCoursePlayer = () => {
       } else if (activeModuleContents.length > 0 && !activeContentId) {
         setActiveContentId(activeModuleContents[0].id);
       }
+    } else if (isReviewMode) {
+      // Em modo revisão, começar do primeiro módulo
+      if (modules.length > 0 && !activeModuleId) {
+        setActiveModuleId(modules[0].id);
+      }
+      if (activeModuleContents.length > 0 && !activeContentId) {
+        setActiveContentId(activeModuleContents[0].id);
+      }
     } else {
       if (modules.length > 0 && !activeModuleId) {
         setActiveModuleId(modules[0].id);
@@ -192,7 +203,34 @@ export const UserCoursePlayer = () => {
         setActiveContentId(activeModuleContents[0].id);
       }
     }
-  }, [enrollment, modules, activeModuleContents, activeModuleId, activeContentId]);
+  }, [enrollment, modules, activeModuleContents, activeModuleId, activeContentId, isReviewMode]);
+
+  // Direcionamento automático para perguntas pendentes em cursos em andamento
+  useEffect(() => {
+    if (
+      enrollment?.status === 'IN_PROGRESS' &&
+      activeModuleId &&
+      activeModuleContents.length > 0 &&
+      activeContentId &&
+      moduleQuestions.length > 0 &&
+      savedAnswers &&
+      !showPhaseQuestions
+    ) {
+      // Verificar se é o último conteúdo do módulo atual
+      const lastContent = activeModuleContents[activeModuleContents.length - 1];
+      if (activeContentId === lastContent?.id) {
+        // Verificar quais questões do módulo atual já foram respondidas
+        const moduleQuestionIds = moduleQuestions.map(q => q.id);
+        const answeredIds = savedAnswers.filter(a => moduleQuestionIds.includes(a.question_id)).map(a => a.question_id);
+        const hasPendingQuestions = moduleQuestionIds.some(qId => !answeredIds.includes(qId));
+        
+        if (hasPendingQuestions) {
+          // Há perguntas não respondidas neste módulo — ir direto para elas
+          setShowPhaseQuestions(true);
+        }
+      }
+    }
+  }, [enrollment?.status, activeModuleId, activeModuleContents, activeContentId, moduleQuestions, savedAnswers, showPhaseQuestions]);
 
   // Salvar Progresso sempre que mudar de módulo ou conteúdo
   useEffect(() => {
@@ -238,12 +276,12 @@ export const UserCoursePlayer = () => {
         setActiveModuleId(modules[modIdx + 1].id);
         setActiveContentId(null);
         setShowPhaseQuestions(false);
-      } else {
-        // Curso sem perguntas na última fase — finaliza direto
+      } else if (!isReviewMode) {
+        // Curso sem perguntas na última fase — finaliza direto (só em modo normal)
         finishCourse(totalCorrect, totalQuestions);
       }
     }
-  }, [activeModuleContents, activeContentId, modules, activeModuleId, moduleQuestions, showPhaseQuestions, totalCorrect, totalQuestions, finishCourse]);
+  }, [activeModuleContents, activeContentId, modules, activeModuleId, moduleQuestions, showPhaseQuestions, totalCorrect, totalQuestions, finishCourse, isReviewMode]);
 
   const handlePrevious = () => {
     if (showPhaseQuestions) {
@@ -254,6 +292,14 @@ export const UserCoursePlayer = () => {
     if (currentIndex > 0) {
       setActiveContentId(activeModuleContents[currentIndex - 1].id);
       setShowPhaseQuestions(false);
+    } else if (isReviewMode) {
+      // Em review mode, voltar para o módulo anterior
+      const modIdx = modules.findIndex(m => m.id === activeModuleId);
+      if (modIdx > 0) {
+        setActiveModuleId(modules[modIdx - 1].id);
+        setActiveContentId(null);
+        setShowPhaseQuestions(false);
+      }
     }
   };
 
@@ -354,7 +400,7 @@ export const UserCoursePlayer = () => {
   }
 
   // Tela de Resultado
-  if (showResult || enrollment?.status === 'COMPLETED') {
+  if ((showResult || enrollment?.status === 'COMPLETED') && !isReviewMode) {
     const scoreForDiploma = enrollment?.score_percent ?? (totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 100);
     
     // Objeto de fallback local caso o salvamento remoto do status COMPLETED atrase
@@ -372,6 +418,13 @@ export const UserCoursePlayer = () => {
         onGoHome={() => navigate(`/${companySlug}/home`)}
         localCorrect={totalCorrect}
         localTotal={totalQuestions}
+        onReviewQuestions={(finalEnrollment?.total_questions ?? totalQuestions) > 0 ? () => {
+          setIsReviewMode(true);
+          setShowResult(false);
+          setActiveModuleId(null);
+          setActiveContentId(null);
+          setShowPhaseQuestions(false);
+        } : undefined}
         onPrintDiploma={scoreForDiploma >= (course?.passing_score || 70) ? () => {
           const w = printDiploma(
             user?.name || 'Aluno',
@@ -388,6 +441,25 @@ export const UserCoursePlayer = () => {
       />
     );
   }
+
+  // Helper: Adaptar CourseContent para a interface Content (necessário para o Viewer)
+  const adaptContentForViewer = (cc: typeof currentContent): Content | null => {
+    if (!cc) return null;
+    return {
+      id: cc.id,
+      company_id: course?.company_id || '',
+      repository_id: '',
+      title: cc.title,
+      description: cc.description || '',
+      thumbnail_url: '',
+      type: cc.type === 'AUDIO' ? 'MUSIC' : cc.type as Content['type'],
+      url: cc.url,
+      embed_url: cc.url, // Garante que embed_url sempre existe para o Viewer
+      featured: false,
+      recent: false,
+      status: 'ACTIVE',
+    };
+  };
 
   return (
     <div 
@@ -406,12 +478,28 @@ export const UserCoursePlayer = () => {
           {/* Top bar */}
           <div className="flex items-center justify-between mb-3">
             <button 
-              onClick={() => navigate(`/${companySlug}/home`)} 
+              onClick={() => {
+                if (isReviewMode) {
+                  setIsReviewMode(false);
+                  setShowResult(true);
+                  setActiveModuleId(null);
+                  setActiveContentId(null);
+                  setShowPhaseQuestions(false);
+                } else {
+                  navigate(`/${companySlug}/home`);
+                }
+              }} 
               className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors active:scale-95"
             >
               <ArrowLeft size={18} />
-              <span className="text-xs font-medium hidden sm:inline">Voltar</span>
+              <span className="text-xs font-medium hidden sm:inline">{isReviewMode ? 'Voltar ao Resultado' : 'Voltar'}</span>
             </button>
+            {isReviewMode && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
+                <Eye size={12} className="text-blue-400" />
+                <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">Modo Revisão</span>
+              </div>
+            )}
 
             <div className="flex items-center gap-3">
               {/* Barra Circular de Progresso */}
@@ -517,7 +605,8 @@ export const UserCoursePlayer = () => {
             {activeModuleContents.map((c, idx) => {
               const isActive = activeContentId === c.id && !showPhaseQuestions;
               const isCompleted = idx < currentContentIndex;
-              const isLocked = idx > currentContentIndex; // Bloquear o clique em aulas ainda não iniciadas
+              // Em review mode, tudo é acessível; caso contrário, bloquear aulas futuras
+              const isLocked = !isReviewMode && idx > currentContentIndex;
 
               return (
                 <button
@@ -533,12 +622,12 @@ export const UserCoursePlayer = () => {
                   className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${!isLocked ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
                     isActive
                       ? 'text-white shadow-lg scale-105'
-                      : isCompleted 
+                      : isCompleted || isReviewMode
                         ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
                         : 'bg-white/[0.04] text-white/40 border border-white/[0.06] hover:bg-white/[0.08] hover:text-white/60'
                   }`}
                 >
-                  {isCompleted ? (
+                  {isCompleted || isReviewMode ? (
                     <CheckCircle2 size={13} />
                   ) : (
                     <span className={`${isActive ? 'text-white/80' : ''}`}>{getContentIcon(c.type, 13)}</span>
@@ -547,19 +636,27 @@ export const UserCoursePlayer = () => {
                 </button>
               );
             })}
-            {moduleQuestions.length > 0 && (
-              <button
-                onClick={() => { setShowPhaseQuestions(true); }}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 active:scale-95 ${
-                  showPhaseQuestions
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
-                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
-                }`}
-              >
-                <HelpCircle size={13} />
-                <span>{moduleQuestions.length} Perguntas</span>
-              </button>
-            )}
+            {moduleQuestions.length > 0 && (() => {
+              // Em review mode ou quando o usuário está no último conteúdo, permitir acesso às perguntas
+              const isLastContent = currentContentIndex >= activeModuleContents.length - 1;
+              const canAccessQuestions = isReviewMode || isLastContent;
+              return (
+                <button
+                  onClick={() => { if (canAccessQuestions) setShowPhaseQuestions(true); }}
+                  disabled={!canAccessQuestions}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${canAccessQuestions ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
+                    showPhaseQuestions
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                      : canAccessQuestions
+                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20'
+                        : 'bg-white/[0.04] text-white/30 border border-white/[0.06]'
+                  }`}
+                >
+                  <HelpCircle size={13} />
+                  <span>{moduleQuestions.length} Perguntas</span>
+                </button>
+              );
+            })()}
           </div>
 
           {/* ===== CONTEÚDO / PERGUNTAS ===== */}
@@ -579,7 +676,12 @@ export const UserCoursePlayer = () => {
                   primaryColor={tenantCompany?.primary_color}
                   courseThumbnail={coverUrl}
                   onComplete={handlePhaseQuestionsComplete}
-                  initialAnswers={savedAnswers ? Object.fromEntries(savedAnswers.map(a => [a.question_id, { optionId: a.selected_option_id, isCorrect: a.is_correct }])) : undefined}
+                  reviewMode={isReviewMode}
+                  initialAnswers={savedAnswers ? Object.fromEntries(
+                    savedAnswers
+                      .filter(a => moduleQuestions.some(q => q.id === a.question_id))
+                      .map(a => [a.question_id, { optionId: a.selected_option_id, complexAnswer: a.complex_answer, isCorrect: a.is_correct }])
+                  ) : undefined}
                 />
               ) : currentContent ? (
                 <div className="space-y-6">
@@ -616,7 +718,7 @@ export const UserCoursePlayer = () => {
                     </div>
                   ) : (
                     <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.08] ring-1 ring-white/5 bg-black/20">
-                      <Viewer content={currentContent} />
+                      <Viewer content={adaptContentForViewer(currentContent) as Content} />
                     </div>
                   )}
                   
@@ -671,13 +773,19 @@ export const UserCoursePlayer = () => {
                     ) : (
                       <Button
                         onClick={handleNext}
-                        className="h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] animate-pulse"
+                        className={`h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] ${isReviewMode ? '' : 'animate-pulse'}`}
                         style={{ 
-                          backgroundColor: moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff'),
-                          '--primary-glow': (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff')) + '40'
+                          backgroundColor: isReviewMode 
+                            ? (tenantCompany?.primary_color || '#ffffff')
+                            : (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff')),
+                          '--primary-glow': (isReviewMode 
+                            ? (tenantCompany?.primary_color || '#ffffff')
+                            : (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff'))) + '40'
                         } as any}
                       >
-                        {moduleQuestions.length > 0 ? 'Iniciar Quiz' : 'Concluir Fase'} 
+                        {isReviewMode 
+                          ? (moduleQuestions.length > 0 ? 'Ver Perguntas' : 'Próxima Fase')
+                          : (moduleQuestions.length > 0 ? 'Iniciar Quiz' : 'Concluir Fase')} 
                         <ChevronRight className="ml-2" size={20} />
                       </Button>
                     )}
