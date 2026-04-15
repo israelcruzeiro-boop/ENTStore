@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Logger } from '../../utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
@@ -26,6 +26,25 @@ import {
   checklistActions 
 } from '../../hooks/useChecklists';
 import { Checklist, ChecklistSection, ChecklistQuestion } from '../../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose
+} from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const ChecklistBuilder = () => {
   const { checklistId, companySlug } = useParams();
@@ -122,6 +141,15 @@ export const ChecklistBuilder = () => {
       mutateSections();
     } catch (err) {
        Logger.error("Erro ao atualizar seção", err);
+    }
+  };
+
+  const updateQuestionConfig = async (id: string, config: any) => {
+    try {
+      await checklistActions.updateQuestion(id, { config });
+      mutateQuestions();
+    } catch (err) {
+       Logger.error("Erro ao atualizar config", err);
     }
   };
 
@@ -284,9 +312,9 @@ export const ChecklistBuilder = () => {
                   <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-black">
                     {section.order_index + 1}
                   </div>
-                  <Input 
-                    value={section.title} 
-                    onChange={(e) => updateSectionTitle(section.id, e.target.value)}
+                  <DebouncedInput
+                    value={section.title}
+                    onSave={(val) => updateSectionTitle(section.id, val)}
                     className="text-xl font-black bg-transparent border-none focus:ring-0 p-0 text-slate-900 max-w-md"
                   />
                 </div>
@@ -305,6 +333,7 @@ export const ChecklistBuilder = () => {
                     onDelete={handleDeleteQuestion}
                     onUpdateText={updateQuestionText}
                     onUpdateType={updateQuestionType}
+                    onUpdateConfig={updateQuestionConfig}
                     onDragStart={onDragStart}
                     onDragOver={onDragOver}
                     onDrop={onDrop}
@@ -350,12 +379,59 @@ export const ChecklistBuilder = () => {
   );
 };
 
+// Input com debounce para evitar chamadas API a cada tecla
+const DebouncedInput = ({ value: externalValue, onSave, className }: {
+  value: string;
+  onSave: (value: string) => void;
+  className?: string;
+}) => {
+  const [localValue, setLocalValue] = useState(externalValue);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isTypingRef.current) {
+      setLocalValue(externalValue);
+    }
+  }, [externalValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    isTypingRef.current = true;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      onSave(newValue);
+    }, 600);
+  };
+
+  const handleBlur = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    isTypingRef.current = false;
+    if (localValue !== externalValue) {
+      onSave(localValue);
+    }
+  };
+
+  return (
+    <Input
+      value={localValue}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+};
+
 // Componente Interno para o Item da Pergunta
-const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onDragStart, onDragOver, onDrop }: {
+const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdateConfig, onDragStart, onDragOver, onDrop }: {
   question: ChecklistQuestion;
   onDelete: (id: string) => void;
   onUpdateText: (id: string, text: string) => void;
   onUpdateType: (id: string, value: string) => void;
+  onUpdateConfig: (id: string, config: any) => void;
   onDragStart: (e: React.DragEvent, item: Record<string, unknown>, type: 'section' | 'question') => void;
   onDragOver: (e: React.DragEvent, sectionId?: string, questionId?: string) => void;
   onDrop: (e: React.DragEvent, targetSectionId?: string, targetQuestionId?: string) => void;
@@ -380,9 +456,9 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onDragSt
       </div>
 
       <div className="flex-1 space-y-1" onMouseDown={() => setIsDraggable(false)}>
-        <Input 
-          value={question.text} 
-          onChange={(e) => onUpdateText(question.id, e.target.value)}
+        <DebouncedInput
+          value={question.text}
+          onSave={(val) => onUpdateText(question.id, val)}
           className="bg-transparent border-none focus:ring-0 p-0 font-bold text-slate-700 h-auto"
         />
         <div className="flex items-center gap-3">
@@ -404,6 +480,73 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onDragSt
       </div>
 
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-blue-600">
+              <Settings2 size={16} />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings2 className="text-blue-500" size={20} />
+                Configurações da Pergunta
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              <div className="space-y-4">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Controle de Evidências (Fotos)</h4>
+                
+                {['DATE', 'TIME'].includes(question.type) ? (
+                  <p className="text-xs text-slate-500 italic">Este tipo de pergunta não suporta anexos de foto.</p>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-bold">Exigir Foto</Label>
+                        <p className="text-xs text-slate-500">Obriga o usuário a anexar pelo menos uma foto.</p>
+                      </div>
+                      <Switch 
+                        checked={question.config?.photo_required || false}
+                        onCheckedChange={(checked) => onUpdateConfig(question.id, { ...question.config, photo_required: checked })}
+                      />
+                    </div>
+
+                    {question.config?.photo_required && (
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Política de Obrigatoriedade</Label>
+                        <Select 
+                          value={question.config?.photo_policy || 'OPTIONAL'} 
+                          onValueChange={(val) => onUpdateConfig(question.id, { ...question.config, photo_policy: val })}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Selecione a regra..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALWAYS">Deverá ter foto sempre</SelectItem>
+                            <SelectItem value="NON_COMPLIANCE">Somente se estiver inconforme (NC/Pai)</SelectItem>
+                            <SelectItem value="OPTIONAL">Opcional (Usa obrigatoriedade padrão se ativa)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {question.type !== 'COMPLIANCE' && question.config?.photo_policy === 'NON_COMPLIANCE' && (
+                          <p className="text-[10px] text-amber-600 font-medium italic">Aviso: A regra de inconformidade funciona melhor em perguntas do tipo "Conformidade".</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button className="w-full bg-slate-900 text-white hover:bg-slate-800">Salvar e Fechar</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-red-600" onClick={() => onDelete(question.id)}>
           <Trash2 size={16} />
         </Button>

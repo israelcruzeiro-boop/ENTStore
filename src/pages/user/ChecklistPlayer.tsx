@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { Logger } from '../../utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   useChecklistQuestions, 
@@ -134,8 +135,16 @@ const QuestionRender = ({
 }: QuestionRenderProps) => {
   const answer = localAnswers[q.id] || { value: '', note: '', action_plan: '', assigned_user_id: '', photo_urls: [], action_plan_due_date: '' };
   const isSelected = (val: string) => answer.value === val;
-  const hasNotes = ['COMPLIANCE', 'NUMBER', 'RATING'].includes(q.type);
-  const canShowPhotos = false; // Temporariamente ocultado a pedido: !['TIME', 'DATE', 'NUMBER', 'CHECK'].includes(q.type);
+  const hasNotes = ['COMPLIANCE', 'NUMBER', 'RATING', 'TEXT'].includes(q.type);
+  
+  // Lógica de visibilidade de fotos baseada no tipo e na nova config
+  const canShowPhotos = !['TIME', 'DATE'].includes(q.type);
+  
+  const isPhotoRequired = q.config?.photo_required && (
+    q.config?.photo_policy === 'ALWAYS' || 
+    (q.config?.photo_policy === 'NON_COMPLIANCE' && answer.value === 'NC')
+  );
+
   const [isUploading, setIsUploading] = useState(false);
   const [showNote, setShowNote] = useState(!!answer.note);
 
@@ -150,8 +159,7 @@ const QuestionRender = ({
     setIsUploading(true);
     try {
       const compressed = await compressImage(files[0]);
-      const fileExt = files[0].name.split('.').pop();
-      const fileName = `checklist/${Date.now()}.${fileExt}`;
+      const fileName = `checklist/${Date.now()}.jpg`;
 
       const { error } = await supabase.storage
         .from('checklist-photos')
@@ -191,9 +199,16 @@ const QuestionRender = ({
         )}
 
         <div className={q.type === 'CHECK' ? 'flex-1' : ''}>
-          <h3 className={`text-sm md:text-base font-black leading-tight transition-colors ${isSelected('CHECKED') ? 'text-zinc-500 line-through' : 'text-white'}`}>
-            {q.text} {q.required && <span className="text-red-500">*</span>}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className={`text-sm md:text-base font-black leading-tight transition-colors ${isSelected('CHECKED') ? 'text-zinc-500 line-through' : 'text-white'}`}>
+              {q.text} {q.required && <span className="text-red-500">*</span>}
+            </h3>
+            {isPhotoRequired && (
+              <span className="flex items-center gap-1 text-[9px] font-black bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 rounded uppercase tracking-tighter shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+                <Camera size={10} /> Foto Obrigatória
+              </span>
+            )}
+          </div>
           {q.description && <p className="text-xs font-semibold text-zinc-500 mt-1">{q.description}</p>}
         </div>
 
@@ -394,10 +409,13 @@ const QuestionRender = ({
 export const ChecklistPlayer = () => {
   const { submissionId, companySlug } = useParams();
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
-  const { submission, isLoading: subLoading } = useChecklistSubmission(submissionId);
+  const { user: currentUser, loading: authLoading } = useAuth();
+  const { submission, isLoading: subLoading, isError: subError } = useChecklistSubmission(submissionId);
+  
+  // Só busca questões e seções se tivermos o checklist_id da submissão
   const { sections, isLoading: sLoading } = useChecklistSections(submission?.checklist_id);
   const { questions, isLoading: qLoading } = useChecklistQuestions(submission?.checklist_id);
+  
   const { answers } = useChecklistAnswers(submissionId);
   const { users } = useUsers(submission?.company_id);
 
@@ -405,6 +423,13 @@ export const ChecklistPlayer = () => {
   const [isFinishing, setIsFinishing] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+
+  // Monitor de depuração silencioso
+  useEffect(() => {
+    if (submission) {
+      Logger.info(`[ChecklistPlayer] Submissão carregada: ${submission.id} | Checklist: ${submission.checklist_id}`);
+    }
+  }, [submission]);
 
   useEffect(() => {
     if (answers && answers.length > 0) {
@@ -437,7 +462,7 @@ export const ChecklistPlayer = () => {
         await checklistActions.saveAnswer(submissionId, qId, data.value, data.note, data.action_plan, data.assigned_user_id, data.photo_urls, data.action_plan_due_date, currentUser?.id);
         setLastSaved(new Date());
       } catch (err) {
-        console.error('Erro ao salvar:', err);
+        Logger.error('Erro ao salvar:', err);
       }
     }, 800); // Salva 800ms após a última digitação na questão
   }, [submissionId, currentUser?.id]);
@@ -466,13 +491,76 @@ export const ChecklistPlayer = () => {
     }
   };
 
-  if (subLoading || qLoading || sLoading) return <div className="flex items-center justify-center h-screen bg-[#0a0a0a]"><Loader2 className="animate-spin text-[var(--c-primary)]" /></div>;
+  if (authLoading || subLoading || (submission && (qLoading || sLoading))) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#0a0a0a] gap-4">
+        <Loader2 className="animate-spin text-[var(--c-primary)] w-10 h-10" />
+        <div className="text-center">
+          <span className="text-xs text-zinc-500 font-bold uppercase tracking-widest animate-pulse block">
+            {authLoading ? 'Validando Sessão...' : 'Carregando Itens...'}
+          </span>
+          {subLoading && <p className="text-[10px] text-zinc-600 mt-2">Buscando formulário no servidor...</p>}
+        </div>
+      </div>
+    );
+  }
+
+  if (subError || !submission || (submission && !qLoading && questions.length === 0)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#0a0a0a] p-6 text-center">
+         <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mb-6">
+            <AlertTriangle size={40} className="text-amber-500" />
+         </div>
+         <h2 className="text-xl font-black text-white mb-2">Checklist não encontrado</h2>
+         <p className="text-sm text-zinc-500 mb-8 max-w-xs mx-auto italic">
+           {subError ? 'Houve um erro de conexão com o servidor.' : 'Não foi possível carregar as perguntas. Verifique suas permissões ou se o checklist ainda está ativo.'}
+         </p>
+         <div className="flex flex-col gap-3 w-full max-w-xs">
+           <Button onClick={() => window.location.reload()} variant="outline" className="border-white/10 text-white hover:bg-white/5">
+             Tentar Novamente
+           </Button>
+           <Button onClick={() => navigate(`/${companySlug}/checklists`)} className="bg-white/10 text-white hover:bg-white/20">
+             Voltar para Início
+           </Button>
+         </div>
+      </div>
+    );
+  }
 
   const totalPages = sections.length + (questions.filter(q => !q.section_id).length > 0 ? 1 : 0);
   const hasGeral = questions.filter(q => !q.section_id).length > 0;
+  
+  // Fallback para totalPages não ser nunca 0 se houver questões
+  const finalTotalPages = totalPages === 0 && questions.length > 0 ? 1 : totalPages;
+
   const activeQuestions = hasGeral && currentPage === 0 
     ? questions.filter(q => !q.section_id)
     : questions.filter(q => q.section_id === sections[hasGeral ? currentPage - 1 : currentPage]?.id);
+
+  const validateAll = (): boolean => {
+    for (const q of questions) {
+      if (q.required && !localAnswers[q.id]?.value && q.type !== 'CHECK') {
+        toast.error(`Responda a pergunta obrigatória: "${q.text}"`);
+        return false;
+      }
+
+      const isPhotoReq = q.config?.photo_required && (
+        q.config?.photo_policy === 'ALWAYS' ||
+        (q.config?.photo_policy === 'NON_COMPLIANCE' && localAnswers[q.id]?.value === 'NC')
+      );
+
+      if (isPhotoReq && (localAnswers[q.id]?.photo_urls?.length || 0) === 0) {
+        toast.error(`A pergunta "${q.text.substring(0, 30)}..." exige pelo menos uma foto.`);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleNext = () => {
+    setCurrentPage(p => p + 1);
+    window.scrollTo(0, 0);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4 min-h-screen bg-[#0a0a0a] pt-10">
@@ -490,11 +578,15 @@ export const ChecklistPlayer = () => {
           </div>
           <div>
             <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Etapa Atual</span>
-            <h1 className="text-xl font-black text-white">{hasGeral && currentPage === 0 ? 'Geral' : sections[hasGeral ? currentPage - 1 : currentPage]?.title}</h1>
+            <h1 className="text-xl font-black text-white">
+              {hasGeral && currentPage === 0 
+                ? 'Geral' 
+                : (sections[hasGeral ? currentPage - 1 : currentPage]?.title || 'Itens')}
+            </h1>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-2xl font-black text-white">{currentPage + 1}<span className="text-zinc-600 text-lg">/{totalPages}</span></span>
+          <span className="text-2xl font-black text-white">{currentPage + 1}<span className="text-zinc-600 text-lg">/{finalTotalPages}</span></span>
         </div>
       </div>
 
@@ -522,9 +614,9 @@ export const ChecklistPlayer = () => {
       <div className="flex gap-4 pt-4">
         <Button variant="ghost" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)} className="flex-1 bg-white/5 border border-white/5 text-white hover:bg-white/10 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Anterior</Button>
         {currentPage < totalPages - 1 ? (
-          <Button onClick={() => setCurrentPage(p => p + 1)} className="flex-1 bg-white/10 text-white hover:bg-white/20 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Próxima Etapa</Button>
+          <Button onClick={handleNext} className="flex-1 bg-white/10 text-white hover:bg-white/20 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Próxima Etapa</Button>
         ) : (
-          <Button onClick={handleFinish} disabled={isFinishing} className="flex-1 bg-[var(--c-primary)] text-white hover:opacity-90 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg hover:-translate-y-0.5">
+          <Button onClick={() => validateAll() && handleFinish()} disabled={isFinishing} className="flex-1 bg-[var(--c-primary)] text-white hover:opacity-90 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg hover:-translate-y-0.5">
             {isFinishing ? <Loader2 className="animate-spin" /> : 'Finalizar Checklist'}
           </Button>
         )}

@@ -8,7 +8,13 @@ export const userSchema = z.object({
   role: z.string().nullable().optional(),
   active: z.boolean().default(true).nullable().optional(),
   org_unit_id: z.string().uuid().nullable().optional(),
+  org_top_level_id: z.string().uuid().optional().nullable(),
   company_id: z.string().uuid().nullable().optional(),
+  avatar_url: z.string().nullable().optional(),
+  first_access: z.boolean().optional().nullable(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'PENDING_SETUP']).optional().nullable(),
+  xp_total: z.number().int().optional().nullable(),
+  coins_total: z.number().int().optional().nullable(),
   password: z.string().optional().nullable(),
   deleted_at: z.any().nullable().optional(),
 });
@@ -248,9 +254,12 @@ export const checklistSubmissionSchema = z.object({
   company_id: z.string().uuid(),
   org_unit_id: z.string().uuid().nullable().optional(),
   status: z.enum(['IN_PROGRESS', 'COMPLETED', 'ARCHIVED']).default('IN_PROGRESS'),
-  started_at: z.string().datetime().optional(),
-  completed_at: z.string().datetime().nullable().optional(),
-  updated_at: z.string().datetime().nullable().optional(),
+  started_at: z.string().optional(),
+  completed_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  checklist: z.object({
+    title: z.string()
+  }).optional().nullable(),
 });
 
 export const checklistAnswerSchema = z.object({
@@ -261,9 +270,9 @@ export const checklistAnswerSchema = z.object({
   photo_urls: z.array(z.string().url()).nullable().optional(),
   action_plan: z.string().nullable().optional(),
   assigned_user_id: z.string().uuid().nullable().optional(),
-  action_plan_due_date: z.string().datetime().nullable().optional(),
+  action_plan_due_date: z.string().nullable().optional(),
   action_plan_status: z.string().nullable().optional(),
-  updated_at: z.string().datetime().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
 });
 
 export const checklistSchema = z.object({
@@ -314,7 +323,10 @@ export const checklistQuestionSchema = z.object({
   required: z.boolean().default(true),
   order_index: z.number().int().min(0).optional().default(0),
   description: z.string().optional().nullable(),
-  config: z.any().optional().nullable(),
+  config: z.object({
+    photo_required: z.boolean().optional().default(false),
+    photo_policy: z.enum(['ALWAYS', 'NON_COMPLIANCE', 'OPTIONAL']).optional().default('OPTIONAL'),
+  }).optional().nullable().or(z.any()),
   created_at: z.string().optional().nullable(),
   updated_at: z.string().optional().nullable(),
   deleted_at: z.string().nullable().optional(),
