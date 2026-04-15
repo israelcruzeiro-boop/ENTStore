@@ -127,7 +127,7 @@ export function WordSearchQuestion({ configuration, onAnswer, isAnswered, userAn
       return twNormal === normalWord || twNormal === normalReversedWord;
     });
 
-    console.log('[DEBUG WORD SEARCH]', { word, normalWord, normalReversedWord, targetWords, matchFound: !!matchOriginal });
+    // matchOriginal encontrado
 
     if (matchOriginal && !foundWords.includes(matchOriginal)) {
       const color = WORD_COLORS[foundPaths.length % WORD_COLORS.length];

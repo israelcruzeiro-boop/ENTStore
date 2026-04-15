@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { useCompanies, useUsers } from '../../hooks/useSupabaseData';
@@ -9,38 +9,32 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2, Plus } from 'lucide-react';
 import { Company, User, Theme } from '../../types';
 import { adminProvisioningSchema } from '../../types/schemas';
+import { z } from 'zod';
 import { Logger } from '../../utils/logger';
+import { uploadToSupabase } from '../../lib/storage';
 
-// Proteção contra conflitos de rota
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
 
 export const SuperAdminDashboard = () => {
-  const { companies, mutate: mutateCompanies, isLoading: loadingCompanies } = useCompanies();
-  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers();
+  const { companies, mutate: mutateCompanies, isLoading: loadingCompanies } = useCompanies(true);
+  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(undefined, true);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'admins'>('details');
   const [activeCompany, setActiveCompany] = useState<Company | null>(null);
-  
   const [editingId, setEditingId] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({ 
-    name: '', 
-    link_name: '', 
-    logo_url: '', 
-    active: true, 
-    landing_page_enabled: true, 
-    checklists_enabled: false,
-    adminName: '',
-    adminEmail: '',
-    adminPassword: ''
+    name: '', link_name: '', logo_url: '', active: true, 
+    landing_page_enabled: true, checklists_enabled: false,
+    adminName: '', adminEmail: '', adminPassword: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<{id: string, name: string} | null>(null);
-
   const [isDeleteAdminOpen, setIsDeleteAdminOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<{id: string, name: string} | null>(null);
 
@@ -49,11 +43,13 @@ export const SuperAdminDashboard = () => {
   const [adminFormData, setAdminFormData] = useState({ name: '', email: '', password: '', active: true });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  const totalCompanies = companies.length;
-  const activeCompanies = companies.filter(c => c.active).length;
-  const inactiveCompanies = totalCompanies - activeCompanies;
-  const totalAdmins = users.filter(u => u.role === 'ADMIN').length;
+  // Estatísticas para os cards
+  const totalCompaniesCount = companies.length;
+  const activeCompaniesCount = companies.filter(c => c.active).length;
+  const inactiveCompaniesCount = totalCompaniesCount - activeCompaniesCount;
+  const totalAdminsCount = users.filter(u => u.role?.toUpperCase() === 'ADMIN' || u.role?.toUpperCase() === 'SUPER_ADMIN').length;
 
   const sortedCompanies = [...companies].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -65,336 +61,409 @@ export const SuperAdminDashboard = () => {
       setAdminFormView(false);
       setEditingAdminId(null);
       setFormData({ 
-        name: '', 
-        link_name: '', 
-        logo_url: '', 
-        active: true, 
-        landing_page_enabled: true, 
-        checklists_enabled: false,
-        adminName: '',
-        adminEmail: '',
-        adminPassword: ''
+        name: '', link_name: '', logo_url: '', active: true, 
+        landing_page_enabled: true, checklists_enabled: false,
+        adminName: '', adminEmail: '', adminPassword: ''
       });
-      setAdminFormData({ name: '', email: '', password: '', active: true });
       setActiveTab('details');
     }, 300);
   };
 
-  const handleCloseDelete = () => {
-    setIsDeleteOpen(false);
-    setTimeout(() => setCompanyToDelete(null), 300);
-  };
-
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      const newName = e.target.value;
-     const newLinkName = newName.toLowerCase().trim().replace(/[\s\W-]+/g, '');
-     
-     if (!editingId && (!formData.link_name || formData.link_name === formData.name.toLowerCase().trim().replace(/[\s\W-]+/g, ''))) {
-        setFormData({ ...formData, name: newName, link_name: newLinkName });
+     // Gerar slug limpo
+     const newLinkName = newName.toLowerCase().trim()
+       .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+       .replace(/[\s\W-]+/g, ''); // Remove espaços e caracteres especiais
+
+     if (!editingId) {
+        setFormData({ 
+          ...formData, 
+          name: newName, 
+          link_name: newLinkName,
+          adminEmail: newLinkName ? `admin@${newLinkName}.com` : ''
+        });
      } else {
         setFormData({ ...formData, name: newName });
      }
   };
 
-  const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-     const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
-     setFormData({ ...formData, link_name: newLink });
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error('A imagem deve ter no máximo 2MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, logo_url: reader.result as string });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const openCreate = () => {
-    setEditingId(null);
-    setActiveCompany(null);
-    setFormData({ 
-      name: '', 
-      link_name: '', 
-      logo_url: '', 
-      active: true, 
-      landing_page_enabled: true, 
-      checklists_enabled: false,
-      adminName: '',
-      adminEmail: '',
-      adminPassword: ''
-    });
-    setActiveTab('details');
-    setAdminFormView(false);
-    setIsFormOpen(true);
-  };
-
   const openEdit = (company: Company) => {
     setEditingId(company.id);
     setActiveCompany(company);
-    setFormData({ name: company.name, link_name: company.link_name, logo_url: company.logo_url || '', active: company.active !== false, landing_page_enabled: company.landing_page_enabled !== false, checklists_enabled: company.checklists_enabled === true });
+    
+    // Suporte a nomes de colunas do banco (maiúsculo/minúsculo e enabled/active)
+    const lpEnabled = (company as any).landing_page_enabled ?? (company as any).Landing_page_enabled ?? (company as any).landing_page_active;
+    const ckEnabled = (company as any).checklists_enabled ?? (company as any).Checklists_enabled;
+
+    // Busca o administrador oficial para preencher o form
+    const companyAdmin = users.find(u => 
+      u.company_id === company.id && 
+      ((u.role || '').toUpperCase() === 'ADMIN' || (u.email || '').toLowerCase().includes('admin'))
+    );
+
+    setFormData({ 
+      name: company.name, 
+      link_name: company.link_name, 
+      logo_url: company.logo_url || '', 
+      active: company.active !== false, 
+      landing_page_enabled: lpEnabled === true, 
+      checklists_enabled: ckEnabled === true,
+      adminName: companyAdmin?.name || '',
+      adminEmail: companyAdmin?.email || '',
+      adminPassword: ''
+    });
     setActiveTab('details');
-    setActiveTab('details');
-    setAdminFormView(false);
     setIsFormOpen(true);
   };
 
   const handleSaveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
-    const name = formData.name.trim();
-    const link_name = formData.link_name.trim();
     
-    if (!name || !link_name) return toast.error('Nome e Link da Empresa são obrigatórios.');
-
-    if (RESERVED_SLUGS.includes(link_name)) {
-      return toast.error(`"${link_name}" é um nome reservado pelo sistema e não pode ser utilizado.`);
-    }
-
-    const isDuplicate = companies.some(c => (c.slug === link_name || c.link_name === link_name) && c.id !== editingId);
-    if (isDuplicate) return toast.error('Este Link da Empresa já está em uso.');
-
     setIsSubmitting(true);
-    if (editingId) {
-      const { error } = await supabase.from('companies').update({
-        name, link_name, logo_url: formData.logo_url, active: formData.active, landing_page_enabled: formData.landing_page_enabled, checklists_enabled: formData.checklists_enabled
-      }).eq('id', editingId);
-      
-      if (error) toast.error(`Erro ao atualizar empresa: ${error.message}`);
-      else toast.success('Empresa atualizada com sucesso!');
-    } else {
-      // Validação do Admin via Zod (Seguindo regra 19 do projeto)
-      const adminData = {
-        name: formData.adminName,
-        email: formData.adminEmail,
-        password: formData.adminPassword
-      };
+    const isNew = !editingId;
+    const normalizedLink = formData.link_name?.toLowerCase().trim();
 
-      const result = adminProvisioningSchema.safeParse(adminData);
-      if (!result.success) {
-        setIsSubmitting(false);
-        const firstError = result.error.errors[0]?.message || 'Dados do administrador inválidos';
-        return toast.error(firstError);
+    try {
+      // 1. VALIDAÇÃO RIGOROSA (Zod + Manual)
+      if (!formData.name || !formData.link_name) {
+        throw new Error('O nome e o link da empresa são obrigatórios.');
       }
 
-      // 1. Criar a empresa
-      const { data: newCompany, error: companyError } = await supabase.from('companies').insert({
-        name, 
-        link_name, 
-        slug: link_name,
-        logo_url: formData.logo_url, 
-        active: formData.active, 
-        landing_page_enabled: formData.landing_page_enabled,
-        checklists_enabled: formData.checklists_enabled,
-        theme: mockThemes.corporateBlue as Theme
-      }).select('id').single();
-      
-      if (companyError) {
-        Logger.error('Erro crítico ao criar empresa:', JSON.stringify(companyError, null, 2));
-        setIsSubmitting(false);
-        return toast.error(`Erro ao criar empresa: ${companyError.message}`);
+      if (!formData.adminEmail || !formData.adminName) {
+        throw new Error('O nome e o e-mail do administrador são obrigatórios.');
       }
 
-      // 2. Criar o administrador (Provisionamento)
-      const { error: adminError } = await supabase.from('users').insert({
-        name: adminData.name,
-        email: adminData.email,
-        password: adminData.password,
-        role: 'ADMIN',
-        company_id: newCompany.id,
-        active: true
-      });
+      // Validação de E-mail e Senha via Schema Central
+      try {
+        const validationData: any = { 
+          name: formData.adminName,
+          email: formData.adminEmail,
+          password: (isNew || formData.adminPassword) ? formData.adminPassword : 'dummy-pass' 
+        };
+        adminProvisioningSchema.parse(validationData);
+      } catch (e: any) {
+        if (e instanceof z.ZodError) {
+          throw new Error(e.errors[0].message);
+        }
+        throw e;
+      }
 
-      if (adminError) {
-        Logger.error('Erro crítico ao criar administrador provisionado:', JSON.stringify(adminError, null, 2));
-        toast.error(`Empresa criada com ID ${newCompany.id}, mas erro ao criar admin: ${adminError.message}`);
-        // IMPORTANTE: NÃO fechamos o formulário aqui para o usuário poder tentar corrigir o admin
+      // 2. VERIFICAÇÃO DE EXISTÊNCIA (Incluindo Deletados)
+      const existingCompany = companies.find(c => 
+        c.link_name?.toLowerCase().trim() === normalizedLink
+      );
+
+      const isReactivating = isNew && existingCompany && !!existingCompany.deleted_at;
+      let companyIdForSave = editingId || (isReactivating ? existingCompany.id : null);
+
+      if (isNew && existingCompany && !existingCompany.deleted_at) {
         setIsSubmitting(false);
-        await mutateCompanies(); // Atualiza a lista para mostrar a empresa que foi criada
-        return; 
+        return toast.error(`O link "/${formData.link_name}" já está em uso ativo.`);
+      }
+
+      if (isNew || isReactivating) {
+        // --- INSERÇÃO OU REATIVAÇÃO DA EMPRESA ---
+        const payload: any = {
+          name: formData.name, 
+          link_name: formData.link_name, 
+          slug: formData.link_name, 
+          logo_url: formData.logo_url, 
+          active: true, 
+          landing_page_enabled: Boolean(formData.landing_page_enabled),
+          landing_page_active: Boolean(formData.landing_page_enabled),
+          checklists_enabled: Boolean(formData.checklists_enabled),
+          deleted_at: null // LIMPEZA CRÍTICA DO SOFT DELETE
+        };
+
+        if (companyIdForSave) payload.id = companyIdForSave;
+
+        const { data: savedCompany, error: insError } = await supabase.from('companies').upsert(payload).select('id').single();
+
+        if (insError) throw insError;
+        companyIdForSave = savedCompany.id;
+        toast.success(isReactivating ? 'Empresa reativada com sucesso!' : 'Empresa criada!');
       } else {
-        toast.success('Empresa e Administrador criados com sucesso!');
-      }
-    }
-    
-    await mutateCompanies();
-    setIsSubmitting(false);
-    handleCloseForm();
-  };
+        // --- ATUALIZAÇÃO DA EMPRESA ---
+        const { error: updError } = await supabase.from('companies').update({
+          name: formData.name, 
+          logo_url: formData.logo_url, 
+          active: Boolean(formData.active), 
+          landing_page_enabled: Boolean(formData.landing_page_enabled),
+          landing_page_active: Boolean(formData.landing_page_enabled),
+          checklists_enabled: Boolean(formData.checklists_enabled),
+          deleted_at: null // Garantindo que não permaneça deletado se houver update
+        }).eq('id', companyIdForSave);
 
-  const handleDeleteCompany = async () => {
-    if (companyToDelete) {
-      setIsSubmitting(true);
-      const { error } = await supabase.from('companies')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', companyToDelete.id);
-      
-      if (error) toast.error('Erro ao excluir empresa.');
-      else {
-        toast.success('Empresa excluída com sucesso.');
-        mutateCompanies();
+        if (updError) throw updError;
+        toast.success('Configurações salvas!');
       }
+
+      // --- PROVISIONAMENTO DO ADMIN (Apenas na Criação) ---
+      if (!editingId && formData.adminEmail && formData.adminName) {
+        const cleanEmail = formData.adminEmail.toLowerCase().trim();
+        
+        // 1. Verifica se o usuário já existe no sistema (independente da empresa)
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', cleanEmail)
+          .maybeSingle();
+
+        const adminPayload: any = {
+          email: cleanEmail,
+          name: formData.adminName,
+          role: 'ADMIN', 
+          company_id: companyIdForSave,
+          active: true,
+          deleted_at: null, // LIMPEZA CRÍTICA DO SOFT DELETE
+          updated_at: new Date().toISOString()
+        };
+
+        // Só enviamos a senha se ela for nova ou se o usuário for novo
+        if (formData.adminPassword) {
+          adminPayload.password = formData.adminPassword;
+        }
+
+        let adminError;
+        if (existingUser) {
+          // UPDATE: O usuário já existe, apenas atualizamos seus dados e o vinculamos à empresa
+          const { error: updError } = await supabase
+            .from('users')
+            .update(adminPayload)
+            .eq('id', existingUser.id);
+          adminError = updError;
+        } else {
+          // INSERT: Usuário totalmente novo
+          const { error: insError } = await supabase
+            .from('users')
+            .insert(adminPayload);
+          adminError = insError;
+        }
+
+        if (adminError) {
+          Logger.error('Erro ao provisionar admin:', adminError);
+          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${adminError.message}`);
+        } else {
+          toast.success(`Admin ${cleanEmail} ${existingUser ? 'atualizado' : 'provisionado'}!`);
+        }
+      }
+
+      await mutateCompanies();
+      await mutateUsers();
+      handleCloseForm();
+    } catch (error: any) {
+      Logger.error('Erro ao salvar empresa:', error);
+      toast.error(`Erro: ${error.message}`);
+    } finally {
       setIsSubmitting(false);
     }
-    handleCloseDelete();
   };
 
   const toggleCompanyStatus = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase.from('companies').update({ active: !currentStatus }).eq('id', id);
-    if (error) toast.error('Erro ao alterar status.');
-    else mutateCompanies();
+    const { error } = await supabase.from('companies').update({ 
+      active: !currentStatus,
+      updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (!error) mutateCompanies();
+    else toast.error('Erro ao alterar status.');
   };
 
-  const openAdminCreate = () => {
-    setEditingAdminId(null);
-    setAdminFormData({ name: '', email: '', password: '', active: true });
-    setAdminFormView(true);
-  };
+  const handleDeleteCompany = async (id: string, name: string) => {
+    if (!window.confirm(`Tem certeza que deseja ARQUIVAR a empresa "${name}"?\nIsso removerá o acesso dos usuários.`)) return;
+    
+    try {
+      const { error } = await supabase.from('companies')
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          active: false 
+        })
+        .eq('id', id);
 
-  const openAdminEdit = (admin: User) => {
-    setEditingAdminId(admin.id);
-    setAdminFormData({ name: admin.name, email: admin.email || '', password: admin.password || '', active: admin.active !== false });
-    setAdminFormView(true);
+      if (error) throw error;
+      toast.success('Empresa arquivada com sucesso!');
+      mutateCompanies();
+    } catch (error: any) {
+      Logger.error('Erro ao deletar empresa:', error);
+      toast.error(`Erro: ${error.message}`);
+    }
   };
 
   const handleSaveAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeCompany) return;
-    
-    // Validação Zod (Seguindo regra 19)
-    const adminData = {
-      name: adminFormData.name,
-      email: adminFormData.email,
-      password: adminFormData.password
-    };
-
-    // Para edição, a senha é opcional
-    const schema = editingAdminId 
-      ? adminProvisioningSchema.partial({ password: true }) 
-      : adminProvisioningSchema;
-
-    const result = schema.safeParse(adminData);
-    if (!result.success) {
-      const firstError = result.error.errors[0]?.message || 'Dados inválidos';
-      return toast.error(firstError);
-    }
-
-    const emailInUse = users.some(u => u.email === adminData.email && u.id !== editingAdminId);
-    if (emailInUse) return toast.error('Este e-mail já está em uso.');
-
     setIsSubmitting(true);
-    if (editingAdminId) {
-      const { error } = await supabase.from('users').update({ 
-        name: adminData.name, 
-        email: adminData.email,
-        ...(adminData.password ? { password: adminData.password } : {}),
-        active: adminFormData.active 
-      }).eq('id', editingAdminId);
-      
-      if (error) {
-        Logger.error('Erro ao atualizar administrador:', JSON.stringify(error, null, 2));
-        toast.error(`Erro ao atualizar admin: ${error.message}`);
-      } else {
-        toast.success('Admin atualizado!');
-      }
-    } else {
-      const { error } = await supabase.from('users').insert({
-        name: adminData.name,
-        email: adminData.email,
-        password: adminData.password,
-        role: 'ADMIN',
-        company_id: activeCompany.id,
-        active: adminFormData.active
-      });
-      
-      if (error) {
-        Logger.error('Erro ao criar administrador manual:', JSON.stringify(error, null, 2));
-        toast.error(`Erro ao criar admin: ${error.message}`);
-      } else {
-        toast.success('Admin criado!');
-      }
-    }
     
-    await mutateUsers();
-    setIsSubmitting(false);
-    setAdminFormView(false);
-  };
-
-  const handleCloseDeleteAdmin = () => {
-    setIsDeleteAdminOpen(false);
-    setTimeout(() => setAdminToDelete(null), 300);
-  };
-
-  const handleDeleteAdmin = async () => {
-    if (adminToDelete) {
-      setIsSubmitting(true);
-      const { error } = await supabase.from('users')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', adminToDelete.id);
-      if (error) toast.error('Erro ao remover admin.');
-      else { toast.success('Admin removido.'); mutateUsers(); }
+    try {
+      const cleanEmail = adminFormData.email.toLowerCase().trim();
+      
+      if (editingAdminId) {
+         if (adminFormData.password && adminFormData.password.length < 6) {
+           throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
+         }
+         if (!cleanEmail || !adminFormData.name) {
+           throw new Error("Nome e E-mail são obrigatórios.");
+         }
+         
+         const updatePayload: any = { 
+           name: adminFormData.name, 
+           email: cleanEmail,
+           active: adminFormData.active 
+         };
+         if (adminFormData.password) updatePayload.password = adminFormData.password;
+         
+         const { error } = await supabase.from('users').update(updatePayload).eq('id', editingAdminId);
+         if (error) throw error;
+         toast.success('Admin atualizado!');
+      } else {
+         if (!adminFormData.password || adminFormData.password.length < 6) {
+           throw new Error("A senha inicial deve ter pelo menos 6 caracteres.");
+         }
+         if (!cleanEmail || !adminFormData.name) {
+           throw new Error("Nome e E-mail são obrigatórios.");
+         }
+         
+         const { data: existingUser } = await supabase.from('users').select('id').eq('email', cleanEmail).maybeSingle();
+         
+         const insertPayload = {
+           name: adminFormData.name,
+           email: cleanEmail,
+           password: adminFormData.password,
+           role: 'ADMIN',
+           company_id: activeCompany.id,
+           active: true,
+           deleted_at: null,
+           updated_at: new Date().toISOString()
+         };
+         
+         let saveError;
+         if (existingUser) {
+           const { error } = await supabase.from('users').update(insertPayload).eq('id', existingUser.id);
+           saveError = error;
+         } else {
+           const { error } = await supabase.from('users').insert(insertPayload);
+           saveError = error;
+         }
+         if (saveError) throw saveError;
+         toast.success('Novo administrador provisionado!');
+      }
+      
+      await mutateUsers();
+      setAdminFormView(false);
+      setEditingAdminId(null);
+      setAdminFormData({ name: '', email: '', password: '', active: true });
+    } catch (error: any) {
+      Logger.error('Erro ao salvar admin:', error);
+      toast.error(error.message || 'Falha ao salvar administrador.');
+    } finally {
       setIsSubmitting(false);
     }
-    handleCloseDeleteAdmin();
   };
 
   const toggleUserStatus = async (id: string, currentStatus: boolean) => {
-     const { error } = await supabase.from('users').update({ active: !currentStatus }).eq('id', id);
-     if (error) toast.error('Erro ao alterar status.');
-     else mutateUsers();
+     await supabase.from('users').update({ active: !currentStatus }).eq('id', id);
+     mutateUsers();
   };
 
-  const activeAdmins = users.filter(u => u.company_id === activeCompany?.id && u.role === 'ADMIN');
+  const activeAdmins = users.filter(u => {
+    if (u.company_id !== activeCompany?.id) return false;
+    
+    const roleStr = (u.role || '').toUpperCase();
+    const emailStr = (u.email || '').toLowerCase();
+    
+    // Filtro Flexível: ADMIN, SUPER_ADMIN, MAESTRO ou e-mail que contenha "admin"
+    const isMatch = roleStr === 'ADMIN' || 
+           roleStr === 'SUPER_ADMIN' || 
+           roleStr === 'MAESTRO' ||
+           emailStr.includes('admin');
+    
+    Logger.info(`Debug Admin Filter [${u.email}]:`, { role: u.role, isMatch });
+    return isMatch;
+  });
 
-  // Otimização: Apenas mostra o loader central na primeira carga (quando não há dados)
-  // Isso evita que fundos/modais fechem durante revalidações do SWR
-  const isInitialLoad = (loadingCompanies && companies.length === 0) || (loadingUsers && users.length === 0);
+  // LOG DE DIAGNÓSTICO AVANÇADO
+  useEffect(() => {
+    if (activeCompany && activeTab === 'admins') {
+      const members = users.filter(u => u.company_id === activeCompany.id);
+      Logger.info(`Membros da ${activeCompany.name}:`, members.map(m => ({
+        id: m.id,
+        email: m.email,
+        role: m.role,
+        company_id: m.company_id,
+        passes_filter: (m.role || '').toUpperCase() === 'ADMIN' || (m.email || '').toLowerCase().includes('admin')
+      })));
+    }
+  }, [activeCompany, activeTab, users]);
 
-  if (isInitialLoad) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <Loader2 className="animate-spin text-slate-300" size={40} />
-      </div>
-    );
-  }
+  // LOG DE DIAGNÓSTICO (Aparecerá no console do seu navegador)
+  useEffect(() => {
+    if (activeCompany) {
+      const allCompanyMembers = users.filter(u => u.company_id === activeCompany.id);
+      Logger.info(`Membros encontrados para ${activeCompany.name}:`, allCompanyMembers);
+    }
+  }, [activeCompany, users]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        setIsUploading(true);
+        const url = await uploadToSupabase(file, 'uploads', 'companies/logos', 'logo');
+        if (url) setFormData({ ...formData, logo_url: url });
+      } catch (err) {
+        Logger.error('Erro upload:', err);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+  };
+
+  if (loadingCompanies || loadingUsers) return <div className="flex h-[80vh] items-center justify-center"><Loader2 className="animate-spin text-slate-300" size={40} /></div>;
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
          <div>
-           <h1 className="text-2xl font-bold text-slate-900">Dashboard do Super Admin</h1>
-           <p className="text-sm text-slate-500 mt-1">Visão geral e gestão de Tenants (Empresas)</p>
+           <h1 className="text-2xl font-bold text-slate-900">🚀 Dashboard do Super Admin</h1>
+           <p className="text-sm text-slate-500 mt-1">Gestão de Plataforma (Tenants)</p>
          </div>
-         <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800 text-white">
-            + Nova Company
-         </Button>
+          <Button 
+            onClick={() => {
+              setEditingId(null);
+              setFormData({
+                name: '', link_name: '', logo_url: '', active: true, 
+                landing_page_enabled: true, checklists_enabled: true,
+                adminName: '', adminEmail: '', adminPassword: ''
+              });
+              setIsFormOpen(true);
+            }} 
+            className="bg-slate-900 hover:bg-slate-800 text-white"
+          >
+             + Nova Company
+          </Button>
       </div>
 
+      {/* RESTAURANDO OS CARDS DE MÉTRICAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0"><Building size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Total Companies</p><p className="text-2xl font-bold text-slate-900">{totalCompanies}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Total Companies</p><p className="text-2xl font-bold text-slate-900">{totalCompaniesCount}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0"><CheckCircle2 size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Ativas</p><p className="text-2xl font-bold text-slate-900">{activeCompanies}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Ativas</p><p className="text-2xl font-bold text-slate-900">{activeCompaniesCount}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0"><XCircle size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Inativas</p><p className="text-2xl font-bold text-slate-900">{inactiveCompanies}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Inativas</p><p className="text-2xl font-bold text-slate-900">{inactiveCompaniesCount}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0"><Users size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Total Admins</p><p className="text-2xl font-bold text-slate-900">{totalAdmins}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Total Admins</p><p className="text-2xl font-bold text-slate-900">{totalAdminsCount}</p></div>
         </div>
       </div>
-      
-      <h2 className="text-lg font-semibold text-slate-900 mb-4">Empresas Cadastradas (Mais recentes)</h2>
+
+      {/* RESTAURANDO A TABELA PREMIUM */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
@@ -408,303 +477,215 @@ export const SuperAdminDashboard = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
-                {sortedCompanies.map(company => (
-                   <tr key={company.id} className={`hover:bg-slate-50 transition-colors ${!company.active ? 'opacity-60' : ''}`}>
-                      <td className="p-4">
-                         {company.active ? <CheckCircle2 className="text-emerald-500" size={20} /> : <XCircle className="text-slate-300" size={20} />}
-                      </td>
+                {sortedCompanies.map((company) => (
+                    <tr key={company.id} className={`hover:bg-slate-50 transition-colors ${!company.active ? 'opacity-60' : ''} ${company.deleted_at ? 'bg-rose-50/30' : ''}`}>
+                       <td className="p-4">
+                          <Switch 
+                            disabled={!!company.deleted_at} // Não permite ativar empresa deletada sem reativar pelo form
+                            checked={company.active} 
+                            onCheckedChange={() => toggleCompanyStatus(company.id, company.active)} 
+                          />
+                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
                             {company.logo_url ? <img src={company.logo_url} alt={company.name} className="w-full h-full object-cover" /> : <Building className="text-slate-400" size={18} />}
                           </div>
-                          <div>
-                            <p className="font-semibold text-slate-900">{company.name}</p>
-                            <p className="text-xs text-slate-500 font-mono">ID: {company.id}</p>
-                          </div>
+                           <div>
+                             <div className="flex items-center gap-2">
+                               <p className="font-semibold text-slate-900">{company.name}</p>
+                               {company.deleted_at && (
+                                 <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded uppercase">Arquivada</span>
+                               )}
+                             </div>
+                             <p className="text-xs text-slate-500 font-mono">ID: {company.id}</p>
+                           </div>
                         </div>
                       </td>
-                      <td className="p-4">
-                         <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">/{company.link_name}</span>
-                            <Button asChild variant="outline" size="sm" className="h-7 text-xs flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50">
-                             <Link to={`/admin/${company.link_name || company.slug}`}>
-                               Admin <ExternalLink size={12} />
-                             </Link>
+                      <td className="p-4 font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit">/{company.link_name}</td>
+                       <td className="p-4 text-slate-500">
+                         {company.updated_at || company.created_at 
+                           ? new Date(company.updated_at || company.created_at).toLocaleDateString('pt-BR') 
+                           : 'Sem data'}
+                       </td>
+                       <td className="p-4 text-right flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600">
+                             <Edit2 size={16} />
+                          </Button>
+                          {!company.deleted_at && (
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCompany(company.id, company.name)} className="text-slate-400 hover:text-rose-600">
+                               <Trash2 size={16} />
                             </Button>
-                         </div>
-                      </td>
-                      <td className="p-4 text-slate-500">{new Date(company.updated_at || company.created_at).toLocaleDateString('pt-BR')}</td>
-                      <td className="p-4 text-right">
-                         <div className="flex items-center justify-end gap-1 md:gap-2">
-                           <Switch checked={company.active} onCheckedChange={() => toggleCompanyStatus(company.id, company.active)} />
-                           <div className="h-6 w-px bg-slate-200 mx-1"></div>
-                           <Button variant="ghost" size="icon" onClick={() => openEdit(company)} className="text-slate-400 hover:text-blue-600"><Edit2 size={16} /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => {setCompanyToDelete({id: company.id, name: company.name}); setIsDeleteOpen(true);}} className="text-slate-400 hover:text-red-600"><Trash2 size={16} /></Button>
-                         </div>
-                      </td>
+                          )}
+                       </td>
                    </tr>
                 ))}
-                {sortedCompanies.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-500">Nenhuma empresa cadastrada ainda.</td></tr>
-                )}
              </tbody>
           </table>
         </div>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseForm(); }}>
+      <Dialog open={isFormOpen} onOpenChange={(open) => !open && handleCloseForm()}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-             <DialogTitle className="text-xl">
-               {editingId ? 'Gerenciar Empresa' : 'Nova Empresa'}
-             </DialogTitle>
+          <DialogHeader>
+             <DialogTitle>{editingId ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
           </DialogHeader>
+          
+          <div className="flex border-b border-slate-200 mt-2 mb-4">
+            <button onClick={() => setActiveTab('details')} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}>Detalhes da Empresa</button>
+            <button onClick={() => setActiveTab('admins')} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'admins' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`}>Administradores</button>
+          </div>
 
-          {editingId && !adminFormView && (
-            <div className="flex border-b border-slate-200 mt-2">
-              <button
-                type="button"
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                onClick={() => setActiveTab('details')}
-              >
-                Detalhes da Empresa
-              </button>
-              <button
-                type="button"
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === 'admins' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                onClick={() => setActiveTab('admins')}
-              >
-                Administradores
-              </button>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto py-2">
+          <div className="flex-1 overflow-y-auto">
             {activeTab === 'details' ? (
-              <form id="company-form" onSubmit={handleSaveCompany} className="space-y-6 mt-2 px-1">
-                <div className="space-y-2">
-                  <Label>Nome da Empresa *</Label>
-                  <Input placeholder="Ex: Globex" value={formData.name} onChange={handleNameChange} autoFocus />
-                </div>
-                
+              <form id="company-form" onSubmit={handleSaveCompany} className="space-y-6 px-1">
+                <div className="space-y-2"><Label>Nome da Empresa *</Label><Input value={formData.name} onChange={handleNameChange} placeholder="Ex: Everest Retail" /></div>
                 <div className="space-y-2">
                   <Label>Link de Acesso (URL) *</Label>
-                  <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200">
-                    <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">seusite.com/</span>
-                    <Input className="border-0 rounded-none focus-visible:ring-0 px-2" placeholder="globex" value={formData.link_name} onChange={handleLinkNameChange} />
-                  </div>
-                  <p className="text-[10px] text-slate-500 mt-1">Este slug servirá tanto para acesso do usuário (/{formData.link_name}/home) quanto para o admin (/admin/{formData.link_name}).</p>
+                  <Input 
+                    value={formData.link_name} 
+                    onChange={(e) => setFormData({...formData, link_name: e.target.value})} 
+                    placeholder="Ex: everest" 
+                    readOnly={!!editingId}
+                    className={!!editingId ? "bg-slate-50 cursor-not-allowed text-slate-500" : ""}
+                  />
+                  {!!editingId && <p className="text-[10px] text-slate-400 italic">O link não pode ser alterado após a criação.</p>}
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Logo da Empresa</Label>
-                  <div className="flex gap-4 items-start">
-                     <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden shrink-0 mt-1">
-                        {formData.logo_url ? (
-                          <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
-                        ) : (
-                          <Building className="text-slate-400" size={24} />
-                        )}
-                     </div>
-                     <div className="flex-1 space-y-2">
-                        <Input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleImageUpload}
-                          className="hidden" 
-                          id="logo-upload"
-                        />
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          onClick={() => document.getElementById('logo-upload')?.click()}
-                          className="w-full flex items-center justify-center gap-2 h-9"
-                        >
-                          <Upload size={16} /> Fazer Upload da Imagem
-                        </Button>
-                        <div className="flex items-center gap-2">
-                           <span className="text-xs text-slate-400 font-medium">OU</span>
-                           <Input 
-                             placeholder="Cole a URL da imagem (https://...)" 
-                             value={formData.logo_url} 
-                             onChange={(e) => setFormData({...formData, logo_url: e.target.value})} 
-                             className="h-9 text-xs"
-                           />
-                        </div>
-                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="space-y-0.5">
-                    <Label>Habilitar Módulo Landing Page</Label>
-                    <p className="text-xs text-slate-500">Se desativado, o admin da empresa não poderá gerenciar a landing page.</p>
-                  </div>
-                  <Switch checked={formData.landing_page_enabled} onCheckedChange={(checked) => setFormData({...formData, landing_page_enabled: checked})} />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="space-y-0.5">
-                    <Label>Habilitar Módulo Checklist</Label>
-                    <p className="text-xs text-slate-500">Libera o acesso às listas de verificação e auditoria para esta empresa.</p>
-                  </div>
-                  <Switch checked={formData.checklists_enabled} onCheckedChange={(checked) => setFormData({...formData, checklists_enabled: checked})} />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
-                  <div className="space-y-0.5">
-                    <Label>Status da Conta</Label>
-                    <p className="text-xs text-slate-500">Se inativo, usuários não poderão logar.</p>
-                  </div>
-                  <Switch checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} />
-                </div>
-
+                
                 {!editingId && (
-                  <div className="pt-4 mt-4 border-t border-slate-200 space-y-4">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Users size={16} className="text-blue-600" />
-                      Configuração do Primeiro Acesso (Admin)
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-2">
-                        <Label>Nome do Responsável *</Label>
+                  <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-lg space-y-4">
+                    <p className="text-sm font-semibold text-blue-900 border-b border-blue-100 pb-2">🚀 Administrador Principal *</p>
+                    <div className="space-y-2">
+                        <Label className="text-blue-800">Nome do Administrador *</Label>
                         <Input 
-                          placeholder="Ex: João Silva" 
-                          value={formData.adminName} 
-                          onChange={(e) => setFormData({...formData, adminName: e.target.value})} 
+                        value={formData.adminName} 
+                        onChange={(e) => setFormData({...formData, adminName: e.target.value})}
+                        placeholder="Nome Completo"
+                        className="bg-white border-blue-200"
                         />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>E-mail Administrativo *</Label>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-blue-800">E-mail do Administrador *</Label>
                         <Input 
-                          type="email" 
-                          placeholder="admin@empresa.com" 
-                          value={formData.adminEmail} 
-                          onChange={(e) => setFormData({...formData, adminEmail: e.target.value})} 
+                        value={formData.adminEmail} 
+                        onChange={(e) => setFormData({...formData, adminEmail: e.target.value})}
+                        placeholder="admin@empresa.com"
+                        className="bg-white border-blue-200"
                         />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label>Senha de Acesso *</Label>
+                        <p className="text-[10px] text-blue-600 font-medium italic">Acesso indicado: admin@{formData.link_name || "empresa"}.com</p>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-blue-800">Senha Inicial *</Label>
                         <Input 
-                          type="text" 
-                          placeholder="••••••••" 
-                          value={formData.adminPassword} 
-                          onChange={(e) => setFormData({...formData, adminPassword: e.target.value})} 
+                        type="password"
+                        value={formData.adminPassword} 
+                        onChange={(e) => setFormData({...formData, adminPassword: e.target.value})}
+                        placeholder="******"
+                        className="bg-white border-blue-200"
                         />
-                        <p className="text-[10px] text-slate-500">A senha deve ter pelo menos 6 caracteres.</p>
-                      </div>
                     </div>
                   </div>
                 )}
+                
+                <div className="space-y-2">
+                  <Label>Logo da Empresa</Label>
+                  <div className="flex gap-4 items-center">
+                     <div className="w-16 h-16 rounded-xl border border-slate-200 bg-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                        {formData.logo_url ? <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Building className="text-slate-400" size={24} />}
+                     </div>
+                     <Button type="button" variant="outline" onClick={() => document.getElementById('logo-upload')?.click()} className="flex items-center gap-2" disabled={isUploading}>
+                        <Upload size={16} /> Fazer Upload
+                     </Button>
+                     <input type="file" id="logo-upload" onChange={handleImageUpload} className="hidden" accept="image/*" />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="space-y-0.5"><Label>Habilitar Landing Page</Label><p className="text-xs text-slate-500">Configurações para o site institucional.</p></div>
+                  <Switch 
+                     key={`lp-key-${formData.landing_page_enabled}`}
+                     checked={formData.landing_page_enabled} 
+                     onCheckedChange={(checked) => setFormData({...formData, landing_page_enabled: checked})} 
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="space-y-0.5"><Label>Habilitar Checklist</Label><p className="text-xs text-slate-500">Módulo de auditoria e vistorias.</p></div>
+                  <Switch 
+                     key={`ck-key-${formData.checklists_enabled}`}
+                     checked={formData.checklists_enabled} 
+                     onCheckedChange={(checked) => setFormData({...formData, checklists_enabled: checked})} 
+                  />
+                </div>
               </form>
             ) : (
-              <div className="px-1 mt-2">
-                {!adminFormView ? (
-                  <div className="space-y-4">
-                     <div className="flex justify-between items-center">
-                        <p className="text-sm text-slate-500">Gestão de acesso ao painel da {activeCompany?.name}</p>
-                        <Button type="button" onClick={openAdminCreate} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">+ Novo Admin</Button>
-                     </div>
-                     {activeAdmins.length === 0 ? (
-                        <div className="text-center py-8 text-slate-500 bg-slate-50 rounded-lg border border-slate-100">Nenhum administrador cadastrado.</div>
-                     ) : (
-                        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
-                           {activeAdmins.map(admin => (
-                              <div key={admin.id} className={`flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors ${admin.active === false ? 'opacity-60' : ''}`}>
-                                 <div>
-                                    <div className="flex items-center gap-2">
-                                       <p className="font-semibold text-slate-900">{admin.name}</p>
-                                       {admin.active === false && <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Inativo</span>}
-                                    </div>
-                                    <p className="text-sm text-slate-500">{admin.email}</p>
-                                 </div>
-                                 <div className="flex items-center gap-2">
-                                    <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} title="Ativar/Desativar" className="mr-2" />
-                                    <Button type="button" variant="ghost" size="icon" onClick={() => openAdminEdit(admin)} className="text-slate-400 hover:text-blue-600 h-8 w-8"><Edit2 size={16} /></Button>
-                                     <Button type="button" variant="ghost" size="icon" onClick={() => { setAdminToDelete({id: admin.id, name: admin.name}); setIsDeleteAdminOpen(true); }} className="text-slate-400 hover:text-red-600 h-8 w-8"><Trash2 size={16} /></Button>
-                                 </div>
-                              </div>
-                           ))}
-                        </div>
-                     )}
-                  </div>
+              <div className="px-1 space-y-4">
+                <div className="flex justify-between items-center">
+                   <p className="text-sm text-slate-500">Administradores vinculados:</p>
+                   {!adminFormView ? (
+                     <Button type="button" size="sm" onClick={() => { setAdminFormData({ name: '', email: '', password: '', active: true }); setEditingAdminId(null); setAdminFormView(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs h-8">
+                       <Plus size={14} className="mr-1" /> Novo Administrador
+                     </Button>
+                   ) : (
+                     <Button type="button" size="sm" variant="outline" onClick={() => { setAdminFormView(false); setEditingAdminId(null); }} className="h-8 text-xs">
+                        Voltar para Lista
+                     </Button>
+                   )}
+                </div>
+                
+                {adminFormView ? (
+                   <form id="admin-form" onSubmit={handleSaveAdmin} className="p-4 border border-slate-200 rounded-lg space-y-4 bg-slate-50">
+                      <div className="space-y-2"><Label>Nome Completo *</Label><Input value={adminFormData.name} onChange={e => setAdminFormData({...adminFormData, name: e.target.value})} placeholder="Ex: João Silva" required /></div>
+                      <div className="space-y-2"><Label>E-mail *</Label><Input type="email" value={adminFormData.email} onChange={e => setAdminFormData({...adminFormData, email: e.target.value})} placeholder="admin@empresa.com" required /></div>
+                      <div className="space-y-2">
+                        <Label>{editingAdminId ? 'Nova Senha (opcional)' : 'Senha Inicial *'}</Label>
+                        <Input type="password" value={adminFormData.password} onChange={e => setAdminFormData({...adminFormData, password: e.target.value})} placeholder="Mínimo 6 caracteres" required={!editingAdminId} minLength={6} />
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                          {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Administrador'}
+                        </Button>
+                      </div>
+                   </form>
                 ) : (
-                  <div className="space-y-4">
-                     <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-100">
-                       <Button type="button" variant="ghost" size="icon" onClick={() => setAdminFormView(false)} className="h-8 w-8 text-slate-500 -ml-2"><ArrowLeft size={18} /></Button>
-                       <h3 className="text-lg font-semibold text-slate-900">{editingAdminId ? 'Editar Admin' : 'Novo Admin'}</h3>
-                     </div>
-                     <form id="admin-form" onSubmit={handleSaveAdmin} className="space-y-4">
-                       <div className="space-y-2"><Label>Nome Completo *</Label><Input placeholder="Ex: João Silva" value={adminFormData.name} onChange={(e) => setAdminFormData({...adminFormData, name: e.target.value})} autoFocus /></div>
-                       <div className="space-y-2"><Label>E-mail *</Label><Input type="email" placeholder="admin@empresa.com" value={adminFormData.email} onChange={(e) => setAdminFormData({...adminFormData, email: e.target.value})} /></div>
-                       <div className="space-y-2"><Label>{editingAdminId ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</Label><Input type="text" placeholder="••••••••" value={adminFormData.password} onChange={(e) => setAdminFormData({...adminFormData, password: e.target.value})} /></div>
-                       <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-                          <div className="space-y-0.5"><Label>Status do Admin</Label><p className="text-xs text-slate-500">Admins inativos não podem acessar o painel.</p></div>
-                          <Switch checked={adminFormData.active} onCheckedChange={(checked) => setAdminFormData({...adminFormData, active: checked})} />
-                       </div>
-                     </form>
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                     {activeAdmins.map(admin => (
+                        <div key={admin.id} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors">
+                           <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                 <p className="font-semibold text-slate-900">{admin.name}</p>
+                                 <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase">{admin.role}</span>
+                              </div>
+                              <p className="text-sm text-slate-500">{admin.email}</p>
+                           </div>
+                           <div className="flex items-center gap-3">
+                             <Button type="button" variant="ghost" size="icon" onClick={() => { setEditingAdminId(admin.id); setAdminFormData({ name: admin.name || '', email: admin.email || '', password: '', active: admin.active !== false }); setAdminFormView(true); }} className="text-slate-400 hover:text-blue-600 h-8 w-8">
+                                <Edit2 size={14} />
+                             </Button>
+                             <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} />
+                           </div>
+                        </div>
+                     ))}
+                      {activeAdmins.length === 0 && (
+                        <div className="p-12 text-center">
+                          <Users className="mx-auto text-slate-300 mb-3" size={32} />
+                          <p className="text-slate-500 font-medium">Nenhum administrador encontrado.</p>
+                          <p className="text-xs text-slate-400 mt-1 italic">Dica: O acesso padrão indicado é admin@{activeCompany?.link_name}.com</p>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>
             )}
           </div>
 
-          <div className="flex-shrink-0 pt-4 border-t border-slate-100 flex justify-end gap-3 mt-2">
-            {activeTab === 'details' ? (
-              <>
-                <Button type="button" variant="outline" onClick={handleCloseForm} disabled={isSubmitting}>Cancelar</Button>
-                <Button type="submit" form="company-form" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : (editingId ? 'Salvar Alterações' : 'Criar Empresa')}
-                </Button>
-              </>
-            ) : (
-              adminFormView ? (
-                <>
-                  <Button type="button" variant="outline" onClick={() => setAdminFormView(false)} disabled={isSubmitting}>Cancelar</Button>
-                  <Button type="submit" form="admin-form" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Admin'}
-                  </Button>
-                </>
-              ) : (
-                <Button type="button" variant="outline" onClick={handleCloseForm} disabled={isSubmitting}>Fechar</Button>
-              )
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDeleteOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseDelete(); }}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle className="text-red-600">Excluir Empresa</DialogTitle></DialogHeader>
-          <div className="py-4">
-             <p className="text-slate-600 text-sm">Tem certeza que deseja excluir <strong>{companyToDelete?.name}</strong>?</p>
-             <p className="text-red-500 text-sm mt-2 font-medium">Isso apagará também todos os usuários e dados vinculados localmente.</p>
-          </div>
-          <div className="flex justify-end gap-3">
-             <Button type="button" variant="outline" onClick={handleCloseDelete} disabled={isSubmitting}>Cancelar</Button>
-             <Button type="button" variant="destructive" onClick={handleDeleteCompany} disabled={isSubmitting}>
-               {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Sim, excluir'}
-             </Button>
-          </div>
-        </DialogContent>
-       </Dialog>
-
-      <Dialog open={isDeleteAdminOpen} onOpenChange={(open) => { if (!open && !isSubmitting) handleCloseDeleteAdmin(); }}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle className="text-red-600">Excluir Administrador</DialogTitle></DialogHeader>
-          <div className="py-4">
-             <p className="text-slate-600 text-sm">Tem certeza que deseja excluir o admin <strong>{adminToDelete?.name}</strong>?</p>
-             <p className="text-red-500 text-sm mt-2 font-medium">Esta ação não pode ser desfeita.</p>
-          </div>
-          <div className="flex justify-end gap-3">
-             <Button type="button" variant="outline" onClick={handleCloseDeleteAdmin} disabled={isSubmitting}>Cancelar</Button>
-             <Button type="button" variant="destructive" onClick={handleDeleteAdmin} disabled={isSubmitting}>
-               {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Sim, excluir'}
-             </Button>
+          <div className="flex-shrink-0 pt-4 border-t border-slate-100 flex justify-end gap-3 mt-4">
+             <Button type="button" variant="outline" onClick={handleCloseForm}>Cancelar</Button>
+             {activeTab === 'details' && (
+               <Button type="submit" form="company-form" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
+                 {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Empresa'}
+               </Button>
+             )}
           </div>
         </DialogContent>
       </Dialog>

@@ -44,6 +44,7 @@ export interface User {
   name: string;
   email?: string;
   cpf?: string;
+  cpf_raw?: string;
   role: UserRole;
   password?: string;
   company_id?: string;
@@ -132,7 +133,6 @@ export interface CourseModule {
   course_id: string;
   company_id?: string;
   title: string;
-  description?: string;
   order_index: number;
   created_at: string;
   updated_at?: string;

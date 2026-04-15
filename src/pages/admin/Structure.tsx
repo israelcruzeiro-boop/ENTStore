@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Network, Save, Building2, Store, CheckCircle2, XCircle, Edit2, Trash2, Plus, Loader2 } from 'lucide-react';
+import { Network, Save, Building2, Store, Edit2, Trash2, Plus, Loader2, FolderOpen, ChevronRight, Layers } from 'lucide-react';
 import { OrgTopLevel, OrgUnit } from '../../types';
 import { orgTopLevelSchema, orgUnitSchema } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
@@ -103,9 +103,9 @@ export const AdminStructure = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!l3Name.trim()) return toast.error("O nome da Unidade Operacional (Base) não pode ser vazio.");
-    if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Agrupamento Principal (Topo).");
-    if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Agrupamento Secundário (Interm.).");
+    if (!l3Name.trim()) return toast.error("O nome do Nível 3 não pode ser vazio.");
+    if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Nível 1.");
+    if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Nível 2.");
     
     const newLevels = [];
     if (l1.active) newLevels.push({ id: l1.id, name: l1.name.trim() });
@@ -359,232 +359,400 @@ export const AdminStructure = () => {
 
       <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-6 border-b border-slate-100 pb-2">Passo 1: Definir os Níveis da Hierarquia</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-1">Passo 1: Definir os Níveis da Hierarquia</h2>
+          <p className="text-xs text-slate-500 mb-6">Ative e nomeie cada nível da sua estrutura organizacional.</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Nível 1 */}
-            <div className={`p-5 rounded-xl border transition-colors ${l1.active ? 'border-indigo-200 bg-indigo-50/40 shadow-sm' : 'border-slate-200 bg-slate-50 opacity-80'}`}>
-               <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-slate-700">Agrupamento Principal (Topo)</Label>
+            <div className={`relative p-4 rounded-xl border-2 transition-all ${l1.active ? 'border-blue-300 bg-blue-50/50 shadow-sm' : 'border-slate-200 bg-slate-50/50 opacity-70'}`}>
+               <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black ${l1.active ? 'bg-blue-600 text-white' : 'bg-slate-300 text-white'}`}>1</span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">Nível 1</p>
+                      <p className="text-[10px] text-slate-400">Topo da hierarquia</p>
+                    </div>
+                  </div>
                   <Switch checked={l1.active} onCheckedChange={(c) => setL1({...l1, active: c})} disabled={isSubmitting} />
                </div>
                <Input 
-                 placeholder="Ex: Diretoria" 
+                 placeholder="Ex: Diretoria, Região" 
                  value={l1.name} 
                  onChange={e => setL1({...l1, name: e.target.value})} 
-                 disabled={true} 
-                 className={'bg-slate-100 text-slate-500 font-bold'} 
+                 disabled={!l1.active || isSubmitting} 
+                 className={`text-sm font-semibold ${l1.active ? 'bg-white border-blue-200' : 'bg-slate-100 text-slate-400'}`}
                />
-               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Nome fixo</p>
             </div>
 
             {/* Nível 2 */}
-            <div className={`p-5 rounded-xl border transition-colors ${l2.active ? 'border-indigo-200 bg-indigo-50/40 shadow-sm' : 'border-slate-200 bg-slate-50 opacity-80'}`}>
-               <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-slate-700">Agrupamento Secundário (Interm.)</Label>
+            <div className={`relative p-4 rounded-xl border-2 transition-all ${l2.active ? 'border-amber-300 bg-amber-50/50 shadow-sm' : 'border-slate-200 bg-slate-50/50 opacity-70'}`}>
+               <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black ${l2.active ? 'bg-amber-500 text-white' : 'bg-slate-300 text-white'}`}>2</span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">Nível 2</p>
+                      <p className="text-[10px] text-slate-400">Intermediário</p>
+                    </div>
+                  </div>
                   <Switch checked={l2.active} onCheckedChange={(c) => setL2({...l2, active: c})} disabled={isSubmitting} />
                </div>
                <Input 
-                 placeholder="Ex: Regional" 
+                 placeholder="Ex: Regional, Área" 
                  value={l2.name} 
                  onChange={e => setL2({...l2, name: e.target.value})} 
-                 disabled={true} 
-                 className={'bg-slate-100 text-slate-500 font-bold'} 
+                 disabled={!l2.active || isSubmitting} 
+                 className={`text-sm font-semibold ${l2.active ? 'bg-white border-amber-200' : 'bg-slate-100 text-slate-400'}`}
                />
-               <p className="text-[10px] text-slate-500 mt-2.5 font-medium">Nome fixo</p>
             </div>
 
             {/* Nível 3 */}
-            <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50/30 shadow-sm">
-               <div className="flex justify-between items-center mb-4">
-                  <Label className="text-sm font-bold text-emerald-800">Unidade Operacional (Base)</Label>
-                  <span className="text-[9px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">Obrigatório</span>
+            <div className="relative p-4 rounded-xl border-2 border-emerald-300 bg-emerald-50/50 shadow-sm">
+               <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black bg-emerald-600 text-white">3</span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">Nível 3</p>
+                      <p className="text-[10px] text-slate-400">Base operacional</p>
+                    </div>
+                  </div>
+                  <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Fixo</span>
                </div>
                <Input 
                  placeholder="Ex: Loja, Filial" 
                  value={l3Name} 
                  onChange={e => setL3Name(e.target.value)} 
-                 disabled={true}
-                 className="bg-slate-100 text-slate-500 font-bold border-emerald-200"
+                 disabled={isSubmitting}
+                 className="text-sm font-semibold bg-white border-emerald-200"
                />
-               <p className="text-[10px] text-emerald-600/80 mt-2.5 font-medium">Nome fixo</p>
             </div>
           </div>
         </div>
-        <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex justify-end">
-          <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 px-6">
-            {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Salvar Nomenclaturas
+        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
+          <Button type="submit" disabled={isSubmitting} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2 px-5 text-xs">
+            {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar Configuração
           </Button>
         </div>
       </form>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* Passo 2: Níveis Intermediários (Opcional) */}
-        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]`}>
+        {/* Passo 2: Níveis Intermediários */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-             <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 2: Cadastrar Agrupamentos</h2>
+             <h2 className="text-base font-semibold text-slate-900 mb-3 flex items-center gap-2">
+               <Layers size={18} className="text-indigo-500" /> Passo 2: Cadastrar Agrupamentos
+             </h2>
              {activeLevelsConfig.length > 0 ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                   {activeLevelsConfig.map((lvl, index) => (
-                      <button 
-                        type="button"
-                        key={lvl.id} 
-                        onClick={() => setActiveTabIndex(index)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-colors ${activeTabIndex === index ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
-                      >
-                        {lvl.name}
-                      </button>
-                   ))}
+                   {activeLevelsConfig.map((lvl, index) => {
+                      const isL1 = lvl.type === 'L1';
+                      const colorClasses = activeTabIndex === index
+                        ? (isL1 ? 'bg-blue-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm')
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50';
+                      return (
+                        <button 
+                          type="button"
+                          key={lvl.id} 
+                          onClick={() => setActiveTabIndex(index)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-colors flex items-center gap-1.5 ${colorClasses}`}
+                        >
+                          <span className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-black ${activeTabIndex === index ? 'bg-white/25' : (isL1 ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600')}`}>{isL1 ? '1' : '2'}</span>
+                          {lvl.name}
+                        </button>
+                      );
+                   })}
                 </div>
              ) : (
-                <p className="text-xs text-slate-500 italic mt-2">Nenhum nível superior/intermediário foi ativado no Passo 1.</p>
+                <p className="text-xs text-slate-500 italic mt-2">Nenhum nível foi ativado no Passo 1.</p>
              )}
           </div>
           
           {activeLevelsConfig.length > 0 && currentActiveLevel ? (
             <>
               <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-white">
-                 <p className="text-xs font-medium text-slate-500">Exibindo registros de: <strong>{currentActiveLevel.name}</strong></p>
-                 <Button type="button" onClick={openCreateTopLevel} size="sm" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 h-8">
-                   <Plus size={14} className="mr-1" /> Nova(o) {currentActiveLevel.name}
+                 <p className="text-xs font-medium text-slate-500">Exibindo: <strong className="text-slate-700">{currentActiveLevel.name}</strong></p>
+                 <Button type="button" onClick={openCreateTopLevel} size="sm" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 h-7 text-xs">
+                   <Plus size={12} className="mr-1" /> Novo(a)
                  </Button>
               </div>
 
-              <div className="overflow-x-auto flex-1">
-                <table className="w-full text-left text-sm text-slate-600">
-                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
-                      <tr>
-                         <th className="p-3 w-12 text-center">Status</th>
-                         <th className="p-3">Nome</th>
-                         <th className="p-3 text-right">Ações</th>
-                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100">
-                      {currentGroups.map(item => {
-                         const parent = activePreviousLevelConfig ? companyTopLevels.find(t => t.id === item.parent_id) : null;
-                         return (
-                         <tr key={item.id} className={`hover:bg-slate-50 transition-colors ${!item.active ? 'opacity-60 bg-slate-50/50' : ''}`}>
-                            <td className="p-3 text-center">
-                               {item.active ? <CheckCircle2 className="text-emerald-500 mx-auto" size={16} /> : <XCircle className="text-slate-400 mx-auto" size={16} />}
-                            </td>
-                            <td className="p-3">
-                              <p className="font-semibold text-slate-900 truncate max-w-[200px]">{item.name}</p>
-                              {parent && <p className="text-[10px] text-slate-500 font-medium truncate max-w-[200px] mt-0.5">Pertence a: {parent.name}</p>}
-                            </td>
-                            <td className="p-3 text-right">
-                               <div className="flex items-center justify-end gap-1">
-                                 <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} title="Ativar/Inativar" />
-                                 <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={14} /></Button>
-                                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={14} /></Button>
-                               </div>
-                            </td>
-                         </tr>
-                      )})}
-                      {currentGroups.length === 0 && (
-                        <tr>
-                          <td colSpan={3} className="p-8 text-center text-slate-500">
-                            <Building2 size={24} className="text-slate-300 mx-auto mb-2" />
-                            <p className="font-medium text-slate-900 text-sm">Nenhum(a) {currentActiveLevel.name} cadastrado(a)</p>
-                          </td>
-                        </tr>
-                      )}
-                   </tbody>
-                </table>
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {/* Se estiver na tab L2 e L1 estiver ativo, agrupa por Diretoria */}
+                {currentActiveLevel.type === 'L2' && l1.active ? (
+                  <div className="space-y-3">
+                    {(() => {
+                      const l1Parents = companyTopLevels.filter(t => t.level_id === l1.id || (!t.level_id && activeLevelsConfig[0]?.id === l1.id));
+                      const l2WithParent = l1Parents.filter(p => currentGroups.some(g => g.parent_id === p.id));
+                      const l2Unlinked = currentGroups.filter(g => !g.parent_id || !l1Parents.find(p => p.id === g.parent_id));
+                      
+                      return (
+                        <>
+                          {l2WithParent.map(parentItem => {
+                            const children = currentGroups.filter(g => g.parent_id === parentItem.id);
+                            return (
+                              <div key={parentItem.id} className="rounded-lg border border-slate-200 overflow-hidden">
+                                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/70 border-b border-blue-100">
+                                  <FolderOpen size={14} className="text-blue-500" />
+                                  <span className="text-xs font-bold text-blue-700">{parentItem.name}</span>
+                                  <span className="text-[10px] text-slate-400 ml-auto">{children.length} {currentActiveLevel.name.toLowerCase()}{children.length !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div className="divide-y divide-slate-100 bg-white">
+                                  {children.map(item => {
+                                    const childCount = companyUnits.filter(u => u.parent_id === item.id).length;
+                                    return (
+                                      <div key={item.id} className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 ${!item.active ? 'opacity-50' : ''}`}>
+                                        <div className="flex items-center gap-2 text-slate-300 shrink-0">
+                                          <ChevronRight size={12} />
+                                        </div>
+                                        <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${item.active ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                                          <FolderOpen size={12} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-slate-800 truncate">{item.name}</p>
+                                          {childCount > 0 && (
+                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-600">
+                                              {childCount} {l3Name.toLowerCase()}{childCount !== 1 ? 's' : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
+                                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
+                                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          
+                          {l2Unlinked.length > 0 && (
+                            <div className="rounded-lg border border-dashed border-slate-300 overflow-hidden">
+                              <div className="flex items-center gap-2 px-3 py-2 bg-slate-50/70 border-b border-slate-200">
+                                <FolderOpen size={14} className="text-slate-400" />
+                                <span className="text-xs font-bold text-slate-500">Sem vínculo</span>
+                                <span className="text-[10px] text-slate-400 ml-auto">{l2Unlinked.length}</span>
+                              </div>
+                              <div className="divide-y divide-slate-100 bg-white">
+                                {l2Unlinked.map(item => {
+                                  const childCount = companyUnits.filter(u => u.parent_id === item.id).length;
+                                  return (
+                                    <div key={item.id} className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 ${!item.active ? 'opacity-50' : ''}`}>
+                                      <div className="flex items-center gap-2 text-slate-300 shrink-0">
+                                        <ChevronRight size={12} />
+                                      </div>
+                                      <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${item.active ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <FolderOpen size={12} />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-800 truncate">{item.name}</p>
+                                        {childCount > 0 && (
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-600">
+                                            {childCount} {l3Name.toLowerCase()}{childCount !== 1 ? 's' : ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
+                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
+                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {l2WithParent.length === 0 && l2Unlinked.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                              <Building2 size={28} className="mb-2 opacity-30" />
+                              <p className="font-medium text-slate-500 text-sm">Nenhum(a) {currentActiveLevel.name}</p>
+                              <p className="text-xs mt-1">Clique em "Novo(a)" para criar.</p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  /* Lista flat para L1 ou quando não há nível anterior */
+                  <>
+                    {currentGroups.map(item => {
+                       const isL1 = currentActiveLevel.type === 'L1';
+                       const childCount = isL1 
+                         ? companyTopLevels.filter(t => t.parent_id === item.id).length
+                         : companyUnits.filter(u => u.parent_id === item.id).length;
+                       return (
+                         <div key={item.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all hover:shadow-sm ${item.active ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-slate-100 bg-slate-50/50 opacity-60'}`}>
+                            <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${isL1 ? (item.active ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400') : (item.active ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400')}`}>
+                              <FolderOpen size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-slate-900 text-sm truncate">{item.name}</p>
+                              {childCount > 0 && (
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${isL1 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                  {childCount} {childCount === 1 ? 'item' : 'itens'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
+                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={13} /></Button>
+                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={13} /></Button>
+                            </div>
+                         </div>
+                       );
+                    })}
+                    {currentGroups.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <Building2 size={28} className="mb-2 opacity-30" />
+                        <p className="font-medium text-slate-500 text-sm">Nenhum(a) {currentActiveLevel.name}</p>
+                        <p className="text-xs mt-1">Clique em "Novo(a)" para criar.</p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </>
           ) : (
              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-slate-50/30">
                 <Network size={32} className="mb-3 opacity-30" />
-                <p className="font-medium text-sm">Agrupamentos desativados.</p>
-                <p className="text-xs mt-1">Sua estrutura utilizará apenas as Unidades.</p>
+                <p className="font-medium text-sm">Nenhum agrupamento ativo.</p>
+                <p className="text-xs mt-1">Ative Nível 1 ou 2 no Passo 1.</p>
              </div>
           )}
         </div>
 
-        {/* Passo 3: Unidades Finais (Sempre Ativo) */}
-        <div className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]`}>
+        {/* Passo 3: Unidades (Agrupadas por Pai) */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-             <h2 className="text-base font-semibold text-slate-900 mb-3">Passo 3: Cadastrar {l3Name}s</h2>
-             <div className="flex gap-2 overflow-x-auto pb-1">
-                 <div className="px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm flex items-center gap-1.5">
-                   <Store size={14} /> {l3Name} (Unidade Final)
-                 </div>
-             </div>
+             <h2 className="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+               <Store size={18} className="text-emerald-500" /> Passo 3: Cadastrar {l3Name}s
+             </h2>
+             <p className="text-[11px] text-slate-400">
+               {lowestLevelConfig 
+                 ? `Unidades agrupadas por ${lowestLevelConfig.name}`
+                 : `As ${l3Name.toLowerCase()}s ficarão independentes.`}
+             </p>
           </div>
 
-          <div className="p-3 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white">
-             {lowestLevelConfig ? (
-                <div className="flex items-center gap-2">
-                   <p className="text-xs font-medium text-slate-500 whitespace-nowrap">Filtrar por {lowestLevelConfig.name}:</p>
-                   <select 
-                     value={selectedParentFilter}
-                     onChange={(e) => setSelectedParentFilter(e.target.value)}
-                     className="h-8 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-500 max-w-[200px]"
-                   >
-                      <option value="all">TODAS</option>
-                      {companyTopLevels
-                        .filter(t => t.level_id === lowestLevelConfig.id || (!t.level_id && activeLevelsConfig[0]?.id === lowestLevelConfig.id))
-                        .map(t => (
-                         <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                   </select>
-                </div>
-             ) : (
-                <p className="text-xs font-medium text-slate-500">
-                   As {l3Name}s ficarão livres, pois não há níveis intermediários.
-                </p>
-             )}
-             <Button type="button" onClick={openCreateUnit} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 w-full sm:w-auto shrink-0">
-               <Plus size={14} className="mr-1" /> Nova {l3Name}
+          <div className="p-3 border-b border-slate-100 flex justify-between items-center bg-white">
+             <p className="text-xs text-slate-500 font-medium">{companyUnits.length} {l3Name.toLowerCase()}{companyUnits.length !== 1 ? 's' : ''} cadastrada{companyUnits.length !== 1 ? 's' : ''}</p>
+             <Button type="button" onClick={openCreateUnit} size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs">
+               <Plus size={12} className="mr-1" /> Nova {l3Name}
              </Button>
           </div>
 
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left text-sm text-slate-600">
-               <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
-                  <tr>
-                     <th className="p-3 w-12 text-center">Status</th>
-                     <th className="p-3">Nome</th>
-                     <th className="p-3 text-right">Ações</th>
-                  </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-100">
-                  {(selectedParentFilter === 'all' ? companyUnits : companyUnits.filter(u => u.parent_id === selectedParentFilter)).map(unit => {
-                     const parent = lowestLevelConfig ? companyTopLevels.find(t => t.id === unit.parent_id) : null;
-                     return (
-                       <tr key={unit.id} className={`hover:bg-slate-50 transition-colors ${!unit.active ? 'opacity-60 bg-slate-50/50' : ''}`}>
-                          <td className="p-3 text-center">
-                             {unit.active ? <CheckCircle2 className="text-emerald-500 mx-auto" size={16} /> : <XCircle className="text-slate-400 mx-auto" size={16} />}
-                          </td>
-                          <td className="p-3">
-                              <p className="font-semibold text-slate-900 truncate max-w-[200px]">{unit.name}</p>
-                              {lowestLevelConfig && (
-                                <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate max-w-[200px]">Vinculado a: {parent?.name || 'Não vinculado'}</p>
-                              )}
-                          </td>
-                          <td className="p-3 text-right">
-                             <div className="flex items-center justify-end gap-1">
-                               <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id, unit.active)} title="Ativar/Inativar" />
-                               <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={14} /></Button>
-                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={14} /></Button>
-                             </div>
-                          </td>
-                       </tr>
-                     );
-                  })}
-                  {companyUnits.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="p-8 text-center text-slate-500">
-                        <Store size={24} className="text-slate-300 mx-auto mb-2" />
-                        <p className="font-medium text-slate-900 text-sm">Nenhuma {l3Name.toLowerCase()} cadastrada</p>
-                      </td>
-                    </tr>
-                  )}
-               </tbody>
-            </table>
+          <div className="flex-1 overflow-y-auto p-3">
+            {lowestLevelConfig ? (
+              <div className="space-y-4">
+                {/* Unidades agrupadas por pai */}
+                {(() => {
+                  const parentGroups = parentOptionsForUnit.filter(p => companyUnits.some(u => u.parent_id === p.id));
+                  const unlinkedUnits = companyUnits.filter(u => !u.parent_id || !parentOptionsForUnit.find(p => p.id === u.parent_id));
+                  
+                  return (
+                    <>
+                      {parentGroups.map(parentItem => {
+                        const children = companyUnits.filter(u => u.parent_id === parentItem.id);
+                        const isL1Parent = activeLevelsConfig.length === 2;
+                        return (
+                          <div key={parentItem.id} className="rounded-lg border border-slate-200 overflow-hidden">
+                            {/* Header do grupo */}
+                            <div className={`flex items-center gap-2 px-3 py-2 ${isL1Parent ? 'bg-amber-50/70 border-b border-amber-100' : 'bg-blue-50/70 border-b border-blue-100'}`}>
+                              <FolderOpen size={14} className={isL1Parent ? 'text-amber-500' : 'text-blue-500'} />
+                              <span className={`text-xs font-bold ${isL1Parent ? 'text-amber-700' : 'text-blue-700'}`}>{parentItem.name}</span>
+                              <span className="text-[10px] text-slate-400 ml-auto">{children.length} {l3Name.toLowerCase()}{children.length !== 1 ? 's' : ''}</span>
+                            </div>
+                            {/* Unidades do grupo */}
+                            <div className="divide-y divide-slate-100 bg-white">
+                              {children.map(unit => (
+                                <div key={unit.id} className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 ${!unit.active ? 'opacity-50' : ''}`}>
+                                  <div className="flex items-center gap-2 text-slate-300 shrink-0">
+                                    <ChevronRight size={12} />
+                                  </div>
+                                  <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${unit.active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                    <Store size={12} />
+                                  </div>
+                                  <p className="flex-1 text-sm font-medium text-slate-800 truncate">{unit.name}</p>
+                                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id, unit.active)} />
+                                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={12} /></Button>
+                                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={12} /></Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      {/* Unidades sem vínculo */}
+                      {unlinkedUnits.length > 0 && (
+                        <div className="rounded-lg border border-dashed border-slate-300 overflow-hidden">
+                          <div className="flex items-center gap-2 px-3 py-2 bg-slate-50/70 border-b border-slate-200">
+                            <Store size={14} className="text-slate-400" />
+                            <span className="text-xs font-bold text-slate-500">Sem vínculo</span>
+                            <span className="text-[10px] text-slate-400 ml-auto">{unlinkedUnits.length}</span>
+                          </div>
+                          <div className="divide-y divide-slate-100 bg-white">
+                            {unlinkedUnits.map(unit => (
+                              <div key={unit.id} className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-slate-50 ${!unit.active ? 'opacity-50' : ''}`}>
+                                <div className="flex items-center gap-2 text-slate-300 shrink-0">
+                                  <ChevronRight size={12} />
+                                </div>
+                                <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center ${unit.active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                  <Store size={12} />
+                                </div>
+                                <p className="flex-1 text-sm font-medium text-slate-800 truncate">{unit.name}</p>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id, unit.active)} />
+                                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={12} /></Button>
+                                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={12} /></Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {parentGroups.length === 0 && unlinkedUnits.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                          <Store size={28} className="mb-2 opacity-30" />
+                          <p className="font-medium text-slate-500 text-sm">Nenhuma {l3Name.toLowerCase()} cadastrada</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            ) : (
+              /* Sem níveis superiores — lista simples */
+              <div className="space-y-2">
+                {companyUnits.map(unit => (
+                  <div key={unit.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all hover:shadow-sm ${unit.active ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50/50 opacity-60'}`}>
+                    <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${unit.active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Store size={16} />
+                    </div>
+                    <p className="flex-1 text-sm font-semibold text-slate-900 truncate">{unit.name}</p>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Switch checked={unit.active} onCheckedChange={() => toggleOrgUnitStatus(unit.id, unit.active)} />
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditUnit(unit)}><Edit2 size={13} /></Button>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(unit.id, unit.name, 'UNIT')}><Trash2 size={13} /></Button>
+                    </div>
+                  </div>
+                ))}
+                {companyUnits.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <Store size={28} className="mb-2 opacity-30" />
+                    <p className="font-medium text-slate-500 text-sm">Nenhuma {l3Name.toLowerCase()} cadastrada</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

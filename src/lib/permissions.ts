@@ -1,12 +1,3 @@
-import { Repository, User, OrgTopLevel, OrgUnit } from '../types';
-
-/**
- * Valida o acesso de um usuário a um repositório específico seguindo as regras de negócio:
- * 1. SUPER_ADMIN e ADMIN sempre têm acesso total.
- * 2. Usuários comuns (USER) respeitam o tipo de acesso (RESTRICTED ou ALL).
- * 3. Repositórios RESTRICTED validam permissão direta (ID do usuário), por unidade (loja) ou por nível macro (regional/diretoria).
- * 4. Exclusões explícitas por ID de usuário têm prioridade máxima de bloqueio.
- */
 import { User, Repository, Course, OrgUnit, OrgTopLevel, Checklist } from '../types';
 
 /**

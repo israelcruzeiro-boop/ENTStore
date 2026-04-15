@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { User, Company, UserRole } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { maskCPF } from '../hooks/useSupabaseData';
 import { toast } from 'sonner';
 import { Logger } from '../utils/logger';
 
@@ -53,12 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userData.company_id) {
         const { data: compData, error: compError } = await supabase
           .from('companies')
-          .select('id, name, slug, link_name, theme, logo_url, active, checklists_enabled, org_unit_name, org_top_level_name')
+          .select('id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, hero_position, hero_brightness, public_bio, active, checklists_enabled, landing_page_enabled, landing_page_active, landing_page_layout, org_unit_name, org_top_level_name, org_levels')
           .eq('id', userData.company_id)
           .single();
         
         if (compError) {
           Logger.error('Core Auth Error [Company Fetch]:', JSON.stringify(compError, null, 2));
+          // Fallback para resolver o objeto company como nulo em vez de travar
+          companyData = null;
         } else {
           companyData = compData;
         }
@@ -68,7 +71,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const finalRole = (rawRole === 'MAESTRO' ? 'SUPER_ADMIN' : rawRole) as UserRole;
 
       return { 
-        user: { ...userData, role: finalRole } as User, 
+        user: { 
+          ...userData, 
+          role: finalRole,
+          cpf_raw: userData.cpf,
+          cpf: maskCPF(userData.cpf)
+        } as User, 
         company: companyData as Company 
       };
     } catch (err) {
@@ -93,11 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Se falhou mas já temos user, mantemos (resiliência)
         const currentUser = userRef.current;
         if (!currentUser) {
-          Logger.warn('Profile fetch failed, no existing user. Setting null.');
+          Logger.warn('Profile fetch failed, no existing user. Clearing session to stop loop.');
           setUser(null);
           setCompany(null);
         } else {
-          Logger.warn('Profile fetch failed but keeping existing session.');
+          Logger.warn('Profile fetch failed but keeping current session for stability.');
         }
       }
       setLoading(false);
@@ -207,6 +215,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             Logger.error("SignUp Error (Provisioned):", signUpError.message);
             toast.error(`Sua conta está provisionada mas houve um erro ao ativá-la: ${signUpError.message}`);
           } else if (signUpData.user) {
+            // Pequeno delay para o trigger handle_new_user terminar no banco
+            await new Promise(resolve => setTimeout(resolve, 800));
             const retry = await supabase.auth.signInWithPassword({ email: emailToUse, password: pass });
             data = retry.data;
             error = retry.error;

@@ -14,6 +14,8 @@ import {
   useOrgStructure
 } from '../../hooks/useSupabaseData';
 import { checkCourseAccess } from '../../lib/permissions';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTenant } from '../../contexts/TenantContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -33,16 +35,64 @@ import {
   Trophy,
   Zap
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { LMSMentor } from '../../components/user/LMSMentor';
 import { Viewer } from '../../components/user/Viewer';
 import { CourseQuestionPlayer } from '../../components/user/CourseQuestionPlayer';
 import { CourseResultScreen } from '../../components/user/CourseResultScreen';
-import { printDiploma, DiplomaTemplateId } from '../../components/user/CourseDiploma';
-import { useAuth } from '../../contexts/AuthContext';
-import { useTenant } from '../../contexts/TenantContext';
-import { toast } from 'sonner';
+import { printDiploma, type DiplomaTemplateId } from '../../components/user/CourseDiploma';
 import { supabase } from '../../lib/supabaseClient';
+
+const CircularProgress = ({ progress, size = 60, strokeWidth = 5, primaryColor = '#3b82f6' }: { progress: number, size?: number, strokeWidth?: number, primaryColor?: string }) => {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (progress / 100) * circumference;
+
+  // Cor dinâmica baseada no progresso
+  const getProgressColor = () => {
+    if (progress < 30) return '#ef4444'; // Red
+    if (progress < 70) return '#f59e0b'; // Amber
+    return primaryColor; // Green/Blue
+  };
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="transform -rotate-90">
+        {/* Background circle */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          className="text-white/10"
+        />
+        {/* Progress circle */}
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={getProgressColor()}
+          strokeWidth={strokeWidth}
+          fill="transparent"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1, ease: "easeOut" }}
+          strokeLinecap="round"
+          className="drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[10px] font-black tabular-nums text-white">{progress}%</span>
+      </div>
+    </div>
+  );
+};
 
 export const UserCoursePlayer = () => {
   const { companySlug, courseId } = useParams();
@@ -363,18 +413,19 @@ export const UserCoursePlayer = () => {
               <span className="text-xs font-medium hidden sm:inline">Voltar</span>
             </button>
 
-            <div className="flex items-center gap-2">
-              {/* Badge de progresso */}
-              <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/10">
-                <Zap size={12} className="text-yellow-400" />
-                <span className="text-[11px] font-bold tabular-nums text-white">{progress}%</span>
-              </div>
+            <div className="flex items-center gap-3">
+              {/* Barra Circular de Progresso */}
+              <CircularProgress 
+                progress={progress} 
+                primaryColor={tenantCompany?.primary_color || '#3b82f6'} 
+                size={48} 
+              />
 
               <button
                 onClick={() => setShowNav(!showNav)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/10 text-white/70 hover:text-white hover:bg-white/20 transition-all active:scale-90"
+                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all active:scale-95 shadow-inner"
               >
-                {showNav ? <X size={16} /> : <Menu size={16} />}
+                {showNav ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
           </div>
@@ -419,20 +470,47 @@ export const UserCoursePlayer = () => {
         
         {/* HERO COVER HEADER (NO TOPO DO CONTEÚDO) */}
         {coverUrl && (
-          <div className="relative w-full h-56 md:h-72 lg:h-80 shrink-0 overflow-hidden mb-2 border-b border-white/[0.04]">
-            <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/60 to-transparent z-10 pointer-events-none" />
-            <div className="absolute inset-0 z-10 mix-blend-overlay" style={{ backgroundColor: tenantCompany?.primary_color || '#1e3a8a', opacity: 0.2 }} />
-            <img src={coverUrl} alt="Capa" className="w-full h-full object-cover scale-105" />
-            <div className="absolute bottom-6 left-4 md:left-8 z-20 max-w-3xl">
-              <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 text-xs font-semibold text-white/90">
+          <div className="relative w-full h-64 md:h-80 lg:h-96 shrink-0 overflow-hidden mb-2 border-b border-white/[0.04]">
+            <motion.div 
+              initial={{ scale: 1.1, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 1.5, ease: "easeOut" }}
+              className="absolute inset-0"
+            >
+              <img src={coverUrl} alt="Capa" className="w-full h-full object-cover" />
+            </motion.div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/40 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-0 z-10 mix-blend-overlay" style={{ backgroundColor: tenantCompany?.primary_color || '#1e3a8a', opacity: 0.15 }} />
+            
+            <div className="absolute bottom-8 left-4 md:left-10 z-20 max-w-3xl">
+              <motion.div 
+                initial={{ x: -20, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="inline-flex items-center gap-1.5 mb-4 px-3 py-1.5 bg-white/10 backdrop-blur-2xl rounded-xl border border-white/20 text-xs font-bold text-white/90 shadow-2xl"
+              >
                 <BookOpen size={14} className="text-blue-400" /> Trilha de Conhecimento
-              </div>
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-tight drop-shadow-xl">{course?.title}</h1>
+              </motion.div>
+              <motion.h1 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="text-4xl md:text-5xl lg:text-7xl font-black text-white leading-tight drop-shadow-2xl tracking-tighter"
+              >
+                {course?.title}
+              </motion.h1>
             </div>
           </div>
         )}
 
-        <div className="w-full max-w-4xl mx-auto px-4 pt-4 pb-32 space-y-5 relative z-10">
+        <div className="w-full max-w-4xl mx-auto px-4 pt-6 pb-40 space-y-8 relative z-10">
+          
+          {/* MENTOR CONVERSACIONAL */}
+          <LMSMentor 
+            progress={progress} 
+            isQuiz={showPhaseQuestions} 
+            currentContentTitle={currentContent?.title} 
+          />
           
           {/* ===== STEP INDICATORS (Horizontais) ===== */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-1 px-1">
@@ -485,159 +563,147 @@ export const UserCoursePlayer = () => {
           </div>
 
           {/* ===== CONTEÚDO / PERGUNTAS ===== */}
-          <div className="animate-in fade-in slide-in-from-bottom-3 duration-500" key={`${activeContentId}-${showPhaseQuestions}`}>
-            {showPhaseQuestions && moduleQuestions.length > 0 ? (
-              <CourseQuestionPlayer 
-                questions={moduleQuestions}
-                phaseTitle={modules.find(m => m.id === activeModuleId)?.title || 'Fase'}
-                primaryColor={tenantCompany?.primary_color}
-                courseThumbnail={coverUrl}
-                onComplete={handlePhaseQuestionsComplete}
-                initialAnswers={savedAnswers ? Object.fromEntries(savedAnswers.map(a => [a.question_id, { optionId: a.selected_option_id, isCorrect: a.is_correct }])) : undefined}
-              />
-            ) : currentContent ? (
-              <div className="space-y-4">
-                {/* Viewer de Conteúdo */}
-                {currentContent.type === 'HTML' && currentContent.html_content ? (
-                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/[0.06] bg-white">
-                    <div 
-                      className="prose prose-slate max-w-none text-slate-800 p-5 md:p-8 text-sm md:text-base"
-                      dangerouslySetInnerHTML={{ __html: currentContent.html_content }}
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/[0.06]">
-                    <Viewer content={currentContent} />
-                  </div>
-                )}
-                
-                {/* Info Card */}
-                <div className="bg-gradient-to-br from-white/[0.04] to-white/[0.02] rounded-2xl p-4 md:p-6 border border-white/[0.06] space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2.5 bg-gradient-to-br from-blue-500/20 to-blue-600/10 rounded-xl shrink-0 border border-blue-500/10">
-                      {getContentIcon(currentContent.type, 20)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Badge className="bg-white/[0.06] text-white/50 border-white/[0.06] hover:bg-white/[0.06] text-[9px] uppercase">
-                          {currentContent.type}
-                        </Badge>
-                        <span className="text-[10px] text-white/20">•</span>
-                        <span className="text-[10px] text-white/30">
-                          Aula {currentContentIndex + 1} de {activeModuleContents.length}
-                        </span>
-                      </div>
-                      <h2 className="text-base md:text-lg font-bold text-white leading-tight">{currentContent.title}</h2>
-                      {currentContent.description && (
-                        <p className="text-xs text-white/40 mt-1.5 leading-relaxed line-clamp-3">{currentContent.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Atalho para perguntas (Visível na última aula da fase se houver perguntas) */}
-                {(currentContentIndex === activeModuleContents.length - 1) && moduleQuestions.length > 0 && !showPhaseQuestions && (
-                  <div className="pt-8 pb-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                    <button
-                      onClick={() => setShowPhaseQuestions(true)}
-                      className="w-full relative group overflow-hidden rounded-2xl p-6 md:p-8 transition-all duration-500 active:scale-[0.98] border border-white/10 hover:border-blue-500/50 bg-[#0f172a] hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] flex flex-col md:flex-row items-center justify-between gap-6"
-                    >
-                      {/* Efeito Glow de Fundo */}
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#2563eb'}20, transparent)` }} />
-                      
-                      <div className="relative z-10 flex items-center gap-5 text-left w-full md:w-auto">
-                        <div className="p-4 rounded-full shadow-lg" style={{ background: `linear-gradient(to bottom right, ${tenantCompany?.primary_color || '#3b82f6'}, ${tenantCompany?.primary_color || '#4f46e5'}80)`, boxShadow: `0 4px 14px 0 ${tenantCompany?.primary_color || '#3b82f6'}40` }}>
-                          <HelpCircle className="w-7 h-7 md:w-8 md:h-8 text-white animate-[pulse_2s_ease-in-out_infinite]" />
+          <AnimatePresence mode="wait">
+            <motion.div 
+              key={`${activeContentId}-${showPhaseQuestions}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              className="w-full"
+            >
+              {showPhaseQuestions && moduleQuestions.length > 0 ? (
+                <CourseQuestionPlayer 
+                  questions={moduleQuestions}
+                  phaseTitle={modules.find(m => m.id === activeModuleId)?.title || 'Fase'}
+                  primaryColor={tenantCompany?.primary_color}
+                  courseThumbnail={coverUrl}
+                  onComplete={handlePhaseQuestionsComplete}
+                  initialAnswers={savedAnswers ? Object.fromEntries(savedAnswers.map(a => [a.question_id, { optionId: a.selected_option_id, isCorrect: a.is_correct }])) : undefined}
+                />
+              ) : currentContent ? (
+                <div className="space-y-6">
+                  {/* Barra de Aproveitamento (Só aparece se houver questões anteriores) */}
+                  {totalQuestions > 0 && (
+                    <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/10 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-500/20 rounded-lg border border-emerald-500/20 text-emerald-400">
+                          <Trophy size={18} />
                         </div>
                         <div>
-                          <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-1.5 flex items-center gap-2">
-                            Desafio da Fase
-                            <span className="shrink-0 inline-flex items-center justify-center bg-white/10 text-white/70 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                              {moduleQuestions.length} questões
-                            </span>
-                          </h3>
-                          <p className="text-white/60 text-sm md:text-base font-medium">Concluiu o conteúdo? Avalie seus conhecimentos.</p>
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Aproveitamento</p>
+                          <p className="text-lg font-black text-white tabular-nums tracking-tight">
+                            {Math.round((totalCorrect / totalQuestions) * 100)}%
+                          </p>
                         </div>
                       </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Respostas</p>
+                        <p className="text-sm font-bold text-white/80 tabular-nums">
+                          {totalCorrect} <span className="text-white/20">/</span> {totalQuestions}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-                      <div className="relative z-10 shrink-0 w-full md:w-auto">
-                        <div className="flex items-center justify-center gap-2 bg-white text-slate-900 font-bold px-6 py-3.5 rounded-xl w-full md:w-auto group-hover:bg-blue-50 transition-colors">
-                          Iniciar Quiz
-                          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </div>
+                  {/* Viewer de Conteúdo */}
+                  {currentContent.type === 'HTML' && currentContent.html_content ? (
+                    <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.06] bg-white">
+                      <div 
+                        className="prose prose-slate max-w-none text-slate-800 p-6 md:p-12 text-sm md:text-lg leading-relaxed shadow-inner"
+                        dangerouslySetInnerHTML={{ __html: currentContent.html_content }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.08] ring-1 ring-white/5 bg-black/20">
+                      <Viewer content={currentContent} />
+                    </div>
+                  )}
+                  
+                  {/* Info Card */}
+                  <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] rounded-3xl p-6 md:p-8 border border-white/[0.1] shadow-2xl backdrop-blur-xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
+                      {getContentIcon(currentContent.type, 120)}
+                    </div>
+                    <div className="flex items-start gap-5 relative z-10">
+                      <div className="p-4 bg-gradient-to-br from-blue-500/30 to-blue-600/10 rounded-2xl shrink-0 border border-blue-500/20 shadow-xl">
+                        {getContentIcon(currentContent.type, 24)}
                       </div>
-                    </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-3 mb-2.5">
+                          <Badge className="bg-white/10 text-white/70 border-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full">
+                            {currentContent.type}
+                          </Badge>
+                          <span className="text-xs font-bold text-white/20 tracking-widest">
+                            AULA {currentContentIndex + 1} DE {activeModuleContents.length}
+                          </span>
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-black text-white leading-tight tracking-tight">{currentContent.title}</h2>
+                        {currentContent.description && (
+                          <p className="text-sm md:text-base text-white/50 mt-3 leading-relaxed max-w-2xl">{currentContent.description}</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {/* Confirmar Fase concluída (Visível na última aula da fase se NÃO houver perguntas) */}
-                {(currentContentIndex === activeModuleContents.length - 1) && moduleQuestions.length === 0 && !showPhaseQuestions && (
-                  <div className="pt-8 pb-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                    <button
-                      onClick={handleNext}
-                      className="w-full relative group overflow-hidden rounded-2xl p-6 md:p-8 transition-all duration-500 active:scale-[0.98] border border-white/10 hover:border-emerald-500/50 bg-[#0f172a] hover:shadow-[0_0_40px_rgba(16,185,129,0.15)] flex flex-col md:flex-row items-center justify-between gap-6"
+                  {/* Navegação de aulas (Próximo / Anterior) */}
+                  <div className="pt-6 grid grid-cols-2 gap-4">
+                    <Button
+                      variant="ghost"
+                      onClick={handlePrevious}
+                      disabled={currentContentIndex === 0 && !showPhaseQuestions}
+                      className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20"
                     >
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#10b981'}20, transparent)` }} />
-                      <div className="relative z-10 flex items-center gap-5 text-left w-full md:w-auto">
-                        <div className="p-4 rounded-full shadow-lg" style={{ background: `linear-gradient(to bottom right, ${tenantCompany?.primary_color || '#10b981'}, ${tenantCompany?.primary_color || '#059669'}80)`, boxShadow: `0 4px 14px 0 ${tenantCompany?.primary_color || '#10b981'}40` }}>
-                          <CheckCircle2 className="w-7 h-7 md:w-8 md:h-8 text-white animate-[pulse_2s_ease-in-out_infinite]" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl md:text-2xl font-bold tracking-tight text-white mb-1.5 flex items-center gap-2">
-                            Fase Concluída
-                          </h3>
-                          <p className="text-white/60 text-sm md:text-base font-medium">Você finalizou todos os materiais desta etapa.</p>
-                        </div>
-                      </div>
-                      <div className="relative z-10 shrink-0 w-full md:w-auto">
-                        <div className="flex items-center justify-center gap-2 bg-white text-slate-900 font-bold px-6 py-3.5 rounded-xl w-full md:w-auto group-hover:bg-emerald-50 transition-colors">
-                          Avançar
-                          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                )}
+                      <ChevronLeft className="mr-2" size={20} /> Aula Anterior
+                    </Button>
 
-                {/* Botão de Próxima Aula (Se não for a última aula da fase) */}
-                {currentContentIndex < activeModuleContents.length - 1 && (
-                  <div className="pt-8 pb-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
-                    <button
-                      onClick={handleNext}
-                      className="w-full relative group overflow-hidden rounded-2xl p-4 md:p-6 transition-all duration-500 active:scale-[0.98] border border-white/10 hover:border-blue-500/50 bg-[#0f172a] hover:shadow-[0_0_40px_rgba(59,130,246,0.15)] flex flex-col md:flex-row items-center justify-between gap-4"
-                    >
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#2563eb'}10, transparent)` }} />
-                      <div className="relative z-10 flex items-center gap-4 text-left w-full md:w-auto">
-                         <div>
-                          <h3 className="text-base md:text-lg font-bold text-white leading-tight">Marcar lido e continuar</h3>
-                          <p className="text-white/50 text-xs md:text-sm mt-0.5">Avance para o próximo material.</p>
-                         </div>
-                      </div>
-                      <div className="relative z-10 shrink-0 w-full md:w-auto text-right">
-                        <div className="inline-flex items-center justify-center gap-1.5 text-blue-400 font-bold text-sm group-hover:text-blue-300 transition-colors">
-                          Próximo Material <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                        </div>
-                      </div>
-                    </button>
+                    {currentContentIndex < activeModuleContents.length - 1 ? (
+                      <Button
+                        onClick={handleNext}
+                        className="h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)]"
+                        style={{ 
+                          backgroundColor: tenantCompany?.primary_color || '#ffffff',
+                          '--primary-glow': (tenantCompany?.primary_color || '#ffffff') + '40'
+                        } as any}
+                      >
+                        Próxima Aula <ChevronRight className="ml-2" size={20} />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleNext}
+                        className="h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] animate-pulse"
+                        style={{ 
+                          backgroundColor: moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff'),
+                          '--primary-glow': (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff')) + '40'
+                        } as any}
+                      >
+                        {moduleQuestions.length > 0 ? 'Iniciar Quiz' : 'Concluir Fase'} 
+                        <ChevronRight className="ml-2" size={20} />
+                      </Button>
+                    )}
                   </div>
-                )}
-              </div>
-            ) : activeModuleContents.length === 0 && moduleQuestions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-white/30 bg-white/[0.02] rounded-2xl border border-white/[0.04]">
-                <BookOpen size={48} className="mb-4 opacity-30" />
-                <h3 className="text-white/60 font-medium text-lg mb-1">Fase em estruturação</h3>
-                <p className="text-sm">Os conteúdos desta fase ainda não foram adicionados.</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-24 text-white/30">
-                <div className="relative w-16 h-16 mb-4">
-                  <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-blue-500 animate-spin" />
                 </div>
-                <p className="text-sm font-medium">Preparando aula...</p>
-              </div>
-            )}
-          </div>
+              ) : activeModuleContents.length === 0 && moduleQuestions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-32 text-white/20 bg-white/[0.02] rounded-[3rem] border border-white/[0.05] dashed-border">
+                  <BookOpen size={64} className="mb-6 opacity-20" />
+                  <h3 className="text-white/60 font-black text-2xl mb-2 tracking-tight">Fase em estruturação</h3>
+                  <p className="text-sm md:text-base font-medium opacity-40">Os conteúdos desta fase ainda não foram adicionados.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-32">
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="relative w-16 h-16 mb-6"
+                  >
+                    <div className="absolute inset-0 rounded-full border-4 border-white/5" />
+                    <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500" />
+                  </motion.div>
+                  <p className="text-sm font-black text-white/40 uppercase tracking-widest animate-pulse">Preparando aula...</p>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 

@@ -1,4 +1,5 @@
 import useSWR from 'swr';
+import { z } from 'zod';
 import { supabase, fetcher } from '../lib/supabaseClient';
 import { 
   Checklist, 
@@ -27,13 +28,19 @@ import {
 export function useChecklists(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Checklist[]>(
     companyId ? `checklists_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklists')
-      .select('id, company_id, folder_id, title, description, access_type, status, created_at')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklists')
+        .select('id, company_id, folder_id, title, description, access_type, status, created_at')
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      
+      if (result.data) {
+        result.data = z.array(checklistSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -50,13 +57,19 @@ export function useChecklists(companyId?: string) {
 export function useChecklistFolders(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistFolder[]>(
     companyId ? `checklist_folders_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_folders')
-      .select('id, company_id, name, color, order_index, created_at')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true })
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_folders')
+        .select('id, company_id, name, color, order_index, created_at')
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      
+      if (result.data) {
+        result.data = z.array(checklistFolderSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -73,13 +86,19 @@ export function useChecklistFolders(companyId?: string) {
 export function useChecklistQuestions(checklistId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistQuestion[]>(
     checklistId ? `checklist_questions_${checklistId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_questions')
-      .select('id, checklist_id, section_id, text, type, required, order_index, description, config')
-      .eq('checklist_id', checklistId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true })
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_questions')
+        .select('id, checklist_id, section_id, text, type, required, order_index, description, config')
+        .eq('checklist_id', checklistId)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      
+      if (result.data) {
+        result.data = z.array(checklistQuestionSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -96,12 +115,18 @@ export function useChecklistQuestions(checklistId?: string) {
 export function useAllCompanyQuestions(companyId?: string) {
   const { data, error, isLoading } = useSWR<ChecklistQuestion[]>(
     companyId ? `all_company_questions_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_questions')
-      .select('id, checklist_id, section_id, text, type, required, order_index, description, config, checklists!inner(company_id)')
-      .eq('checklists.company_id', companyId)
-      .is('deleted_at', null)
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_questions')
+        .select('id, checklist_id, section_id, text, type, required, order_index, description, config, checklists!inner(company_id)')
+        .eq('checklists.company_id', companyId)
+        .is('deleted_at', null);
+      
+      if (result.data) {
+        result.data = z.array(checklistQuestionSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -117,13 +142,19 @@ export function useAllCompanyQuestions(companyId?: string) {
 export function useChecklistSections(checklistId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistSection[]>(
     checklistId ? `checklist_sections_${checklistId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_sections')
-      .select('id, checklist_id, title, description, order_index')
-      .eq('checklist_id', checklistId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true })
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_sections')
+        .select('id, checklist_id, title, description, order_index')
+        .eq('checklist_id', checklistId)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      
+      if (result.data) {
+        result.data = z.array(checklistSectionSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -140,12 +171,18 @@ export function useChecklistSections(checklistId?: string) {
 export function useChecklistSubmission(submissionId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistSubmission>(
     submissionId ? `submission_${submissionId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_submissions')
-      .select('id, checklist_id, user_id, company_id, org_unit_id, status, started_at, completed_at, checklist:checklists(title)')
-      .eq('id', submissionId)
-      .single()
-    ),
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_submissions')
+        .select('id, checklist_id, user_id, company_id, org_unit_id, status, started_at, completed_at, checklist:checklists(title)')
+        .eq('id', submissionId)
+        .single();
+      
+      if (result.data) {
+        result.data = checklistSubmissionSchema.partial().parse(result.data) as any;
+      }
+      return result;
+    }),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false
@@ -191,13 +228,19 @@ export function useChecklistAnswers(submissionId?: string) {
 export function useUserSubmissions(userId?: string, companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistSubmission[]>(
     userId && companyId ? `user_submissions_${userId}_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_submissions')
-      .select('id, checklist_id, user_id, company_id, status, started_at, completed_at')
-      .eq('user_id', userId)
-      .eq('company_id', companyId)
-      .eq('status', 'IN_PROGRESS')
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_submissions')
+        .select('id, checklist_id, user_id, company_id, status, started_at, completed_at')
+        .eq('user_id', userId)
+        .eq('company_id', companyId)
+        .eq('status', 'IN_PROGRESS');
+      
+      if (result.data) {
+        result.data = z.array(checklistSubmissionSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -214,12 +257,18 @@ export function useUserSubmissions(userId?: string, companyId?: string) {
 export function useAllSubmissions(companyId?: string) {
   const { data, error, isLoading } = useSWR<ChecklistSubmission[]>(
     companyId ? `all_submissions_${companyId}` : null,
-    () => fetcher(() => supabase
-      .from('checklist_submissions')
-      .select('id, checklist_id, user_id, company_id, status, created_at')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
-    )
+    () => fetcher(async () => {
+      const result = await supabase
+        .from('checklist_submissions')
+        .select('id, checklist_id, user_id, company_id, status, created_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+      
+      if (result.data) {
+        result.data = z.array(checklistSubmissionSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -293,7 +342,7 @@ export function useAllActionPlans(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     companyId ? `all_action_plans_${companyId}` : null,
     () => fetcher(async () => {
-      return supabase
+      const result = await supabase
         .from('checklist_answers')
         .select(`
           id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status, created_at,
@@ -306,6 +355,12 @@ export function useAllActionPlans(companyId?: string) {
         .not('action_plan', 'is', null)
         .eq('checklist_submissions.company_id', companyId)
         .order('created_at', { ascending: false });
+        
+      if (result.data) {
+        // Validação parcial do ActionPlan baseada nos schemas existentes
+        result.data = z.array(checklistAnswerSchema.partial()).parse(result.data) as any;
+      }
+      return result;
     })
   );
 
@@ -324,7 +379,7 @@ export function useActionPlansReceived(userId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     userId ? `action_plans_received_${userId}` : null,
     () => fetcher(async () => {
-      return supabase
+      const result = await supabase
         .from('checklist_answers')
         .select(`
           *,
@@ -337,6 +392,11 @@ export function useActionPlansReceived(userId?: string) {
         .not('action_plan', 'is', null)
         .eq('assigned_user_id', userId)
         .order('created_at', { ascending: false });
+        
+      if (result.data) {
+        result.data = z.array(checklistAnswerSchema.partial()).parse(result.data) as any;
+      }
+      return result;
     })
   );
 
@@ -355,7 +415,7 @@ export function useActionPlansSent(userId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ActionPlan[]>(
     userId ? `action_plans_sent_${userId}` : null,
     () => fetcher(async () => {
-      return supabase
+      const result = await supabase
         .from('checklist_answers')
         .select(`
           *,
@@ -368,6 +428,11 @@ export function useActionPlansSent(userId?: string) {
         .not('action_plan', 'is', null)
         .eq('action_plan_created_by', userId)
         .order('created_at', { ascending: false });
+        
+      if (result.data) {
+        result.data = z.array(checklistAnswerSchema.partial()).parse(result.data) as any;
+      }
+      return result;
     })
   );
 

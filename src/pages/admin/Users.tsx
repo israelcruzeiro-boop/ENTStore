@@ -215,6 +215,7 @@ export const AdminUsers = () => {
       } else {
         const { error } = await supabase.from('users').insert({
           ...validation.data,
+          password: '123456',
           status: 'ACTIVE'
         });
         if (error) throw error;
@@ -319,7 +320,7 @@ export const AdminUsers = () => {
           if (!cpf) {
              errors.push('CPF vazio');
           } else {
-             if (allUsers.some(u => u.cpf === cpf)) {
+             if (allUsers.some(u => u.cpf_raw === cpf)) {
                errors.push('CPF já cadastrado no sistema');
                isDuplicate = true;
              } 
@@ -331,7 +332,18 @@ export const AdminUsers = () => {
                errors.push('CPF inválido');
              } 
              else {
-               cpfSet.add(cpf);
+               // Validação preventiva via Zod para garantir formato correto além do CPF
+               const validation = userSchema.partial().safeParse({ 
+                 name: nome, 
+                 cpf: cpf,
+                 email: `${cpf}@storepage.com` 
+               });
+               
+               if (!validation.success) {
+                 errors.push(...validation.error.errors.map(e => e.message));
+               } else {
+                 cpfSet.add(cpf);
+               }
              }
           }
 
@@ -359,6 +371,7 @@ export const AdminUsers = () => {
         name: row.nome,
         cpf: row.cpf,
         email: `${row.cpf}@storepage.com`,
+        password: '123456',
         role: 'USER' as const,
         status: 'PENDING_SETUP',
         first_access: true,
@@ -452,7 +465,7 @@ export const AdminUsers = () => {
                         </div>
                       </td>
                       <td className="p-4">
-                         <p className="text-sm font-medium text-slate-700">{user.cpf ? user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : '-'}</p>
+                         <p className="text-sm font-medium text-slate-700">{user.cpf || '-'}</p>
                       </td>
                       <td className="p-4">
                          <div className="flex flex-col items-start gap-1.5">

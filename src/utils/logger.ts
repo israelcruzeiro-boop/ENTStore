@@ -15,7 +15,16 @@ export const Logger = {
     console.warn(`[WARN] ${message}`, ...args);
   },
   error: (message: string, ...args: any[]) => {
-    console.error(`[ERROR] ${message}`, ...args);
+    if (isProd) {
+      // Em produção, logamos a mensagem e apenas as mensagens de objetos de erro
+      // para evitar vazamento de stack traces no console do browser.
+      const sanitizedArgs = args.map(arg => 
+        arg instanceof Error ? arg.message : arg
+      );
+      console.error(`[ERROR] ${message}`, ...sanitizedArgs);
+    } else {
+      console.error(`[ERROR] ${message}`, ...args);
+    }
   },
   debug: (message: string, ...args: any[]) => {
     if (!isProd) {

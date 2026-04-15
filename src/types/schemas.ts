@@ -1,15 +1,16 @@
 import { z } from 'zod';
 
-// --- USUÁRIOS ---
 export const userSchema = z.object({
-  name: z.string().min(2, 'Nome muito curto'),
+  id: z.string().uuid().optional().nullable(),
+  name: z.string().min(1, 'Nome é obrigatório'),
   email: z.string().email('E-mail inválido').or(z.string().regex(/^\d{11}@storepage\.com$/, 'Formato de e-mail de fallback inválido')),
-  cpf: z.string().length(11, 'CPF deve ter 11 dígitos').nullable().optional(),
-  role: z.enum(['ADMIN', 'USER', 'MANAGER', 'SUPER_ADMIN', 'MAESTRO']),
-  active: z.boolean().default(true),
+  cpf: z.string().nullable().optional(),
+  role: z.string().nullable().optional(),
+  active: z.boolean().default(true).nullable().optional(),
   org_unit_id: z.string().uuid().nullable().optional(),
-  company_id: z.string().uuid(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  company_id: z.string().uuid().nullable().optional(),
+  password: z.string().optional().nullable(),
+  deleted_at: z.any().nullable().optional(),
 });
 
 export const adminProvisioningSchema = z.object({
@@ -40,55 +41,84 @@ export const orgUnitSchema = z.object({
 
 // --- EMPRESAS ---
 export const companySchema = z.object({
-  name: z.string().min(2, 'Nome da empresa muito curto'),
-  slug: z.string().min(2),
-  link_name: z.string().min(2),
-  active: z.boolean().default(true),
+  id: z.string().uuid().optional().nullable(),
+  name: z.string().min(1, 'Nome é obrigatório'),
+  slug: z.any().nullable().optional(),
+  link_name: z.any().nullable().optional(),
+  active: z.boolean().default(true).nullable().optional(),
   org_unit_name: z.string().optional().nullable(),
   org_top_level_name: z.string().optional().nullable(),
-  org_levels: z.array(z.object({ id: z.string(), name: z.string() })).optional().nullable(),
+  org_levels: z.any().optional().nullable(),
+  theme: z.any().optional().nullable(),
+  logo_url: z.string().nullable().optional(),
+  hero_image: z.string().nullable().optional(),
+  hero_title: z.string().nullable().optional(),
+  hero_subtitle: z.string().nullable().optional(),
+  hero_position: z.number().nullable().optional(),
+  hero_brightness: z.number().nullable().optional(),
+  public_bio: z.string().nullable().optional(),
+  landing_page_enabled: z.boolean().optional().nullable(),
+  landing_page_active: z.boolean().optional().nullable(),
+  landing_page_layout: z.string().nullable().optional(),
+  checklists_enabled: z.boolean().optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  deleted_at: z.string().optional().nullable(),
 });
 
 
 
 // --- CURSOS ---
 export const courseSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   company_id: z.string().uuid(),
   title: z.string().min(2),
   description: z.string().optional().nullable(),
   status: z.enum(['DRAFT', 'ACTIVE', 'ARCHIVED']).default('DRAFT'),
   access_type: z.enum(['ALL', 'RESTRICTED']).default('ALL'),
   thumbnail_url: z.string().url().or(z.string().length(0)).nullable().optional(),
+  allowed_user_ids: z.array(z.string().uuid()).optional().nullable(),
+  allowed_region_ids: z.array(z.string().uuid()).optional().nullable(),
+  allowed_store_ids: z.array(z.string().uuid()).optional().nullable(),
+  excluded_user_ids: z.array(z.string().uuid()).optional().nullable(),
   passing_score: z.number().min(0).max(100).default(70),
   diploma_template: z.string().default('azul'),
+  created_at: z.string().optional().nullable(),
   deleted_at: z.string().datetime().nullable().optional(),
 });
 
 export const courseModuleSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   course_id: z.string().uuid(),
   title: z.string().min(1),
   order_index: z.number().int().min(0),
+  created_at: z.string().optional().nullable(),
   deleted_at: z.string().datetime().nullable().optional(),
 });
 
 export const courseContentSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   module_id: z.string().uuid(),
-  company_id: z.string().uuid(),
+  company_id: z.string().uuid().optional().nullable(),
   title: z.string().min(1),
   description: z.string().optional().nullable(),
   type: z.enum(['PDF', 'VIDEO', 'DOCUMENT', 'IMAGE', 'AUDIO', 'HTML']),
-  url: z.string().url('URL inválida'),
+  url: z.string().url('URL inválida').optional().nullable(),
+  content_url: z.string().optional().nullable(),
   order_index: z.number().int().min(0),
+  quizzes: z.any().optional().nullable(),
+  created_at: z.string().optional().nullable(),
   deleted_at: z.string().datetime().nullable().optional(),
 });
 
 // --- REPOSITÓRIOS ---
 export const repositorySchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   company_id: z.string().uuid(),
   name: z.string().min(2, 'Nome muito curto'),
   description: z.string().optional().nullable(),
   type: z.enum(['FULL', 'SIMPLE', 'PLAYLIST', 'VIDEO_PLAYLIST']).default('FULL'),
-  cover_image: z.string().url('Capa deve ser uma URL válida'),
+  cover_image: z.string().url('Capa deve ser uma URL válida').or(z.string().length(0)).optional().nullable(),
   banner_image: z.string().url('Banner deve ser uma URL válida').or(z.string().length(0)).optional().nullable(),
   featured: z.boolean().default(false),
   status: z.enum(['ACTIVE', 'DRAFT']).default('ACTIVE'),
@@ -111,13 +141,14 @@ export const repositoryCategorySchema = z.object({
 });
 
 export const repositoryContentSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   company_id: z.string().uuid(),
   repository_id: z.string().uuid(),
   category_id: z.string().uuid().nullable().optional(),
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional().nullable(),
   thumbnail_url: z.string().url('Thumbnail deve ser uma URL válida').or(z.string().length(0)).nullable().optional(),
-  type: z.enum(['PDF', 'VIDEO', 'DOCUMENT', 'IMAGE', 'AUDIO', 'HTML']),
+  type: z.enum(['PDF', 'VIDEO', 'DOCUMENT', 'LINK', 'MUSIC', 'QUIZ']),
   url: z.string().url('URL inválida'),
   featured: z.boolean().default(false),
   status: z.enum(['ACTIVE', 'DRAFT']).default('ACTIVE'),
@@ -126,12 +157,13 @@ export const repositoryContentSchema = z.object({
 });
 
 export const simpleLinkSchema = z.object({
+  id: z.string().uuid().optional().nullable(),
   company_id: z.string().uuid(),
   repository_id: z.string().uuid(),
   name: z.string().min(1, 'Nome é obrigatório'),
   url: z.string().url('URL inválida'),
   type: z.string().default('link'),
-  status: z.enum(['ACTIVE', 'DRAFT']).default('ACTIVE'),
+  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
   order_index: z.number().int().min(0),
   deleted_at: z.string().datetime().nullable().optional(),
 });
@@ -235,39 +267,57 @@ export const checklistAnswerSchema = z.object({
 });
 
 export const checklistSchema = z.object({
+  id: z.string().uuid().optional(),
   company_id: z.string().uuid(),
   folder_id: z.string().uuid().nullable().optional(),
   title: z.string().min(1),
   description: z.string().optional().nullable(),
-  status: z.enum(['ACTIVE', 'DRAFT']).default('ACTIVE'),
+  status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).default('DRAFT'),
   access_type: z.enum(['ALL', 'RESTRICTED']).default('ALL'),
-  deleted_at: z.string().datetime().nullable().optional(),
+  allowed_user_ids: z.array(z.string().uuid()).optional().nullable(),
+  allowed_region_ids: z.array(z.string().uuid()).optional().nullable(),
+  allowed_store_ids: z.array(z.string().uuid()).optional().nullable(),
+  excluded_user_ids: z.array(z.string().uuid()).optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  deleted_at: z.string().nullable().optional(),
 });
 
 export const checklistFolderSchema = z.object({
+  id: z.string().uuid().optional(),
   company_id: z.string().uuid(),
   name: z.string().min(1),
-  description: z.string().optional().nullable(),
   color: z.string().optional().nullable(),
-  order_index: z.number().int().min(0),
-  deleted_at: z.string().datetime().nullable().optional(),
+  order_index: z.number().int().min(0).optional().default(0),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  deleted_at: z.string().nullable().optional(),
 });
 
 export const checklistSectionSchema = z.object({
+  id: z.string().uuid().optional(),
   checklist_id: z.string().uuid(),
   title: z.string().min(1),
-  order_index: z.number().int().min(0),
-  deleted_at: z.string().datetime().nullable().optional(),
+  description: z.string().optional().nullable(),
+  order_index: z.number().int().min(0).default(0),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  deleted_at: z.string().nullable().optional(),
 });
 
 export const checklistQuestionSchema = z.object({
-  section_id: z.string().uuid(),
+  id: z.string().uuid().optional(),
+  checklist_id: z.string().uuid(),
+  section_id: z.string().uuid().nullable().optional(),
   text: z.string().min(1),
-  type: z.enum(['MULTIPLE_CHOICE', 'YES_NO', 'TEXT', 'NUMBER', 'PHOTO']).default('YES_NO'),
+  type: z.enum(['COMPLIANCE', 'RATING', 'TEXT', 'NUMBER', 'DATE', 'TIME', 'CHECK']).default('COMPLIANCE'),
   required: z.boolean().default(true),
-  order_index: z.number().int().min(0),
-  configuration: z.any().optional().nullable(),
-  deleted_at: z.string().datetime().nullable().optional(),
+  order_index: z.number().int().min(0).optional().default(0),
+  description: z.string().optional().nullable(),
+  config: z.any().optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  deleted_at: z.string().nullable().optional(),
 });
 
 // --- UTILITÁRIOS E REORDENAÇÃO ---

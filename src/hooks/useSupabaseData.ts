@@ -3,13 +3,31 @@ import { supabase, fetcher } from '../lib/supabaseClient';
 import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseEnrollment, CourseAnswer } from '../types';
 import { 
   userSchema,
+  companySchema,
   contentViewMetricSchema, 
   contentRatingSchema,
   quizAttemptSchema,
   courseEnrollmentSchema,
-  courseAnswerSchema
+  courseAnswerSchema,
+  repositorySchema,
+  repositoryContentSchema,
+  simpleLinkSchema,
+  courseSchema,
+  courseModuleSchema,
+  courseContentSchema
 } from '../types/schemas';
+import { z } from 'zod';
 import { Logger } from '../utils/logger';
+
+/**
+ * Máscara de CPF (123.***.***-**)
+ */
+export const maskCPF = (cpf: string | null | undefined) => {
+  if (!cpf) return cpf;
+  const clean = cpf.replace(/\D/g, '');
+  if (clean.length < 3) return clean;
+  return `${clean.substring(0, 3)}.***.***-**`;
+};
 
 // ============================================================================
 
@@ -20,13 +38,26 @@ import { Logger } from '../utils/logger';
 /**
  * Hook para recuperar as empresas (Tenants) permitidas para o usuário ou publicamente.
  */
-export function useCompanies() {
-  const { data, error, isLoading, mutate } = useSWR<Company[]>('companies', () =>
-    fetcher(() => supabase.from('companies')
-      .select('id, name, slug, link_name, theme, logo_url, active, checklists_enabled, org_unit_name, org_top_level_name')
-      .is('deleted_at', null)
-      .order('name'))
-  );
+export function useCompanies(includeDeleted = false) {
+  const { data, error, isLoading, mutate } = useSWR<Company[]>(`companies_${includeDeleted}`, async () => {
+    const data = await fetcher(() => {
+      let query = supabase.from('companies')
+        .select('id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, hero_position, hero_brightness, public_bio, active, landing_page_enabled, landing_page_active, landing_page_layout, checklists_enabled, org_unit_name, org_top_level_name, org_levels, created_at, updated_at, deleted_at')
+        .order('name');
+      
+      if (!includeDeleted) {
+        query = query.is('deleted_at', null);
+      }
+      return query;
+    });
+    
+    try {
+      return z.array(companySchema.partial()).parse(data) as Company[];
+    } catch (err) {
+      Logger.error('Zod Validation Error [useCompanies]:', err);
+      return data as Company[];
+    }
+  });
 
   return {
     companies: data || [],
@@ -39,19 +70,48 @@ export function useCompanies() {
 /**
  * Hook para recuperar os usuários, filtrando opcionalmente por company.
  */
-export function useUsers(companyId?: string) {
+export function useUsers(companyId?: string, includeDeleted = false) {
+  const cacheKey = companyId ? `users_${companyId}_${includeDeleted}` : `users_all_${includeDeleted}`;
   const { data, error, isLoading, mutate } = useSWR<User[]>(
-    companyId ? `users_${companyId}` : 'users_all',
-    () => fetcher(() => {
-      let query = supabase.from('users')
-        .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at, deleted_at')
-        .is('deleted_at', null)
-        .order('name');
-      if (companyId) {
-        query = query.eq('company_id', companyId);
+    cacheKey,
+    async () => {
+      const data = await fetcher(() => {
+        let query = supabase.from('users')
+          .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at, deleted_at')
+          .order('name');
+        
+        if (companyId) {
+          query = query.eq('company_id', companyId);
+        }
+
+        if (!includeDeleted) {
+          query = query.is('deleted_at', null);
+        }
+
+        return query;
+      });
+
+      try {
+        const validated = z.array(userSchema.partial()).parse(data);
+
+        // Máscara de CPF (Passo 2)
+        return validated.map(u => ({
+          ...u,
+          cpf_raw: u?.cpf,
+          cpf: maskCPF(u?.cpf)
+        })) as User[];
+      } catch (err) {
+        Logger.error('Zod Validation Error [useUsers]:', err);
+        if (err instanceof z.ZodError) {
+          Logger.error('Zod Details:', JSON.stringify(err.errors, null, 2));
+        }
+        return (data as any[]).map(u => ({
+          ...u,
+          cpf_raw: u?.cpf,
+          cpf: maskCPF(u?.cpf)
+        })) as User[];
       }
-      return query;
-    })
+    }
   );
 
   return {
@@ -93,11 +153,18 @@ export function useOrgStructure(companyId?: string) {
 export function useRepositories(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Repository[]>(
     companyId ? `repositories_${companyId}` : null,
-    () => fetcher(() => supabase.from('repositories')
-      .select('id, company_id, name, description, cover_image, banner_image, featured, show_in_landing, type, status, access_type, created_at, deleted_at')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }))
+    () => fetcher(async () => {
+      const result = await supabase.from('repositories')
+        .select('id, company_id, name, description, cover_image, banner_image, featured, show_in_landing, type, status, access_type, allowed_user_ids, allowed_region_ids, allowed_store_ids, excluded_user_ids, banner_position, banner_brightness, created_at, deleted_at')
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      
+      if (result.data) {
+        result.data = z.array(repositorySchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -115,7 +182,7 @@ export function useContents(filter?: { repositoryId?: string; companyId?: string
   const key = filter?.contentId ? `contents_id_${filter.contentId}` : filter?.repositoryId ? `contents_repo_${filter.repositoryId}` : filter?.companyId ? `contents_company_${filter.companyId}` : null;
   const { data, error, isLoading, mutate } = useSWR<Content[]>(
     key,
-    () => fetcher(() => {
+    () => fetcher(async () => {
       let query = supabase.from('contents')
         .select('id, company_id, repository_id, category_id, title, description, thumbnail_url, type, url, embed_url, featured, recent, status, created_at, deleted_at')
         .is('deleted_at', null)
@@ -123,7 +190,12 @@ export function useContents(filter?: { repositoryId?: string; companyId?: string
       if (filter?.contentId) query = query.eq('id', filter.contentId);
       else if (filter?.repositoryId) query = query.eq('repository_id', filter.repositoryId);
       else if (filter?.companyId) query = query.eq('company_id', filter.companyId);
-      return query;
+      
+      const result = await query;
+      if (result.data) {
+        result.data = z.array(repositoryContentSchema.partial()).parse(result.data) as any;
+      }
+      return result;
     })
   );
 
@@ -142,14 +214,19 @@ export function useSimpleLinks(filter?: { repositoryId?: string; companyId?: str
   const key = filter?.repositoryId ? `simple_links_repo_${filter.repositoryId}` : filter?.companyId ? `simple_links_company_${filter.companyId}` : null;
   const { data, error, isLoading, mutate } = useSWR<SimpleLink[]>(
     key,
-    () => fetcher(() => {
+    () => fetcher(async () => {
       let query = supabase.from('simple_links')
         .select('id, company_id, repository_id, name, url, type, date, status, created_at, deleted_at')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (filter?.repositoryId) query = query.eq('repository_id', filter.repositoryId);
       else if (filter?.companyId) query = query.eq('company_id', filter.companyId);
-      return query;
+      
+      const result = await query;
+      if (result.data) {
+        result.data = z.array(simpleLinkSchema.partial()).parse(result.data) as any;
+      }
+      return result;
     })
   );
 
@@ -435,11 +512,18 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
 export function useCourses(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Course[]>(
     companyId ? `courses_${companyId}` : null,
-    () => fetcher(() => supabase.from('courses')
-      .select('id, company_id, title, description, thumbnail_url, status, access_type, created_at, deleted_at')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }))
+    () => fetcher(async () => {
+      const result = await supabase.from('courses')
+        .select('id, company_id, title, description, thumbnail_url, status, access_type, allowed_user_ids, allowed_region_ids, allowed_store_ids, excluded_user_ids, passing_score, diploma_template, created_at, deleted_at')
+        .eq('company_id', companyId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      
+      if (result.data) {
+        result.data = z.array(courseSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -456,11 +540,18 @@ export function useCourses(companyId?: string) {
 export function useCourseModules(courseId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CourseModule[]>(
     courseId ? `course_modules_${courseId}` : null,
-    () => fetcher(() => supabase.from('course_modules')
-      .select('id, course_id, title, description, order_index, created_at, deleted_at')
-      .eq('course_id', courseId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true }))
+    () => fetcher(async () => {
+      const result = await supabase.from('course_modules')
+        .select('id, course_id, title, order_index, created_at, deleted_at')
+        .eq('course_id', courseId)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      
+      if (result.data) {
+        result.data = z.array(courseModuleSchema.partial()).parse(result.data) as any;
+      }
+      return result;
+    })
   );
 
   return {
@@ -480,14 +571,15 @@ export function useCourseContents(moduleId?: string) {
     async () => {
       const { data: contents, error } = await supabase
         .from('course_contents')
-        .select('id, module_id, title, description, type, url, content_url, order_index, created_at, deleted_at, quizzes(id)')
+        .select('id, module_id, title, type, url, order_index, created_at, deleted_at, quizzes(id)')
         .eq('module_id', moduleId)
         .is('deleted_at', null)
         .order('order_index', { ascending: true });
         
       if (error) throw error;
+      const validated = z.array(courseContentSchema.partial()).parse(contents);
       
-      return contents.map(c => ({
+      return validated.map(c => ({
         ...c,
         has_quiz: (c.quizzes as unknown[]).length > 0
       }));
@@ -511,8 +603,8 @@ export function useQuiz(params: { contentId?: string; courseContentId?: string }
     key,
     () => fetcher(() => {
       let query = supabase.from('quizzes')
-        .select('id, company_id, content_id, course_content_id, title, passing_score, time_limit, points_reward')
-        .is('deleted_at', null);
+        .select('id, company_id, content_id, course_content_id, title, passing_score, time_limit, points_reward');
+        // .is('deleted_at', null); // TODO: Descomentar após aplicar a migration 20260411182000
       if (params.courseContentId) query = query.eq('course_content_id', params.courseContentId);
       else if (params.contentId) query = query.eq('content_id', params.contentId);
       return query.maybeSingle();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import { useCompanies } from '../../hooks/useSupabaseData';
 import { toast } from 'sonner';
@@ -12,11 +12,11 @@ import { uploadToSupabase } from '../../lib/storage';
 import { Slider } from '@/components/ui/slider';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 
-const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
+
 
 export const AdminSettings = () => {
   const { companySlug } = useParams();
-  const navigate = useNavigate();
+
   const { companies, mutate: mutateCompanies } = useCompanies();
   
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
@@ -39,13 +39,13 @@ export const AdminSettings = () => {
   useEffect(() => {
     if (company) {
       setFormData({
-        name: company.name,
-        link_name: company.companySlug,
+        name: company.name || '',
+        link_name: company.link_name || '',
         logo_url: company.logo_url || '',
         hero_image: company.hero_image || '',
         hero_title: company.hero_title || '',
         hero_subtitle: company.hero_subtitle || '',
-        active: company.active,
+        active: company.active ?? true,
         hero_position: company.hero_position ?? 50,
         hero_brightness: company.hero_brightness ?? 100
       });
@@ -58,10 +58,7 @@ export const AdminSettings = () => {
      </div>
   );
 
-  const handleLinkNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newLink = e.target.value.toLowerCase().replace(/[\s\W-]+/g, '');
-    setFormData(prev => ({ ...prev, link_name: newLink }));
-  };
+  // Link de acesso é bloqueado — definido apenas na criação da empresa
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'logo_url' | 'hero_image') => {
     const file = e.target.files?.[0];
@@ -99,34 +96,45 @@ export const AdminSettings = () => {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const name = formData.name.trim();
-    const newLinkName = formData.link_name.trim();
+    const name = (formData.name || '').trim();
 
-    if (!name || !newLinkName) {
-      return toast.error('Nome e Link de Acesso são obrigatórios.');
-    }
-
-    if (RESERVED_SLUGS.includes(newLinkName)) {
-      return toast.error(`O link "${newLinkName}" é reservado pelo sistema e não pode ser utilizado.`);
-    }
-
-    const isDuplicate = companies.some(c => c.slug === newLinkName && c.id !== company.id);
-    if (isDuplicate) {
-      return toast.error('Este Link de Acesso já está em uso por outra empresa.');
+    if (!name) {
+      return toast.error('Nome da empresa é obrigatório.');
     }
 
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('companies').update(formData).eq('id', company.id);
+      
+      // link_name é bloqueado — não incluímos no update
+      const updateData = {
+        name,
+        logo_url: formData.logo_url,
+        hero_image: formData.hero_image,
+        hero_title: formData.hero_title,
+        hero_subtitle: formData.hero_subtitle,
+        active: formData.active,
+        hero_position: formData.hero_position,
+        hero_brightness: formData.hero_brightness,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error, count } = await supabase
+        .from('companies')
+        .update(updateData)
+        .eq('id', company.id)
+        .select(); // Forçamos o select para garantir que o RLS permitiu a operação
       
       if (error) throw error;
 
-      toast.success('Configurações atualizadas com sucesso!');
-      mutateCompanies();
-      
-      if (newLinkName !== company.link_name) {
-        navigate(`/admin/${newLinkName}/settings`, { replace: true });
+      // Se o count for 0, o RLS bloqueou silenciosamente
+      if (count === 0) {
+        throw new Error('Permissão negada ou registro não encontrado no banco.');
       }
+
+      toast.success('Configurações atualizadas com sucesso!');
+      
+      // Forçamos a revalidação dos dados do hook SWR/TanStack Query
+      await mutateCompanies();
     } catch (err) {
       const error = err as Error;
       toast.error(`Erro ao salvar configurações: ${error.message}`);
@@ -162,19 +170,19 @@ export const AdminSettings = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label>Link de Acesso (URL) *</Label>
-                  <div className={`flex shadow-sm rounded-md overflow-hidden border transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 ${isSubmitting ? 'border-slate-100 bg-slate-50' : 'border-slate-200'}`}>
+                  <Label>Link de Acesso (URL)</Label>
+                  <div className="flex shadow-sm rounded-md overflow-hidden border border-slate-200 bg-slate-50/80">
                     <span className="flex items-center px-3 bg-slate-50 text-slate-500 text-sm font-mono border-r border-slate-200">
                       storepage.com/
                     </span>
                     <Input 
-                      className="border-0 rounded-none focus-visible:ring-0 px-3 shadow-none bg-white font-mono" 
-                      placeholder="minhaempresa" 
-                      value={formData.companySlug} 
-                      onChange={handleLinkNameChange} 
-                      disabled={isSubmitting}
+                      className="border-0 rounded-none focus-visible:ring-0 px-3 shadow-none bg-slate-50/80 font-mono text-slate-500 cursor-not-allowed" 
+                      value={formData.link_name} 
+                      disabled
+                      readOnly
                     />
                   </div>
+                  <p className="text-xs text-slate-400">O link de acesso é definido na criação e não pode ser alterado.</p>
                 </div>
               </div>
             </div>

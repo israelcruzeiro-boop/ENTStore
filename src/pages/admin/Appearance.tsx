@@ -158,6 +158,33 @@ export const AdminAppearance = () => {
                </div>
             </div>
 
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-1">Estilo de Capa Global (Banner)</h2>
+               <p className="text-sm text-slate-500 mb-4">Define o layout visual da capa aplicado na Home do usuário, Detalhes de Repositório e Landing Page.</p>
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                 {[
+                   { id: 'classic', label: 'Clássico', desc: 'Capa padrão com avatar sobreposto.', icon: <LayoutTemplate size={18}/> },
+                   { id: 'gradient', label: 'Degradê Premium', desc: 'Capa fundida ao fundo escuro suavemente.', icon: <Sparkles size={18}/> },
+                   { id: 'immersive', label: 'Imersivo', desc: 'Capa tela-cheia com desfoque central.', icon: <ImageIcon size={18}/> },
+                   { id: 'solid', label: 'Recorte Seco', desc: 'Divisão nítida da capa e conteúdo.', icon: <PanelTop size={18}/> }
+                 ].map(layout => (
+                   <button 
+                     key={layout.id}
+                     type="button"
+                     onClick={() => setLandingPageLayout(layout.id as 'classic' | 'gradient' | 'immersive' | 'solid')}
+                     disabled={isSubmitting}
+                     className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${landingPageLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 disabled:opacity-50'}`}
+                   >
+                      <div className={`mb-2 p-2 rounded-lg transition-colors ${landingPageLayout === layout.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
+                         {layout.icon}
+                      </div>
+                      <span className={`font-semibold text-sm transition-colors ${landingPageLayout === layout.id ? 'text-indigo-900' : 'text-slate-700'}`}>{layout.label}</span>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{layout.desc} Aplicado na Home, Repositórios e Landing Page.</p>
+                   </button>
+                 ))}
+               </div>
+            </div>
+
             {company.landing_page_enabled !== false && (
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                  <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
@@ -182,32 +209,6 @@ export const AdminAppearance = () => {
                       onChange={(e) => setPublicBio(e.target.value)}
                       disabled={isSubmitting || !landingPageActive}
                    />
-  
-                   <div className="mt-6 border-t border-slate-100 pt-5">
-                      <label className="text-sm font-semibold text-slate-700 block mb-3">Estilo de Capa Global (Banner)</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {[
-                          { id: 'classic', label: 'Clássico', desc: 'Capa padrão com avatar sobreposto.', icon: <LayoutTemplate size={18}/> },
-                          { id: 'gradient', label: 'Degradê Premium', desc: 'Capa fundida ao fundo escuro suavemente.', icon: <Sparkles size={18}/> },
-                          { id: 'immersive', label: 'Imersivo', desc: 'Capa tela-cheia com desfoque central.', icon: <ImageIcon size={18}/> },
-                          { id: 'solid', label: 'Recorte Seco', desc: 'Divisão nítida da capa e conteúdo.', icon: <PanelTop size={18}/> }
-                        ].map(layout => (
-                          <button 
-                            key={layout.id}
-                            type="button"
-                            onClick={() => setLandingPageLayout(layout.id as 'classic' | 'gradient' | 'immersive' | 'solid')}
-                            disabled={isSubmitting || !landingPageActive}
-                            className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${landingPageLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 disabled:opacity-50'}`}
-                          >
-                             <div className={`mb-2 p-2 rounded-lg transition-colors ${landingPageLayout === layout.id ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'}`}>
-                                {layout.icon}
-                             </div>
-                             <span className={`font-semibold text-sm transition-colors ${landingPageLayout === layout.id ? 'text-indigo-900' : 'text-slate-700'}`}>{layout.label}</span>
-                             <p className="text-xs text-slate-500 mt-1 leading-relaxed">{layout.desc} Aplicado na Landing Page, Home e Detalhes de Repositório.</p>
-                          </button>
-                        ))}
-                      </div>
-                   </div>
                  </div>
               </div>
             )}  

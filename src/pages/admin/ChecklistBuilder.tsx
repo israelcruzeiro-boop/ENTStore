@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Logger } from '../../utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft, 
@@ -101,7 +102,7 @@ export const ChecklistBuilder = () => {
       await checklistActions.updateQuestion(id, { text });
       mutateQuestions();
     } catch (err) {
-       console.error("Erro ao atualizar texto", err);
+       Logger.error("Erro ao atualizar texto", err);
     }
   };
 
@@ -111,7 +112,7 @@ export const ChecklistBuilder = () => {
       mutateQuestions();
       toast.success('Tipo atualizado');
     } catch (err) {
-       console.error("Erro ao atualizar tipo", err);
+       Logger.error("Erro ao atualizar tipo", err);
     }
   };
 
@@ -120,7 +121,7 @@ export const ChecklistBuilder = () => {
       await checklistActions.updateSection(id, { title });
       mutateSections();
     } catch (err) {
-       console.error("Erro ao atualizar seção", err);
+       Logger.error("Erro ao atualizar seção", err);
     }
   };
 

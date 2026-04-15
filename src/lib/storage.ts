@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { Logger } from '../utils/logger';
 
 /**
  * Dimensões máximas por contexto de uso
@@ -85,7 +86,7 @@ export const compressImage = (
  */
 export const uploadToSupabase = async (
   file: File,
-  bucket: string = 'assets',
+  bucket: string = 'uploads',
   folder: string = 'uploads',
   context: ImageContext = 'generic'
 ): Promise<string | null> => {
@@ -112,7 +113,7 @@ export const uploadToSupabase = async (
     });
 
   if (error) {
-    console.error('Erro de upload Supabase:', error);
+    Logger.error('Erro de upload Supabase:', error);
     throw error;
   }
 

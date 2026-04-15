@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { z } from 'zod';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabaseClient';
@@ -66,7 +67,7 @@ const getPremiumAdminConfig = (type: string) => {
 };
 
 export const AdminRepositoryContents = () => {
-  const { link_name, repoId } = useParams();
+  const { companySlug, repoId } = useParams();
 
   const { companies } = useCompanies();
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
