@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useCompanies } from '../hooks/useSupabaseData';
+import { useCompanies, usePublicCompanyBySlug } from '../hooks/useSupabaseData';
+import { supabase } from '../lib/supabaseClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ShieldAlert, Building, User as UserIcon, AlertTriangle, Loader2 } from 'lucide-react';
 
 export const Login = () => {
   const { login, user } = useAuth();
-  const { companies, isLoading: companiesLoading } = useCompanies();
   const navigate = useNavigate();
   const { companySlug } = useParams();
 
-  const tenantCompany = companySlug ? companies.find(c => c.link_name === companySlug || c.slug === companySlug) : null;
+  const { company: tenantCompany } = usePublicCompanyBySlug(companySlug);
+  const { companies, isLoading: companiesLoading } = useCompanies(false, !!user);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -76,17 +77,20 @@ export const Login = () => {
       if (loggedUser) {
         if (loggedUser.role === 'SUPER_ADMIN') {
           navigate('/super-admin');
-        } else if (loggedUser.role === 'ADMIN') {
-          const adminCompany = companies.find(c => c.id === loggedUser.company_id);
-          if (adminCompany) {
-            navigate(`/admin/${adminCompany.link_name || adminCompany.slug}`);
+        } else {
+          // Busca ultra-rápida do slug atrelado ao usuário recém-logado
+          const { data: userComp } = await supabase.from('companies').select('slug, link_name').eq('id', loggedUser.company_id).single();
+          
+          if (userComp) {
+            if (loggedUser.role === 'ADMIN') {
+              navigate(`/admin/${userComp.link_name || userComp.slug}`);
+            } else {
+              const slugPrefix = companySlug || tenantCompany?.link_name || tenantCompany?.slug || userComp.link_name || userComp.slug;
+              navigate(`/${slugPrefix}/home`);
+            }
           } else {
             setError('Empresa não encontrada ou inativa.');
           }
-        } else {
-          const userCompany = companies.find(c => c.id === loggedUser.company_id);
-          const slugPrefix = companySlug || tenantCompany?.link_name || tenantCompany?.slug || userCompany?.link_name || userCompany?.slug;
-          if (slugPrefix) navigate(`/${slugPrefix}/home`);
         }
       } else {
         setError('E-mail/CPF ou senha incorretos, ou conta inativa.');

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
+import { TourProvider } from './contexts/TourContext';
 import { useCompanies } from './hooks/useSupabaseData';
 
 // Layouts
@@ -49,11 +50,11 @@ const ActionPlans = lazy(() => import('./pages/user/ActionPlans').then(m => ({ d
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
   const { user, loading: authLoading } = useAuth();
   const params = useParams();
-  const { companies, isLoading: companiesLoading } = useCompanies();
+  const { companies, isLoading: companiesLoading } = useCompanies(false, !!user);
   
   // companySlug é usado em todas as rotas unificadas
   const currentSlug = params.companySlug;
-  const loading = authLoading || companiesLoading;
+  const loading = authLoading || (!!user && companiesLoading);
   
   if (loading) {
     return (
@@ -151,7 +152,7 @@ const AppRoutes = () => (
       <Route path="landing" element={<CompanyLandingPage />} />
 
       {/* Protected Area */}
-      <Route element={<RequireAuth role="USER"><UserLayout /></RequireAuth>}>
+      <Route element={<RequireAuth role="USER"><TourProvider><UserLayout /></TourProvider></RequireAuth>}>
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<UserHome />} />
         <Route path="biblioteca" element={<UserBiblioteca />} />

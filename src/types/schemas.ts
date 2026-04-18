@@ -232,7 +232,7 @@ export const courseAnswerSchema = z.object({
 export const coursePhaseQuestionSchema = z.object({
   module_id: z.string().uuid(),
   question_text: z.string().min(1),
-  question_type: z.enum(['MULTIPLE_CHOICE', 'TEXT', 'FILE', 'WORD_SEARCH', 'ORDERING', 'HOTSPOT']).default('MULTIPLE_CHOICE'),
+  question_type: z.enum(['MULTIPLE_CHOICE', 'TEXT', 'FILE', 'WORD_SEARCH', 'ORDERING', 'HOTSPOT', 'HANGMAN']).default('MULTIPLE_CHOICE'),
   configuration: z.any().optional().nullable(),
   image_url: z.string().url().or(z.string().length(0)).nullable().optional(),
   explanation: z.string().optional().nullable(),

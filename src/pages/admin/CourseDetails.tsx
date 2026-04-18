@@ -39,7 +39,8 @@ import {
   Layers,
   Grid3X3,
   ListOrdered,
-  MousePointer2
+  MousePointer2,
+  Skull
 } from 'lucide-react';
 import { Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseQuestionType } from '../../types';
 import { 
@@ -50,6 +51,7 @@ import {
   courseQuestionOptionSchema
 } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
+import { courseService } from '../../services/courseService';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -60,10 +62,17 @@ import { uploadToSupabase } from '../../lib/storage';
 import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'sonner';
 import { DIPLOMA_TEMPLATES } from '../../components/user/CourseDiploma';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { COURSE_DETAILS_STEPS } from '../../data/tourSteps';
 
 export const AdminCourseDetails = () => {
   const { companySlug, courseId } = useParams();
   const navigate = useNavigate();
+
+  // Tour Guiado (Tutorial) - Hook Rule: Must be at the top level
+  const { startTour, joyrideProps } = useTour(COURSE_DETAILS_STEPS);
+
   const { companies } = useCompanies();
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
@@ -127,6 +136,9 @@ export const AdminCourseDetails = () => {
   const [wordSearchDifficulty, setWordSearchDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('MEDIUM');
   const [orderingItems, setOrderingItems] = useState<string[]>(['']);
   const [hotspotPoints, setHotspotPoints] = useState<{ x: number; y: number; radius?: number }[]>([]);
+  const [hangmanWord, setHangmanWord] = useState('');
+  const [hangmanMaxAttempts, setHangmanMaxAttempts] = useState(6);
+  const [hangmanHint, setHangmanHint] = useState('');
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetUserId, setResetUserId] = useState('');
 
@@ -179,6 +191,8 @@ export const AdminCourseDetails = () => {
         toast.success('Capa carregada!');
       }
     } catch (err) {
+      const error = err as Error;
+      Logger.error("Erro ao enviar imagem de capa:", error);
       toast.error('Erro ao enviar imagem');
     } finally {
       setIsUploadingCover(false);
@@ -191,11 +205,9 @@ export const AdminCourseDetails = () => {
 
     setIsSubmitting(true);
     try {
-      const payload = {
-        company_id: company.id,
+      await courseService.updateCourse(courseId, {
         title: finalTitle,
-        status: courseStatus,
-        thumbnail_url: thumbnailUrl,
+        status: courseStatus as any,
         access_type: accessType,
         allowed_user_ids: allowedUserIds,
         allowed_region_ids: allowedRegionIds,
@@ -203,27 +215,10 @@ export const AdminCourseDetails = () => {
         excluded_user_ids: excludedUserIds,
         passing_score: passingScore,
         diploma_template: diplomaTemplate,
-      };
+        thumbnail_url: thumbnailUrl || null,
+      });
 
-      const validation = courseSchema.partial().safeParse(payload);
-      if (!validation.success) {
-        return toast.error("Dados do curso inválidos: " + validation.error.message);
-      }
-
-      const { error } = await supabase.from('courses').update(validation.data).eq('id', courseId);
-      
-      if (error) {
-        if (error.message?.includes('passing_score') || error.message?.includes('diploma_template') || error.code === 'PGRST204') {
-          const { passing_score, diploma_template, ...safeData } = validation.data;
-          const { error: retryErr } = await supabase.from('courses').update(safeData).eq('id', courseId);
-          if (retryErr) throw retryErr;
-          toast.info('Salvo! (Nota mínima e diploma precisam de migração no banco)');
-        } else {
-          throw error;
-        }
-      } else {
-        toast.success('Configurações salvas com sucesso!');
-      }
+      toast.success('Configurações salvas com sucesso!');
       
       await mutateCourses();
       setIsEditingTitle(false);
@@ -240,11 +235,7 @@ export const AdminCourseDetails = () => {
   const handlePublishCourse = async () => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('courses').update({ 
-        status: 'ACTIVE' 
-      }).eq('id', courseId);
-      
-      if (error) throw error;
+      await courseService.updateCourse(courseId, { status: 'ACTIVE' });
       toast.success("Curso publicado! Agora está visível para os alunos.");
       mutateCourses();
     } catch (error: unknown) {
@@ -262,63 +253,42 @@ export const AdminCourseDetails = () => {
     
     setIsSubmitting(true);
     try {
-      // IMPLEMENTAÇÃO DE SOFT DELETE
-      const { error } = await supabase
-        .from('courses')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', courseId);
-      
-      if (error) throw error;
-      
+      await courseService.deleteCourse(courseId);
       toast.success("Curso removido com sucesso!");
       navigate(`/admin/${companySlug}/courses`);
     } catch (err) {
-      const error = err as Error;
-      Logger.error("Erro ao realizar soft delete de curso:", error);
-      toast.error("Erro ao excluir curso: " + error.message);
+      Logger.error("Erro ao realizar soft delete de curso:", err);
+      toast.error("Erro ao excluir curso.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleAddModule = async () => {
-    if (!courseId) return;
+    if (!courseId || !company?.id) return;
     try {
-      const payload = {
+      await courseService.createModule({
         course_id: courseId,
+        company_id: company.id,
         title: `Módulo ${modules.length + 1}`,
         order_index: modules.length
-      };
-
-      const validation = courseModuleSchema.safeParse(payload);
-      if (!validation.success) throw new Error("Dados do módulo inválidos");
-
-      const { error } = await supabase.from('course_modules').insert(validation.data);
-      if (error) throw error;
+      });
       toast.success("Módulo adicionado!");
       mutateModules();
     } catch (err: unknown) {
-      const error = err as Error;
-      Logger.error(`Erro ao adicionar módulo: ${error.message}`);
-      toast.error("Erro ao adicionar módulo: " + error.message);
+      Logger.error(`Erro ao adicionar módulo:`, err);
+      toast.error("Erro ao adicionar módulo.");
     }
   };
 
   const handleDeleteModule = async (id: string) => {
     if (!confirm("Deseja marcar este módulo como excluído?")) return;
     try {
-      // IMPLEMENTAÇÃO DE SOFT DELETE
-      const { error } = await supabase
-        .from('course_modules')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-        
-      if (error) throw error;
+      await courseService.deleteModule(id);
       toast.success("Módulo removido");
       mutateModules();
     } catch (err) {
-      const error = err as Error;
-      Logger.error("Erro ao excluir módulo:", error);
+      Logger.error("Erro ao excluir módulo:", err);
       toast.error("Erro ao remover modulo.");
     }
   };
@@ -344,23 +314,16 @@ export const AdminCourseDetails = () => {
 
       if (!publicUrl) throw new Error("URL não definida");
 
-      const payload = {
+      // O service já faz a detecção de tipo se necessário, mas mantemos o override do admin
+      await courseService.createContent({
         module_id: selectedModuleId,
         company_id: company.id,
         title: newContent.title,
         description: newContent.description,
-        type: newContent.type,
+        type: newContent.type as any,
         url: publicUrl,
-        order_index: 0
-      };
-
-      const validation = courseContentSchema.safeParse(payload);
-      if (!validation.success) {
-        return toast.error("Dados da aula inválidos: " + validation.error.message);
-      }
-
-      const { error } = await supabase.from('course_contents').insert(validation.data).select('id').single();
-      if (error) throw error;
+        order_index: modules.find(m => m.id === selectedModuleId)?.contents?.length || 0
+      });
 
       toast.success("Conteúdo adicionado!");
       setIsAddContentOpen(false);
@@ -381,18 +344,11 @@ export const AdminCourseDetails = () => {
   const handleDeleteContent = async (id: string) => {
     if (!confirm("Deseja remover esta aula?")) return;
     try {
-      // IMPLEMENTAÇÃO DE SOFT DELETE
-      const { error } = await supabase
-        .from('course_contents')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-        
-      if (error) throw error;
+      await courseService.deleteContent(id);
       toast.success("Conteúdo removido da lista");
       mutateModules();
     } catch (err) {
-      const error = err as Error;
-      Logger.error("Erro ao excluir conteúdo:", error);
+      Logger.error("Erro ao excluir conteúdo:", err);
       toast.error("Erro ao remover aula.");
     }
   };
@@ -457,6 +413,10 @@ export const AdminCourseDetails = () => {
       setOrderingItems(q.configuration?.items || [""]);
     } else if (q.question_type === "HOTSPOT") {
       setHotspotPoints(q.configuration?.hotspots || []);
+    } else if (q.question_type === "HANGMAN") {
+      setHangmanWord(q.configuration?.word || '');
+      setHangmanMaxAttempts(q.configuration?.maxAttempts || 6);
+      setHangmanHint(q.configuration?.hint || '');
     }
     setIsQuestionDialogOpen(true);
   };
@@ -473,17 +433,24 @@ export const AdminCourseDetails = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
+      <Joyride {...joyrideProps} />
+
       {/* Header */}
       <div className="flex flex-col gap-4">
-        <Link 
-          to={`/admin/${companySlug}/courses`} 
-          className="text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-2 text-sm font-medium w-fit"
-        >
-          <ArrowLeft size={16} /> Voltar para Cursos
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link 
+            to={`/admin/${companySlug}/courses`} 
+            className="text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-2 text-sm font-medium w-fit"
+          >
+            <ArrowLeft size={16} /> Voltar para Cursos
+          </Link>
+          <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50" onClick={startTour}>
+            <HelpCircle size={16} className="mr-2" /> Como criar um curso?
+          </Button>
+        </div>
         
         <div className="flex justify-between items-start gap-6">
-          <div className="flex-1">
+          <div className="flex-1 tour-title-step">
             {isEditingTitle ? (
               <div className="flex items-center gap-2 max-w-xl">
                 <Input 
@@ -516,20 +483,20 @@ export const AdminCourseDetails = () => {
                    setExcludedUserIds(course?.excluded_user_ids || []);
                    setIsSettingsOpen(true);
                 }}
-                className="gap-2 border-slate-200"
+                className="gap-2 border-slate-200 tour-settings-step"
              >
                 <Settings2 size={18} /> Configurações
              </Button>
 
              {course?.status !== 'ACTIVE' && (
-                <Button onClick={handlePublishCourse} disabled={isSubmitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-md border-0 px-6">
+                <Button onClick={handlePublishCourse} disabled={isSubmitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-md border-0 px-6 tour-publish-step">
                    {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />} 
                    Concluir e Publicar
                 </Button>
              )}
 
              {course?.status === 'ACTIVE' && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-700 font-bold text-xs uppercase tracking-wider">
+                <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-700 font-bold text-xs uppercase tracking-wider tour-publish-step">
                    <Globe size={14} /> Ativo e Visível
                 </div>
              )}
@@ -543,7 +510,7 @@ export const AdminCourseDetails = () => {
           <h2 className="font-bold text-slate-800 flex items-center gap-2">
             <BookOpen size={20} className="text-blue-600" /> Grade Curricular
           </h2>
-          <Button onClick={handleAddModule} size="sm" className="gap-2 bg-blue-600">
+          <Button onClick={handleAddModule} size="sm" className="gap-2 bg-blue-600 tour-add-module-step">
             <Plus size={16} /> Adicionar Módulo
           </Button>
         </div>
@@ -848,6 +815,8 @@ export const AdminCourseDetails = () => {
                               toast.success('Curso liberado para o usuário refazer!');
                               setResetUserId('');
                             } catch (err) {
+                              const error = err as Error;
+                              Logger.error(`Erro ao liberar curso: ${error.message}`);
                               toast.error('Erro ao liberar curso');
                             }
                           }}
@@ -1006,7 +975,9 @@ export const AdminCourseDetails = () => {
                   { id: 'MULTIPLE_CHOICE', label: 'Múltipla Escolha', icon: HelpCircle, color: 'text-blue-500' },
                   { id: 'WORD_SEARCH', label: 'Caça Palavras', icon: Grid3X3, color: 'text-emerald-500' },
                   { id: 'ORDERING', label: 'Reordenação', icon: ListOrdered, color: 'text-amber-500' },
-                  { id: 'HOTSPOT', label: 'Clique na Imagem', icon: MousePointer2, color: 'text-rose-500' }
+                  { id: 'HOTSPOT', label: 'Clique na Imagem', icon: MousePointer2, color: 'text-rose-500' },
+                  { id: 'FILE', label: 'Envio de Imagem', icon: Upload, color: 'text-violet-500' },
+                  { id: 'HANGMAN', label: 'Jogo da Forca', icon: Skull, color: 'text-orange-500' }
                 ].map((t) => (
                   <button
                     key={t.id}
@@ -1208,12 +1179,49 @@ export const AdminCourseDetails = () => {
             {questionType === 'HOTSPOT' && (
               <div className="space-y-4 animate-in fade-in duration-300">
                 <div className="space-y-2">
-                  <Label className="font-bold text-slate-700">URL da Imagem de Referência</Label>
-                  <Input 
-                    value={questionImageUrl} 
-                    onChange={e => setQuestionImageUrl(e.target.value)}
-                    placeholder="https://..."
-                  />
+                  <Label className="font-bold text-slate-700">Imagem de Referência</Label>
+                  {questionImageUrl ? (
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                      <img src={questionImageUrl} alt="Preview" className="w-full max-h-40 object-contain" />
+                      <button
+                        onClick={() => setQuestionImageUrl('')}
+                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-slate-300 rounded-lg hover:border-amber-400 hover:bg-amber-50/50 transition-all cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !company?.id) return;
+                          try {
+                            toast.loading('Enviando imagem...');
+                            const publicUrl = await uploadToSupabase(
+                              file,
+                              'course-materials',
+                              `courses/${courseId}/questions/hotspot`
+                            );
+                            setQuestionImageUrl(publicUrl);
+                            toast.dismiss();
+                            toast.success('Imagem enviada!');
+                          } catch (err) {
+                            toast.dismiss();
+                            const error = err as Error;
+                            Logger.error("Erro ao enviar imagem de hotspot:", error);
+                            toast.error('Erro ao enviar imagem');
+                          }
+                        }}
+                      />
+                      <Upload size={24} className="text-slate-400" />
+                      <span className="text-sm font-medium text-slate-500">Clique para enviar uma imagem</span>
+                      <span className="text-[10px] text-slate-400">JPG, PNG, WEBP</span>
+                    </label>
+                  )}
                 </div>
                 {questionImageUrl && (
                   <div className="space-y-4">
@@ -1286,6 +1294,73 @@ export const AdminCourseDetails = () => {
               </div>
             )}
 
+            {questionType === 'HANGMAN' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">Palavra Secreta *</Label>
+                  <Input
+                    value={hangmanWord}
+                    onChange={(e) => setHangmanWord(e.target.value.toUpperCase().replace(/[^A-ZÁÉÍÓÚÂÊÔÃÕÇ ]/g, ''))}
+                    placeholder="Ex: SEGURANÇA"
+                    className="font-mono text-lg tracking-widest uppercase"
+                    maxLength={20}
+                  />
+                  <p className="text-[10px] text-slate-400 italic">
+                    Apenas letras. Máx 20 caracteres. Espaços separam palavras compostas.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">Máximo de Erros Permitidos</Label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min={3}
+                      max={10}
+                      step={1}
+                      value={hangmanMaxAttempts}
+                      onChange={(e) => setHangmanMaxAttempts(Number(e.target.value))}
+                      className="flex-1 accent-orange-500"
+                    />
+                    <span className="text-2xl font-black text-slate-700 w-8 text-center">
+                      {hangmanMaxAttempts}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    {hangmanMaxAttempts <= 4 ? '⚠️ Difícil' : hangmanMaxAttempts <= 6 ? '⚡ Moderado' : '✅ Fácil'}
+                    {' — '}{hangmanMaxAttempts} chances antes de ser enforcado
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">Dica (Opcional)</Label>
+                  <Input
+                    value={hangmanHint}
+                    onChange={(e) => setHangmanHint(e.target.value)}
+                    placeholder="Ex: Equipamento obrigatório no canteiro de obras"
+                    maxLength={100}
+                  />
+                </div>
+
+                {hangmanWord && (
+                  <div className="p-4 bg-slate-900 rounded-xl border border-slate-700">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3">Preview</p>
+                    <div className="flex justify-center gap-1.5 flex-wrap">
+                      {hangmanWord.split('').map((char, i) => (
+                        <div key={i} className={cn(
+                          "w-8 h-10 rounded flex items-center justify-center text-lg font-black",
+                          char === ' ' ? 'bg-transparent w-3' : 'bg-white/10 text-white border-b-2 border-orange-500'
+                        )}>
+                          {char !== ' ' ? '_' : ''}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-500 text-center mt-2">{hangmanWord.replace(/ /g, '').length} letras • {hangmanMaxAttempts} chances</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2 border-t pt-4">
               <Label className="font-bold text-slate-700 flex items-center gap-2">
                 <AlertCircle size={14} className="text-amber-500" /> Explicação (opcional)
@@ -1308,7 +1383,8 @@ export const AdminCourseDetails = () => {
                 (questionType === 'MULTIPLE_CHOICE' && (!questionOptions.some(o => o.isCorrect) || questionOptions.some(o => !o.text.trim()))) ||
                 (questionType === 'WORD_SEARCH' && wordSearchWords.every(w => !w.trim())) ||
                 (questionType === 'ORDERING' && orderingItems.every(i => !i.trim())) ||
-                (questionType === 'HOTSPOT' && (!questionImageUrl.trim() || hotspotPoints.length === 0))
+                (questionType === 'HOTSPOT' && (!questionImageUrl.trim() || hotspotPoints.length === 0)) ||
+                (questionType === 'HANGMAN' && !hangmanWord.trim())
               }
               onClick={async () => {
                 if (!questionModuleId) return;
@@ -1388,10 +1464,16 @@ export const AdminCourseDetails = () => {
                     config = { items: orderingItems.map(i => i.trim()).filter(Boolean) };
                   } else if (questionType === 'HOTSPOT') {
                     config = { hotspots: hotspotPoints };
+                  } else if (questionType === 'HANGMAN') {
+                    config = {
+                      word: hangmanWord.trim().toUpperCase(),
+                      maxAttempts: hangmanMaxAttempts,
+                      hint: hangmanHint.trim() || null
+                    };
                   }
 
-                  // Validar Pergunta via Zod
-                  const questionPayload = {
+                  const questionData = {
+                    id: editingQuestionId || undefined,
                     module_id: questionModuleId,
                     question_text: questionText.trim(),
                     explanation: questionExplanation.trim() || null,
@@ -1401,54 +1483,15 @@ export const AdminCourseDetails = () => {
                     order_index: 0
                   };
 
-                  const qValidation = coursePhaseQuestionSchema.safeParse(questionPayload);
-                  if (!qValidation.success) {
-                    return toast.error("Dados da pergunta inválidos: " + qValidation.error.message);
-                  }
-
-                  let questionId = editingQuestionId;
-
-                  if (editingQuestionId) {
-                    const { error: qErr } = await supabase
-                      .from('course_phase_questions')
-                      .update(qValidation.data)
-                      .eq('id', editingQuestionId);
-                    if (qErr) throw qErr;
-                  } else {
-                    const { data: q, error: qErr } = await supabase
-                      .from('course_phase_questions')
-                      .insert(qValidation.data)
-                      .select('id')
-                      .single();
-                    if (qErr) throw qErr;
-                    questionId = q.id;
-                  }
-
-                  // Gerenciar alternativas via Zod se for MULTIPLE_CHOICE
+                  let optionsData = undefined;
                   if (questionType === 'MULTIPLE_CHOICE') {
-                    const optionsToInsert = questionOptions.map((opt, idx) => ({
-                      question_id: questionId,
+                    optionsData = questionOptions.map(opt => ({
                       option_text: opt.text.trim(),
-                      is_correct: opt.isCorrect,
-                      order_index: idx
+                      is_correct: opt.isCorrect
                     }));
-
-                    const oValidation = z.array(courseQuestionOptionSchema).safeParse(optionsToInsert);
-                    if (!oValidation.success) {
-                      return toast.error("Alternativas inválidas: " + oValidation.error.message);
-                    }
-
-                    if (editingQuestionId) {
-                      // SOFT DELETE DAS OPÇÕES ANTERIORES PARA RE-SYNC
-                      await supabase
-                        .from('course_question_options')
-                        .update({ deleted_at: new Date().toISOString() })
-                        .eq('question_id', editingQuestionId);
-                    }
-
-                    const { error: oErr } = await supabase.from('course_question_options').insert(oValidation.data);
-                    if (oErr) throw oErr;
                   }
+
+                  await courseService.saveQuestion(questionData, optionsData);
 
                   toast.success(editingQuestionId ? 'Pergunta atualizada!' : 'Pergunta adicionada!');
                   setIsQuestionDialogOpen(false);
@@ -1460,6 +1503,9 @@ export const AdminCourseDetails = () => {
                   setWordSearchWords(['']);
                   setOrderingItems(['']);
                   setHotspotPoints([]);
+                  setHangmanWord('');
+                  setHangmanMaxAttempts(6);
+                  setHangmanHint('');
                   setQuestionOptions([
                     { text: '', isCorrect: false },
                     { text: '', isCorrect: false },
@@ -1469,8 +1515,7 @@ export const AdminCourseDetails = () => {
                   globalMutate(`course_questions_${questionModuleId}`);
                   mutateModules();
                 } catch (err: unknown) {
-                  const error = err as Error;
-                  Logger.error(`Erro ao salvar pergunta: ${error.message}`);
+                  Logger.error(`Erro ao salvar pergunta:`, err);
                   toast.error(editingQuestionId ? 'Erro ao atualizar pergunta' : 'Erro ao criar pergunta');
                 } finally {
                   setIsSubmitting(false);
@@ -1509,11 +1554,13 @@ const ModuleItem = ({
 
   const handleUpdate = async () => {
     try {
-      await supabase.from('course_modules').update({ title }).eq('id', module.id);
+      await courseService.updateModule(module.id, { title });
       setIsEditing(false);
       toast.success("Módulo renomeado");
+      mutateModules(); // Refresh modules from parent context
     } catch (err) {
-      toast.error("Erro ao renomear");
+      Logger.error("Erro ao renomear módulo:", err);
+      toast.error("Erro ao renomear módulo.");
     }
   };
 
@@ -1668,6 +1715,8 @@ const ModuleQuestionsSection = ({
                   {q.question_type === 'MULTIPLE_CHOICE' ? `${q.options?.length || 0} alternativas` : 
                    q.question_type === 'WORD_SEARCH' ? `${q.configuration?.words?.length || 0} palavras` :
                    q.question_type === 'ORDERING' ? `${q.configuration?.items?.length || 0} itens` :
+                   q.question_type === 'FILE' ? 'Envio de imagem' :
+                   q.question_type === 'HANGMAN' ? `"${q.configuration?.word}" (${q.configuration?.maxAttempts} chances)` :
                    `${q.configuration?.hotspots?.length || 0} pontos`}
                 </span>
                 {(q.question_type === 'MULTIPLE_CHOICE' ? q.options?.some(o => o.is_correct) : true) && (

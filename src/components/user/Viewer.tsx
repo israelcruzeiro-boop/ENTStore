@@ -605,6 +605,8 @@ export const Viewer = ({ content }: { content: Content }) => {
   }, [content.id, contentUrl]);
 
   const QuizButton = () => {
+    // Suprimir QuizButton em contexto de curso (cursos usam CourseQuestionPlayer)
+    if ((content as Record<string, unknown>)._suppressQuiz) return null;
     if (!quiz || questions.length === 0) return null;
     return (
       <div className="fixed bottom-8 right-8 z-[100] animate-in slide-in-from-bottom-10 duration-500">

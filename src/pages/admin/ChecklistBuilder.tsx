@@ -13,7 +13,8 @@ import {
   MoreHorizontal,
   ChevronDown,
   ChevronUp,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,9 @@ import {
 } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { CHECKLIST_BUILDER_STEPS } from '../../data/tourSteps';
 
 import {
   Select,
@@ -50,6 +54,9 @@ export const ChecklistBuilder = () => {
   const { checklistId, companySlug } = useParams();
   const navigate = useNavigate();
   const { company } = useAuth();
+
+  // Tour Guiado (Tutorial) - Hook Rule: Must be at the top level
+  const { startTour, joyrideProps } = useTour(CHECKLIST_BUILDER_STEPS);
   
   // Data Fetching
   const { checklists } = useChecklists(company?.id);
@@ -219,8 +226,9 @@ export const ChecklistBuilder = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Joyride {...joyrideProps} />
       {/* Header Magistral */}
-      <header className="bg-slate-900 text-white p-6 sticky top-0 z-50 flex items-center justify-between shadow-2xl">
+      <header className="bg-slate-900 text-white p-6 sticky top-0 z-50 flex items-center justify-between shadow-2xl tour-builder-header">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
@@ -244,12 +252,15 @@ export const ChecklistBuilder = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="text-blue-400 font-bold hover:bg-slate-800 hover:text-blue-300" onClick={startTour}>
+            <HelpCircle size={18} className="mr-2" /> Como montar?
+          </Button>
           <Button 
             onClick={() => {
               toast.success('Estrutura do Builder salva com sucesso!');
               navigate(`/admin/${companySlug}/checklists`);
             }}
-            className="bg-blue-600 hover:bg-blue-700 font-bold px-6 shadow-lg shadow-blue-500/20 text-white border-none"
+            className="bg-blue-600 hover:bg-blue-700 font-bold px-6 shadow-lg shadow-blue-500/20 text-white border-none tour-builder-publish"
           >
             <Save size={18} className="mr-2" /> Finalizar Editor
           </Button>
@@ -299,7 +310,7 @@ export const ChecklistBuilder = () => {
         )}
 
         {/* Fases / Seções */}
-        <div className="space-y-12 pb-20">
+        <div className="space-y-12 pb-20 tour-builder-sections">
           {sections.map((section) => (
             <div 
               key={section.id} 
@@ -343,7 +354,7 @@ export const ChecklistBuilder = () => {
                 <Button 
                   variant="ghost" 
                   onClick={() => handleAddQuestion(section.id)}
-                  className="w-full h-16 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/50 transition-all font-bold"
+                  className="w-full h-16 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50/50 transition-all font-bold tour-builder-add-question"
                 >
                   <Plus size={20} className="mr-2" /> Adicionar Pergunta nesta Fase
                 </Button>

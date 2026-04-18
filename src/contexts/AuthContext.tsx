@@ -192,22 +192,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password: pass
       });
 
-      // Lógica resiliente: se der erro de credenciais, tenta dar signUp para sincronizar 
+      // Lógica resiliente: se der erro de credenciais e o e-mail pertencer a um
+      // perfil ainda em estado "provisionado" (password IS NOT NULL no banco),
+      // cria a conta no Auth usando a senha que o PRÓPRIO usuário digitou neste
+      // formulário. A RPC `get_provisioned_user` só retorna payload quando o
+      // usuário está provisionado; NULL caso contrário. Aceitamos ambos os
+      // shapes: o novo { name, role, is_provisioned: true } e o antigo
+      // { name, role, password }. Nunca lemos `publicUser.password` para que a
+      // senha em texto plano — se ainda existir no banco — jamais atravesse
+      // o cliente.
       if (error && error.message.includes('Invalid login credentials')) {
         // Use RPC to bypass RLS since unauthenticated users cannot read public.users
         const { data: publicUser } = await supabase.rpc('get_provisioned_user', { lookup_email: emailToUse });
-        
-        if (publicUser) {
+
+        if (publicUser && typeof publicUser === 'object' && publicUser.name) {
           Logger.info("Usuário provisionado detectado, criando conta de autenticação...");
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email: emailToUse,
-            password: pass,
-            options: { 
-              data: { 
-                name: publicUser.name, 
+            password: pass, // senha digitada pelo usuário; a RPC não devolve mais nenhuma senha
+            options: {
+              data: {
+                name: publicUser.name,
                 role: publicUser.role,
-                is_provisioned: true 
-              } 
+                is_provisioned: true
+              }
             }
           });
 

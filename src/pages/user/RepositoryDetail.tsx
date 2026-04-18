@@ -237,7 +237,7 @@ export const RepositoryDetail = () => {
   const activeUserRating = activeLink ? contentRatings.find(r => r.content_id === activeLink.id && r.user_id === user?.id)?.rating : undefined;
 
   return (
-    <div className="pb-12 min-h-screen relative">
+    <div className="min-h-screen bg-zinc-950 text-white pb-12 relative">
       <HeaderLayout
         layout={company?.landing_page_layout || 'classic'}
         theme={company?.theme || { primary: '#2563EB', secondary: '#1D4ED8', background: '#09090b', card: '#18181b', text: '#ffffff' }}
@@ -259,10 +259,10 @@ export const RepositoryDetail = () => {
       </HeaderLayout>
 
       <div className="px-0 md:px-12 max-w-7xl mx-auto relative z-20">
-        <div className="pt-8 mb-4 flex">
-           <Link to={`/${slug}/home`} className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors font-medium text-sm">
-              <ArrowLeft size={18} /> Voltar
-           </Link>
+        <div className="pt-8 mb-4 flex items-center justify-between">
+            <Link to={`/${slug}/home`} className="tour-repo-nav flex items-center gap-2 text-zinc-500 hover:text-white transition-colors font-medium text-sm">
+               <ArrowLeft size={18} /> Voltar
+            </Link>
         </div>
         
         {isSimple ? (
@@ -279,14 +279,14 @@ export const RepositoryDetail = () => {
                 </div>
              </div>
              <div className="grid gap-3">
-               {filteredLinks.map(link => {
+               {filteredLinks.map((link, idx) => {
                  const conf = getPremiumLinkConfig(link.type || '');
                  const Icon = conf.icon;
                  const viewsCount = contentViews.filter(v => v.content_id === link.id).length;
                  const linkRatings = contentRatings.filter(r => r.content_id === link.id);
                  const avgRating = linkRatings.length > 0 ? (linkRatings.reduce((acc, curr) => acc + curr.rating, 0) / linkRatings.length).toFixed(1) : '-';
                  return (
-                   <button key={link.id} onClick={() => handleLinkClick(link)} className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800 hover:border-zinc-700/80 hover:bg-zinc-800/40 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl">
+                   <button key={link.id} onClick={() => handleLinkClick(link)} className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800 hover:border-zinc-700/80 hover:bg-zinc-800/40 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl ${idx === 0 ? 'tour-repo-item' : ''}`}>
                       <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${conf.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
                       <div className="flex items-start sm:items-center gap-5 w-full sm:w-auto relative z-10 pl-1">
                          <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-0.5 ${conf.glow}`}><div className={`absolute inset-0 bg-gradient-to-br ${conf.gradient} opacity-20 group-hover:opacity-30 transition-opacity rounded-2xl`}></div><div className="absolute inset-0 rounded-2xl border border-white/10"></div><Icon size={26} className="text-white drop-shadow-md relative z-10" strokeWidth={1.5} /></div>
@@ -426,7 +426,7 @@ export const RepositoryDetail = () => {
                               <button
                                 key={item.id}
                                 onClick={() => { setCurrentIndex(idx); setIsPlaying(true); }}
-                                className={`w-full group flex items-center gap-4 p-2.5 rounded-xl transition-all duration-300 border relative overflow-hidden ${isActive ? 'bg-white/[0.06] border-white/10 shadow-lg' : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'}`}
+                                className={`w-full group flex items-center gap-4 p-2.5 rounded-xl transition-all duration-300 border relative overflow-hidden ${isActive ? 'bg-white/[0.06] border-white/10 shadow-lg' : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'} ${idx === 0 ? 'tour-repo-item' : ''}`}
                               >
                                 {isActive && (
                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--c-primary)]"></div>
@@ -497,19 +497,22 @@ export const RepositoryDetail = () => {
                 ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 md:gap-10">
-                {displayContents.map(content => (
-                    <div key={content.id} className="w-full">
-                        <ContentCard content={content} fullWidth views={contentViews} ratings={contentRatings} />
-                    </div>
-                ))}
-                {displayContents.length === 0 && (
-                    <div className="col-span-full py-20 text-center text-zinc-500">
-                        <Folder size={48} className="opacity-20 mx-auto mb-4" />
-                        <p className="text-xl font-medium text-white mb-2">Nenhum conteúdo encontrado</p>
-                        <p>Ainda não há materiais liberados para a fase selecionada.</p>
-                    </div>
-                )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayContents.map((content, idx) => (
+                <div 
+                  key={content.id} 
+                  className={`bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-700 transition-all group ${idx === 0 ? 'tour-repo-item' : ''}`}
+                >
+                  <ContentCard content={content} fullWidth views={contentViews} ratings={contentRatings} />
+                </div>
+              ))}
+              {displayContents.length === 0 && (
+                  <div className="col-span-full py-20 text-center text-zinc-500">
+                      <Folder size={48} className="opacity-20 mx-auto mb-4" />
+                      <p className="text-xl font-medium text-white mb-2">Nenhum conteúdo encontrado</p>
+                      <p>Ainda não há materiais liberados para a fase selecionada.</p>
+                  </div>
+              )}
             </div>
           </div>
         )}
@@ -549,7 +552,7 @@ export const RepositoryDetail = () => {
                 <div className="flex items-center gap-2 md:gap-3">
                     <button 
                       onClick={() => downloadFile(activeLink.url, activeLink.name)}
-                      className="text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-[var(--c-primary)] hover:bg-opacity-90 px-3 py-2 rounded-md transition-colors font-bold shadow-lg"
+                      className="tour-repo-download text-white flex items-center gap-1.5 md:gap-2 text-xs md:text-sm bg-[var(--c-primary)] hover:bg-opacity-90 px-3 py-2 rounded-md transition-colors font-bold shadow-lg"
                       title="Baixar arquivo para o seu dispositivo"
                     >
                         <Download size={16} /> <span className="hidden sm:inline">Baixar</span>

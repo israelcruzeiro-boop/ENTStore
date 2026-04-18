@@ -8,13 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen, Lock, Globe, List, MonitorPlay, Loader2, Music, Sun, MoveVertical, PlaySquare } from 'lucide-react';
+import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen, Lock, Globe, List, MonitorPlay, Loader2, Music, Sun, MoveVertical, PlaySquare, HelpCircle } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Repository } from '../../types';
 import { repositorySchema } from '../../types/schemas';
 import { uploadToSupabase } from '../../lib/storage';
 import { Logger } from '../../utils/logger';
 import { CoverPreview } from '../../components/admin/CoverPreview';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { REPOSITORIES_STEPS } from '../../data/tourSteps';
 
 export const AdminRepositories = () => {
   const { companySlug } = useParams();
@@ -27,6 +30,9 @@ export const AdminRepositories = () => {
   const { orgTopLevels, orgUnits, isLoading: loadingOrg } = useOrgStructure(company?.id);
   const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
+
+  // Tour Guiado (Tutorial) - Regras dos Hooks exigem que seja no topo!
+  const { startTour, joyrideProps } = useTour(REPOSITORIES_STEPS);
   
   // Ordenação segura
   const companyRepos = useMemo(() => {
@@ -282,19 +288,27 @@ export const AdminRepositories = () => {
     }
   };
 
+  // Tour Guiado (Tutorial)
+
   return (
     <div className="max-w-6xl mx-auto pb-12">
+      <Joyride {...joyrideProps} />
       <div className="flex justify-between items-center mb-8">
-         <div>
+         <div className="tour-repo-header">
            <h1 className="text-2xl font-bold text-slate-900">Repositórios de Conteúdo</h1>
            <p className="text-sm text-slate-500 mt-1">Gerencie os "Canais/Trilhas" da sua plataforma e veja seus conteúdos.</p>
          </div>
-         <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
-            + Novo Repositório
-         </Button>
+         <div className="flex items-center gap-3">
+           <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50" onClick={startTour}>
+             <HelpCircle size={16} className="mr-2" /> Como funciona?
+           </Button>
+           <Button onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm tour-repo-create">
+              + Novo Repositório
+           </Button>
+         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden tour-repo-list">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
              <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">

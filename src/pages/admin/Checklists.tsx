@@ -57,6 +57,10 @@ import { Input } from '@/components/ui/input';
 import { useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
 import { Checklist, ChecklistQuestion, ChecklistSection, ChecklistQuestionType } from '../../types';
 import * as XLSX from 'xlsx';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { CHECKLISTS_STEPS, CHECKLIST_CONFIG_STEPS } from '../../data/tourSteps';
+import { HelpCircle } from 'lucide-react';
 
 interface FolderWithChecklists {
   id: string;
@@ -72,6 +76,10 @@ export const AdminChecklists = () => {
   const { folders, mutate: mutateFolders } = useChecklistFolders(company?.id);
   const { orgTopLevels, orgUnits } = useOrgStructure(company?.id);
   const { users } = useUsers(company?.id);
+
+  // Tour Guiado (Tutorial) - Hook Rule: Must be at the top level
+  const { startTour, joyrideProps } = useTour(CHECKLISTS_STEPS);
+  const { startTour: configStartTour, joyrideProps: configJoyrideProps } = useTour(CHECKLIST_CONFIG_STEPS);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('templates');
@@ -400,11 +408,14 @@ export const AdminChecklists = () => {
     );
   }
 
+  // Render methods
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header Magistral */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
+      <Joyride {...joyrideProps} />
+      <Joyride {...configJoyrideProps} />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 tour-checklists-header">
+        <div className="flex items-center gap-4 tour-checklist-header">
           <div className="w-16 h-16 rounded-3xl bg-blue-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/20">
             <ClipboardCheck size={32} />
           </div>
@@ -415,6 +426,9 @@ export const AdminChecklists = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50 h-14 rounded-2xl" onClick={startTour}>
+            <HelpCircle size={18} className="mr-2" /> Como funciona?
+          </Button>
           <Button
             variant="outline"
             onClick={() => navigate(`/admin/${companySlug}/checklists/dashboard`)}
@@ -429,7 +443,7 @@ export const AdminChecklists = () => {
               setFolderName('');
               setIsFolderModalOpen(true);
             }}
-            className="bg-white border-blue-200 text-blue-700 font-black px-6 h-14 rounded-2xl shadow-sm hover:bg-blue-50 transition-all"
+            className="bg-white border-blue-200 text-blue-700 font-black px-6 h-14 rounded-2xl shadow-sm hover:bg-blue-50 transition-all tour-checklist-folders"
           >
             <FolderPlus size={20} className="mr-2" /> Nova Pasta
           </Button>
@@ -449,7 +463,7 @@ export const AdminChecklists = () => {
               });
               setIsModalOpen(true);
             }}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-black px-8 h-14 rounded-2xl shadow-xl shadow-blue-500/20 text-lg transition-all active:scale-95 border-none"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black px-8 h-14 rounded-2xl shadow-xl shadow-blue-500/20 text-lg transition-all active:scale-95 border-none tour-checklist-create"
           >
             <Plus size={24} className="mr-2" /> Novo Checklist
           </Button>
@@ -468,7 +482,7 @@ export const AdminChecklists = () => {
              </TabsTrigger>
              <TabsTrigger 
                value="history" 
-               className="data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none px-2 font-black uppercase text-[10px] tracking-widest transition-all"
+               className="tour-checklist-history data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none px-2 font-black uppercase text-[10px] tracking-widest transition-all"
              >
                Histórico de Auditorias
              </TabsTrigger>
@@ -479,7 +493,7 @@ export const AdminChecklists = () => {
            </div>
         </div>
 
-        <TabsContent value="templates" className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <TabsContent value="templates" className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500 tour-checklist-list">
            {/* Filters & Search */}
            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
              <div className="relative flex-1 w-full">
@@ -644,21 +658,34 @@ export const AdminChecklists = () => {
 
       {/* Modal de Configurações */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
-          <DialogHeader className="p-8 bg-slate-900 text-white">
+        <DialogContent 
+          className="max-w-2xl bg-white p-0 overflow-hidden rounded-3xl border-none shadow-2xl tour-checklist-settings-modal"
+          onInteractOutside={(e) => {
+            // Impede o fechamento do modal se a interação for com o balão do tour (Joyride)
+            // O Joyride usa as classes "__joyride-tooltip__" e ".joyride-beacon" em seus elementos
+            const target = e.target as HTMLElement;
+            if (target?.closest('.joyride-tooltip') || target?.closest('.__joyride-tooltip__')) {
+              e.preventDefault();
+            }
+          }}
+        >
+          <DialogHeader className="p-8 bg-slate-900 text-white relative">
             <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
               <Plus className="text-blue-400" /> {editingId ? 'Editar Configurações' : 'Criar Novo Checklist'}
             </DialogTitle>
             <DialogDescription className="text-slate-400 font-medium">
               {editingId ? 'Atualize as informações e permissões deste checklist.' : 'Configure as informações básicas e o direcionamento antes de iniciar a construção.'}
             </DialogDescription>
+            <Button variant="ghost" size="sm" onClick={configStartTour} className="absolute top-8 right-8 text-slate-300 hover:text-white hover:bg-slate-800">
+              <HelpCircle size={16} className="mr-1" /> Ajuda
+            </Button>
           </DialogHeader>
 
           <Tabs defaultValue="basic" className="w-full">
             <div className="px-8 border-b border-slate-100 bg-slate-50/50">
               <TabsList className="bg-transparent h-12 gap-8">
                 <TabsTrigger value="basic" className="data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none px-0 font-bold">1. Informações Básicas</TabsTrigger>
-                <TabsTrigger value="access" className="data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none px-0 font-bold">2. Público & Acesso</TabsTrigger>
+                <TabsTrigger value="access" className="tour-checklist-settings-access data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none border-b-2 border-transparent data-[state=active]:border-blue-600 rounded-none px-0 font-bold">2. Público & Acesso</TabsTrigger>
               </TabsList>
             </div>
 
@@ -937,6 +964,14 @@ const AdminChecklistHistory = () => {
 
   if (isLoading) return <div className="py-20 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
 
+  // Helper para formatação segura de datas (evita RangeError no date-fns)
+  const safeFormatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '--';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'Data Inválida';
+    return format(date, 'dd/MM/yyyy HH:mm', { locale: ptBR });
+  };
+
   return (
     <div className="space-y-6">
        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
@@ -965,14 +1000,18 @@ const AdminChecklistHistory = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-50">
-                {submissions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(sub => {
+                {submissions.sort((a, b) => {
+                   const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                   const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                   return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+                }).map(sub => {
                   const checklist = checklists.find(c => c.id === sub.checklist_id);
                   const auditor = users.find(u => u.id === sub.user_id);
                   return (
                     <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors group">
                        <td className="px-6 py-4">
                           <p className="text-sm font-black text-slate-900">{checklist?.title || 'Checklist Excluído'}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">ID: {sub.id.slice(0,8)}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">ID: {sub.id?.slice(0,8) || '--'}</p>
                        </td>
                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -993,7 +1032,7 @@ const AdminChecklistHistory = () => {
                           </span>
                        </td>
                        <td className="px-6 py-4">
-                          <p className="text-xs font-bold text-slate-600">{format(new Date(sub.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+                          <p className="text-xs font-bold text-slate-600">{safeFormatDate(sub.created_at)}</p>
                        </td>
                        <td className="px-6 py-4 text-right">
                           <Button 

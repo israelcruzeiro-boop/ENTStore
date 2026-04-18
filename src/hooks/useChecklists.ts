@@ -260,7 +260,7 @@ export function useAllSubmissions(companyId?: string) {
     () => fetcher(async () => {
       const result = await supabase
         .from('checklist_submissions')
-        .select('id, checklist_id, user_id, company_id, status, created_at')
+        .select('id, checklist_id, user_id, company_id, org_unit_id, status, started_at, completed_at, created_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
       
@@ -303,7 +303,7 @@ export function useAllAnswers(companyId?: string) {
       // Para dashboards muito grandes (>1000 submissões), pode ser necessário paginar ou usar RPC.
       const { data: answers, error: ansErr } = await supabase
         .from('checklist_answers')
-        .select('id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status')
+        .select('id, submission_id, question_id, value, note, action_plan, assigned_user_id, photo_urls, action_plan_due_date, action_plan_status, created_at')
         .in('submission_id', submissionIds);
       
       if (ansErr) throw ansErr;
@@ -849,18 +849,10 @@ export function useChecklistDetailedAnswers(companyId?: string) {
       
       if (ansErr) throw ansErr;
 
-      // 3. Buscamos planos de ação vinculados a estas respostas
-      const answerIds = (answers || []).map(a => a.id);
-      const { data: aps } = await supabase
-        .from('checklist_action_plans')
-        .select('id, answer_id, title, description, status, due_date, created_at')
-        .in('answer_id', answerIds);
-
-      // 4. Mapeamos as submissões e planos de ação de volta para as respostas
+      // 3. Mapeamos as submissões de volta para as respostas
       const detailedAnswers = (answers || []).map(ans => ({
         ...ans,
-        checklist_submissions: subs.find(s => s.id === ans.submission_id) || null,
-        action_plans: (aps || []).filter(ap => ap.answer_id === ans.id)
+        checklist_submissions: subs.find(s => s.id === ans.submission_id) || null
       }));
 
       return detailedAnswers as DetailedAnswer[];

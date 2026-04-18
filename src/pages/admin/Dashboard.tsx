@@ -1,6 +1,10 @@
 import { useParams, Link } from 'react-router-dom';
 import { useCompanies, useRepositories, useContents, useUsers } from '../../hooks/useSupabaseData';
-import { Users, FolderTree, FileVideo, ArrowRight, Loader2, BookOpen, CheckSquare } from 'lucide-react';
+import { Users, FolderTree, FileVideo, ArrowRight, Loader2, BookOpen, CheckSquare, HelpCircle } from 'lucide-react';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { DASHBOARD_STEPS } from '../../data/tourSteps';
+import { Button } from '@/components/ui/button';
 
 export const AdminDashboard = () => {
   const { companySlug } = useParams();
@@ -19,6 +23,9 @@ export const AdminDashboard = () => {
 
   const isLoading = loadingCompanies || loadingRepos || loadingContents || loadingUsers;
 
+  // Tour Guiado (Tutorial)
+  const { startTour, joyrideProps } = useTour(DASHBOARD_STEPS);
+
   if (!company && !loadingCompanies) return (
     <div className="p-8 text-center text-slate-500">
       Empresa não encontrada.
@@ -33,16 +40,22 @@ export const AdminDashboard = () => {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Visão Geral</h1>
+      <Joyride {...joyrideProps} />
+      <div className="mb-8 flex justify-between items-start">
+        <div className="tour-dash-header">
+          <h1 className="text-2xl font-bold text-slate-900">Visão Geral</h1>
         <p className="text-slate-500 text-sm mt-1">
           Dashboard isolado: exibindo apenas dados pertencentes à <strong>{company?.name}</strong>.
         </p>
+        </div>
+        <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50" onClick={startTour}>
+          <HelpCircle size={16} className="mr-2" /> Conheça o painel
+        </Button>
       </div>
       
       {/* ATALHOS RÁPIDOS PARA DASHBOARDS ESPECIALIZADOS */}
       <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">Painéis Especializados</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 tour-dash-panels">
         <Link to={`/admin/${companySlug}/courses/dashboard`} className="group relative overflow-hidden bg-gradient-to-br from-indigo-900 to-indigo-800 p-8 rounded-2xl border border-indigo-700 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between transition-all hover:scale-[1.02] hover:shadow-indigo-500/20 gap-4">
            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-white/10 transition-all opacity-50" />
            <div className="relative z-10 flex items-center gap-6">
@@ -78,7 +91,7 @@ export const AdminDashboard = () => {
 
       {/* MÉTRICAS GERAIS */}
       <h2 className="text-lg font-bold text-slate-900 mb-4 px-1">Métricas Globais</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 tour-dash-metrics">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
              <Users size={24} />

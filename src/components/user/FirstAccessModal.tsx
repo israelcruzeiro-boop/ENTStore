@@ -87,6 +87,7 @@ export const FirstAccessModal = () => {
         org_unit_id: formData.org_unit_id || undefined,
         avatar_url: formData.avatar_url,
         first_access: false,
+        onboarding_completed: false,
         status: 'ACTIVE',
         active: true
       });

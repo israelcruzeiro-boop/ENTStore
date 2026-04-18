@@ -11,6 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Content, SimpleLink } from '../../types';
 import { repositoryContentSchema, repositoryCategorySchema, simpleLinkSchema } from '../../types/schemas';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { REPOSITORY_CONTENTS_STEPS, REPOSITORY_CONTENTS_SIMPLE_STEPS } from '../../data/tourSteps';
 import { Logger } from '../../utils/logger';
 import {
   ArrowLeft,
@@ -41,7 +44,8 @@ import {
   ArrowUp,
   ArrowDown,
   Loader2,
-  Music
+  Music,
+  HelpCircle
 } from 'lucide-react';
 import { uploadToSupabase } from '../../lib/storage';
 
@@ -80,6 +84,11 @@ export const AdminRepositoryContents = () => {
   const { categories: repoCategories, mutate: mutateCategories } = useCategories(repoId);
   const { contentViews, contentRatings } = useRepositoryMetrics(repoId);
 
+  const isSimple = repo?.repo_type === 'SIMPLE';
+  
+  // Tour Guiado (Tutorial) - Hook Rule: Must be at the top level
+  const { startTour, joyrideProps } = useTour(isSimple ? REPOSITORY_CONTENTS_SIMPLE_STEPS : REPOSITORY_CONTENTS_STEPS);
+
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -112,9 +121,8 @@ export const AdminRepositoryContents = () => {
 
   const PREDEFINED_TYPES = ['Link', 'Vídeo', 'Música', 'PDF', 'Planilha', 'Documento', 'Imagem', 'Apresentação', 'Drive/Pasta'];
 
-  const isSimple = repo?.type === 'SIMPLE';
-  const isPlaylist = repo?.type === 'PLAYLIST';
-  const isVideoPlaylist = repo?.type === 'VIDEO_PLAYLIST';
+  const isPlaylist = repo?.repo_type === 'MUSIC_PLAYLIST';
+  const isVideoPlaylist = repo?.repo_type === 'VIDEO_PLAYLIST';
 
   const availableTypes = useMemo(() => {
     const types = new Set(simpleLinks.map(l => l.type).filter(Boolean));
@@ -601,11 +609,17 @@ export const AdminRepositoryContents = () => {
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
-      <Link to={`/admin/${companySlug}/repos`} className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-6">
-        <ArrowLeft size={16} /> Voltar para Repositórios
-      </Link>
+      <Joyride {...joyrideProps} />
+      <div className="flex justify-between items-center mb-6">
+        <Link to={`/admin/${companySlug}/repos`} className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+          <ArrowLeft size={16} /> Voltar para Repositórios
+        </Link>
+        <Button variant="ghost" size="sm" onClick={startTour} className="hidden sm:flex text-indigo-600 font-bold hover:bg-indigo-50">
+          <HelpCircle size={16} className="mr-1" /> Como funciona?
+        </Button>
+      </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8 relative">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8 relative tour-repo-contents-header">
         <div className="h-40 w-full bg-slate-100 relative overflow-hidden">
           {repo.banner_image || repo.cover_image ? (
             <img src={repo.banner_image || repo.cover_image} alt={repo.name} className="w-full h-full object-cover opacity-60 mix-blend-multiply" />
@@ -650,17 +664,17 @@ export const AdminRepositoryContents = () => {
         </h2>
         <div className="flex gap-2 w-full sm:w-auto">
           {!isSimple && (
-            <Button variant="outline" onClick={() => setIsCategoryModalOpen(true)} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none">
+            <Button variant="outline" onClick={() => setIsCategoryModalOpen(true)} className="tour-repo-contents-phases bg-white border-slate-200 text-slate-700 hover:bg-slate-50 flex-1 sm:flex-none">
               <Layers size={16} className="mr-2" /> Fases
             </Button>
           )}
-          <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="bg-indigo-600 hover:bg-indigo-700 shadow-md flex-1 sm:flex-none">
+          <Button onClick={isSimple ? openCreateSimple : openCreateFull} className="tour-repo-contents-add bg-indigo-600 hover:bg-indigo-700 shadow-md flex-1 sm:flex-none">
             <Plus size={16} className="mr-2" /> {isSimple ? 'Adicionar Links' : isPlaylist ? 'Adicionar Música' : isVideoPlaylist ? 'Adicionar Vídeo' : 'Novo Conteúdo'}
           </Button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="tour-repo-contents-table bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         {isSimple && (
           <div className="p-4 bg-white border-b border-slate-200 flex flex-col gap-3 shadow-sm z-10">
             <div className="relative w-full">
@@ -707,7 +721,9 @@ export const AdminRepositoryContents = () => {
 
                   const linkViews = contentViews.filter(v => v.content_id === link.id);
                   const totalViews = linkViews.length;
-                  const uniqueUsers = new Set(linkViews.map(v => v.user_id)).size;
+                  // user_id is nullable (SET NULL on user delete), filter out
+                  // nulls so deleted-user views don't inflate "unique users".
+                  const uniqueUsers = new Set(linkViews.map(v => v.user_id).filter((id): id is string => id !== null)).size;
                   const linkRatings = contentRatings.filter(r => r.content_id === link.id);
                   const avgRating = linkRatings.length > 0 ? (linkRatings.reduce((acc, curr) => acc + curr.rating, 0) / linkRatings.length).toFixed(1) : '-';
 
@@ -796,7 +812,7 @@ export const AdminRepositoryContents = () => {
                 {contents.map(content => {
                   const cViews = contentViews.filter(v => v.content_id === content.id);
                   const totalViews = cViews.length;
-                  const uniqueUsers = new Set(cViews.map(v => v.user_id)).size;
+                  const uniqueUsers = new Set(cViews.map(v => v.user_id).filter((id): id is string => id !== null)).size;
                   const cRatings = contentRatings.filter(r => r.content_id === content.id);
                   const avgRating = cRatings.length > 0 ? (cRatings.reduce((acc, curr) => acc + curr.rating, 0) / cRatings.length).toFixed(1) : '-';
 

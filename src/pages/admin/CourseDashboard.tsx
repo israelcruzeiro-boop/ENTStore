@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   useCompanies, 
@@ -285,9 +285,17 @@ export const AdminCourseDashboard = () => {
     toast.success('Relatório Excel exportado!');
   };
 
-  if (isLoading) {
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setHasLoaded(true);
+    }
+  }, [isLoading]);
+
+  if (!hasLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
+      <div className="flex h-[100dvh] items-center justify-center bg-slate-950">
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-16 h-16">
             <div className="absolute inset-0 rounded-full border-4 border-white/10" />
@@ -651,9 +659,13 @@ export const AdminCourseDashboard = () => {
                           <tr key={u.id} className="hover:bg-white/[0.02] transition-colors group">
                              <td className="px-6 py-5">
                                 <div className="flex items-center gap-3">
-                                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center text-xs font-black uppercase">
-                                      {u.name.slice(0, 2)}
-                                   </div>
+                                   {u.avatar_url ? (
+                                      <img src={u.avatar_url} alt={u.name} className="w-10 h-10 rounded-xl border border-white/10 object-cover shrink-0" />
+                                   ) : (
+                                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center text-xs font-black uppercase shrink-0">
+                                         {u.name.slice(0, 2)}
+                                      </div>
+                                   )}
                                    <div>
                                       <p className="text-xs font-black text-white">{u.name}</p>
                                       <p className="text-[10px] text-white font-black">{u.email}</p>

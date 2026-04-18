@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Building, Upload, AlertTriangle, Save, Image as ImageIcon, Loader2, Sun, MoveVertical } from 'lucide-react';
+import { Upload, AlertTriangle, Save, Image as ImageIcon, Loader2, Sun, MoveVertical, HelpCircle, Building } from 'lucide-react';
 import { uploadToSupabase } from '../../lib/storage';
 import { Slider } from '@/components/ui/slider';
 import { CoverPreview } from '../../components/admin/CoverPreview';
-
-
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { SETTINGS_STEPS } from '../../data/tourSteps';
 
 export const AdminSettings = () => {
   const { companySlug } = useParams();
@@ -20,6 +21,9 @@ export const AdminSettings = () => {
   const { companies, mutate: mutateCompanies } = useCompanies();
   
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+
+  // Tour Guiado
+  const { startTour, joyrideProps } = useTour(SETTINGS_STEPS);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -145,11 +149,17 @@ export const AdminSettings = () => {
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Configurações da Empresa</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Gerencie os dados básicos e a página inicial da <strong>{company.name}</strong>.
-        </p>
+      <Joyride {...joyrideProps} />
+      <div className="mb-8 flex justify-between items-center tour-settings-header">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Configurações da Empresa</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Gerencie os dados básicos e a página inicial da <strong>{company.name}</strong>.
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="hidden sm:flex text-indigo-600 font-bold hover:bg-indigo-50" onClick={startTour}>
+          <HelpCircle size={16} className="mr-1" /> Como funciona?
+        </Button>
       </div>
 
       <form onSubmit={handleSaveSettings} className="space-y-6">
@@ -211,7 +221,7 @@ export const AdminSettings = () => {
               </div>
             </div>
 
-            <div>
+            <div className="tour-settings-modules">
               <h2 className="text-lg font-semibold text-slate-900 mb-4 border-b border-slate-100 pb-2">Capa do Painel (Home do Usuário)</h2>
               <p className="text-sm text-slate-500 mb-4">Defina o grande banner que aparece no topo quando o colaborador acessa a plataforma.</p>
               

@@ -135,7 +135,7 @@ export const AdminCourses = () => {
                 <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">{course.description || 'Nenhuma descrição fornecida.'}</p>
                 
                 <div className="flex items-center justify-between pt-4 border-t border-slate-50 text-[11px] text-slate-400 font-medium">
-                  <span className="flex items-center gap-1.5"><BookOpen size={14} /> Módulos: --</span>
+                  <span className="flex items-center gap-1.5"><BookOpen size={14} /> Módulos: {(course as any).module_count ?? '--'}</span>
                   <span className="text-blue-600 group-hover:translate-x-1 transition-transform flex items-center gap-0.5">Gerenciar <ChevronRight size={14} /></span>
                 </div>
               </div>

@@ -18,6 +18,7 @@ import {
 } from '../types/schemas';
 import { z } from 'zod';
 import { Logger } from '../utils/logger';
+import { courseService } from '../services/courseService';
 
 /**
  * Máscara de CPF (123.***.***-**)
@@ -38,8 +39,10 @@ export const maskCPF = (cpf: string | null | undefined) => {
 /**
  * Hook para recuperar as empresas (Tenants) permitidas para o usuário ou publicamente.
  */
-export function useCompanies(includeDeleted = false) {
-  const { data, error, isLoading, mutate } = useSWR<Company[]>(`companies_${includeDeleted}`, async () => {
+export function useCompanies(includeDeleted = false, enabled = true) {
+  const { data, error, isLoading, mutate } = useSWR<Company[]>(
+    enabled ? `companies_${includeDeleted}` : null,
+    async () => {
     const data = await fetcher(() => {
       let query = supabase.from('companies')
         .select('id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, hero_position, hero_brightness, public_bio, active, landing_page_enabled, landing_page_active, landing_page_layout, checklists_enabled, org_unit_name, org_top_level_name, org_levels, created_at, updated_at, deleted_at')
@@ -161,7 +164,8 @@ export function useRepositories(companyId?: string) {
         .order('created_at', { ascending: false });
       
       if (result.data) {
-        result.data = z.array(repositorySchema.partial()).parse(result.data) as any;
+        const parsed: Partial<z.infer<typeof repositorySchema>>[] = z.array(repositorySchema.partial()).parse(result.data);
+        result.data = parsed as typeof result.data;
       }
       return result;
     })
@@ -193,7 +197,8 @@ export function useContents(filter?: { repositoryId?: string; companyId?: string
       
       const result = await query;
       if (result.data) {
-        result.data = z.array(repositoryContentSchema.partial()).parse(result.data) as any;
+        const parsed: Partial<z.infer<typeof repositoryContentSchema>>[] = z.array(repositoryContentSchema.partial()).parse(result.data);
+        result.data = parsed as typeof result.data;
       }
       return result;
     })
@@ -224,7 +229,8 @@ export function useSimpleLinks(filter?: { repositoryId?: string; companyId?: str
       
       const result = await query;
       if (result.data) {
-        result.data = z.array(simpleLinkSchema.partial()).parse(result.data) as any;
+        const parsed: Partial<z.infer<typeof simpleLinkSchema>>[] = z.array(simpleLinkSchema.partial()).parse(result.data);
+        result.data = parsed as typeof result.data;
       }
       return result;
     })
@@ -421,7 +427,7 @@ export function usePublicCompanyBySlug(slug?: string) {
     slug ? `public_company_${slug}` : null,
     () => fetcher(() => supabase
         .from('companies')
-        .select(`id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, public_bio, active, landing_page_active, landing_page_layout`)
+        .select(`id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, hero_position, hero_brightness, public_bio, active, landing_page_active, landing_page_layout`)
         .or(`slug.eq.${slug},link_name.eq.${slug}`)
         .eq('active', true)
         .single()
@@ -512,18 +518,7 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
 export function useCourses(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Course[]>(
     companyId ? `courses_${companyId}` : null,
-    () => fetcher(async () => {
-      const result = await supabase.from('courses')
-        .select('id, company_id, title, description, thumbnail_url, status, access_type, allowed_user_ids, allowed_region_ids, allowed_store_ids, excluded_user_ids, passing_score, diploma_template, created_at, deleted_at')
-        .eq('company_id', companyId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-      
-      if (result.data) {
-        result.data = z.array(courseSchema.partial()).parse(result.data) as any;
-      }
-      return result;
-    })
+    () => courseService.getCourses(companyId!)
   );
 
   return {
@@ -540,18 +535,7 @@ export function useCourses(companyId?: string) {
 export function useCourseModules(courseId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CourseModule[]>(
     courseId ? `course_modules_${courseId}` : null,
-    () => fetcher(async () => {
-      const result = await supabase.from('course_modules')
-        .select('id, course_id, title, order_index, created_at, deleted_at')
-        .eq('course_id', courseId)
-        .is('deleted_at', null)
-        .order('order_index', { ascending: true });
-      
-      if (result.data) {
-        result.data = z.array(courseModuleSchema.partial()).parse(result.data) as any;
-      }
-      return result;
-    })
+    () => courseService.getModules(courseId!)
   );
 
   return {
@@ -569,19 +553,10 @@ export function useCourseContents(moduleId?: string) {
   const { data, error, isLoading, mutate } = useSWR<(CourseContent & { has_quiz?: boolean })[]>(
     moduleId ? `course_contents_${moduleId}` : null,
     async () => {
-      const { data: contents, error } = await supabase
-        .from('course_contents')
-        .select('id, module_id, title, type, url, order_index, created_at, deleted_at, quizzes(id)')
-        .eq('module_id', moduleId)
-        .is('deleted_at', null)
-        .order('order_index', { ascending: true });
-        
-      if (error) throw error;
-      const validated = z.array(courseContentSchema.partial()).parse(contents);
-      
-      return validated.map(c => ({
+      const contents = await courseService.getContents(moduleId!);
+      return contents.map((c: any) => ({
         ...c,
-        has_quiz: (c.quizzes as unknown[]).length > 0
+        has_quiz: (c.quizzes || []).length > 0
       }));
     }
   );
@@ -592,6 +567,61 @@ export function useCourseContents(moduleId?: string) {
     isError: error,
     mutate
   };
+}
+
+/**
+ * Hook agregado: busca TODOS os conteúdos de TODOS os módulos de um curso em uma única query.
+ * Retorna um Map<moduleId, CourseContent[]>. Elimina o N+1 em listas de navegação.
+ */
+export function useCourseContentsByCourse(moduleIds: string[]) {
+  const key = moduleIds.length > 0 ? `course_contents_by_modules_${moduleIds.sort().join(',')}` : null;
+  const { data, error, isLoading, mutate } = useSWR<Map<string, CourseContent[]>>(
+    key,
+    async () => {
+      const { data: contents, error } = await supabase
+        .from('course_contents')
+        .select('id, module_id, title, type, url, order_index, created_at, deleted_at')
+        .in('module_id', moduleIds)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      if (error) throw error;
+      const map = new Map<string, CourseContent[]>();
+      (contents || []).forEach((c: any) => {
+        const list = map.get(c.module_id) || [];
+        list.push(c as CourseContent);
+        map.set(c.module_id, list);
+      });
+      return map;
+    }
+  );
+  return { contentsByModule: data || new Map<string, CourseContent[]>(), isLoading, isError: error, mutate };
+}
+
+/**
+ * Hook agregado: busca TODAS as perguntas de TODOS os módulos em uma única query.
+ */
+export function useCourseQuestionsByCourse(moduleIds: string[]) {
+  const key = moduleIds.length > 0 ? `course_questions_by_modules_${moduleIds.sort().join(',')}` : null;
+  const { data, error, isLoading, mutate } = useSWR<Map<string, CoursePhaseQuestion[]>>(
+    key,
+    async () => {
+      const { data: questions, error } = await supabase
+        .from('course_phase_questions')
+        .select('id, module_id, question_text, question_type, configuration, image_url, explanation, order_index, deleted_at')
+        .in('module_id', moduleIds)
+        .is('deleted_at', null)
+        .order('order_index', { ascending: true });
+      if (error) throw error;
+      const map = new Map<string, CoursePhaseQuestion[]>();
+      (questions || []).forEach((q: any) => {
+        const list = map.get(q.module_id) || [];
+        list.push(q as CoursePhaseQuestion);
+        map.set(q.module_id, list);
+      });
+      return map;
+    }
+  );
+  return { questionsByModule: data || new Map<string, CoursePhaseQuestion[]>(), isLoading, isError: error, mutate };
 }
 
 /**
@@ -684,16 +714,7 @@ export async function awardXP(userId: string, xp: number, coins: number = 0) {
 export function useCourseQuestions(moduleId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CoursePhaseQuestion[]>(
     moduleId ? `course_questions_${moduleId}` : null,
-    async () => {
-      const { data: questions, error } = await supabase
-        .from('course_phase_questions')
-        .select('id, module_id, question_text, question_type, configuration, image_url, explanation, order_index, deleted_at, options:course_question_options(id, question_id, option_text, is_correct, order_index)')
-        .eq('module_id', moduleId)
-        .is('deleted_at', null)
-        .order('order_index', { ascending: true });
-      if (error) throw error;
-      return questions as CoursePhaseQuestion[];
-    }
+    () => courseService.getQuestions(moduleId!)
   );
 
   return {
@@ -710,17 +731,7 @@ export function useCourseQuestions(moduleId?: string) {
 export function useCourseEnrollment(courseId?: string, userId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CourseEnrollment | null>(
     courseId && userId ? `enrollment_${courseId}_${userId}` : null,
-    async () => {
-      const { data, error } = await supabase
-        .from('course_enrollments')
-        .select('id, course_id, user_id, company_id, status, started_at, completed_at, score_percent, total_correct, total_questions, current_module_id, current_content_id')
-        .eq('course_id', courseId)
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    }
+    () => courseService.getEnrollment(courseId!, userId!)
   );
 
   return {
@@ -735,62 +746,14 @@ export function useCourseEnrollment(courseId?: string, userId?: string) {
  * Inicia uma matrícula em um curso
  */
 export async function startEnrollment(courseId: string, userId: string, companyId: string) {
-  // Verifica se já existe uma matrícula — protege cursos COMPLETED de serem resetados
-  const { data: existing } = await supabase
-    .from('course_enrollments')
-    .select('id, status, course_id, user_id')
-    .eq('course_id', courseId)
-    .eq('user_id', userId)
-    .is('deleted_at', null)
-    .maybeSingle();
-
-  if (existing) {
-    // Se já está COMPLETED, retorna sem modificar
-    return existing as CourseEnrollment;
-  }
-
-  // Cria nova matrícula apenas se não existir
-  const validation = courseEnrollmentSchema.safeParse({
-    course_id: courseId,
-    user_id: userId,
-    company_id: companyId,
-    status: 'IN_PROGRESS',
-    started_at: new Date().toISOString()
-  });
-
-  if (!validation.success) {
-    throw new Error("Dados de matrícula inválidos: " + validation.error.message);
-  }
-
-  const { data, error } = await supabase
-    .from('course_enrollments')
-    .insert(validation.data)
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data as CourseEnrollment;
+  return courseService.startEnrollment({ course_id: courseId, user_id: userId, company_id: companyId });
 }
 
 /**
  * Atualiza o progresso atual da matrícula (módulo e conteúdo)
  */
 export async function updateEnrollmentProgress(enrollmentId: string, moduleId: string | null, contentId: string | null) {
-  const payload = {
-    current_module_id: moduleId,
-    current_content_id: contentId,
-    updated_at: new Date().toISOString()
-  };
-
-  const validation = courseEnrollmentSchema.partial().safeParse(payload);
-  if (!validation.success) {
-    throw new Error("Dados de progresso inválidos: " + validation.error.message);
-  }
-
-  const { error } = await supabase
-    .from('course_enrollments')
-    .update(validation.data)
-    .eq('id', enrollmentId);
-  if (error) throw error;
+  return courseService.updateProgress(enrollmentId, moduleId || '', contentId || '');
 }
 
 /**
@@ -803,23 +766,13 @@ export async function submitCourseAnswer(
   isCorrect: boolean,
   complexAnswer?: any
 ) {
-  const validation = courseAnswerSchema.safeParse({
+  return courseService.submitAnswer({
     enrollment_id: enrollmentId,
     question_id: questionId,
     selected_option_id: selectedOptionId || null,
     complex_answer: complexAnswer || null,
-    is_correct: isCorrect,
-    answered_at: new Date().toISOString()
+    is_correct: isCorrect
   });
-
-  if (!validation.success) {
-    throw new Error("Dados de resposta inválidos: " + validation.error.message);
-  }
-
-  const { error } = await supabase
-    .from('course_answers')
-    .upsert(validation.data, { onConflict: 'enrollment_id,question_id' });
-  if (error) throw error;
 }
 
 /**
@@ -831,33 +784,7 @@ export async function completeEnrollment(
   totalQuestions: number,
   startedAt: string
 ) {
-  const now = new Date();
-  const startTime = startedAt ? new Date(startedAt) : now;
-  const timeSpent = isNaN(startTime.getTime()) ? 0 : Math.round((now.getTime() - startTime.getTime()) / 1000);
-  const scorePercent = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 100;
-
-  const validation = courseEnrollmentSchema.safeParse({
-    status: 'COMPLETED',
-    completed_at: now.toISOString(),
-    score_percent: scorePercent,
-    total_correct: totalCorrect,
-    total_questions: totalQuestions,
-    time_spent_seconds: timeSpent,
-    updated_at: now.toISOString()
-  });
-
-  if (!validation.success) {
-    throw new Error("Dados de finalização inválidos: " + validation.error.message);
-  }
-
-  const { data, error } = await supabase
-    .from('course_enrollments')
-    .update(validation.data)
-    .eq('id', enrollmentId)
-    .select('id')
-    .single();
-  if (error) throw error;
-  return data as CourseEnrollment;
+  return courseService.completeEnrollment(enrollmentId, totalCorrect, totalQuestions, startedAt);
 }
 
 /**
@@ -866,11 +793,7 @@ export async function completeEnrollment(
 export function useCourseAnswers(enrollmentId?: string) {
   const { data, error, isLoading, mutate } = useSWR<CourseAnswer[]>(
     enrollmentId ? `course_answers_${enrollmentId}` : null,
-    () => fetcher(() => supabase
-      .from('course_answers')
-      .select('id, enrollment_id, question_id, selected_option_id, complex_answer, is_correct, answered_at')
-      .eq('enrollment_id', enrollmentId)
-    )
+    () => courseService.getAnswers(enrollmentId!)
   );
 
   return {
@@ -1024,61 +947,95 @@ export function useUserCourseHistory(userId?: string, companyId?: string) {
  * Hook centralizado para Analytics do Dashboard de Cursos (Admin)
  */
 export function useCourseAnalytics(companyId?: string) {
+  const swrOpts = { revalidateOnFocus: false, revalidateOnReconnect: false, dedupingInterval: 60000 };
+
   const { data: enrollments, isLoading: loadingEnrollments, mutate: mutateEnrollments } = useSWR<CourseEnrollment[]>(
     companyId ? `course_enrollments_all_${companyId}` : null,
     () => fetcher(() => supabase.from('course_enrollments')
       .select('id, user_id, course_id, company_id, status, score_percent, started_at, completed_at, created_at')
       .eq('company_id', companyId)
-      .is('deleted_at', null))
+      .is('deleted_at', null)),
+    swrOpts
   );
 
   const { data: answers, isLoading: loadingAnswers, mutate: mutateAnswers } = useSWR(
     companyId ? `course_analytics_answers_${companyId}` : null,
     async () => {
+      // 1. Buscar IDs de matrículas ativas da empresa
+      const { data: activeEnrollments, error: enrErr } = await supabase
+        .from('course_enrollments')
+        .select('id')
+        .eq('company_id', companyId)
+        .is('deleted_at', null);
+
+      if (enrErr) throw enrErr;
+      if (!activeEnrollments || activeEnrollments.length === 0) return [];
+
+      const enrollmentIds = activeEnrollments.map(e => e.id);
+
+      // 2. Buscar answers dessas matrículas
       const { data, error } = await supabase
         .from('course_answers')
-        .select(`
-          id, enrollment_id, question_id, completed_answer_id, selected_option_id, complex_answer, is_correct, answered_at,
-          course_enrollments!inner(company_id)
-        `)
-        .eq('course_enrollments.company_id', companyId);
+        .select('id, enrollment_id, question_id, completed_answer_id, selected_option_id, complex_answer, is_correct, answered_at')
+        .in('enrollment_id', enrollmentIds);
+
       if (error) throw error;
       return data;
-    }
+    },
+    swrOpts
   );
 
   const { data: questions, isLoading: loadingQuestions, mutate: mutateQuestions } = useSWR(
     companyId ? `course_analytics_questions_${companyId}` : null,
     async () => {
+      // 1. Buscar cursos ativos da empresa
+      const { data: coursesData, error: cErr } = await supabase
+        .from('courses')
+        .select('id')
+        .eq('company_id', companyId)
+        .is('deleted_at', null);
+
+      if (cErr) throw cErr;
+      const courseIds = (coursesData || []).map(c => c.id);
+      if (courseIds.length === 0) return [];
+
+      // 2. Buscar módulos ativos desses cursos
+      const { data: modulesData, error: mErr } = await supabase
+        .from('course_modules')
+        .select('id')
+        .in('course_id', courseIds)
+        .is('deleted_at', null);
+
+      if (mErr) throw mErr;
+      const moduleIds = (modulesData || []).map(m => m.id);
+      if (moduleIds.length === 0) return [];
+
+      // 3. Buscar perguntas ativas desses módulos
       const { data, error } = await supabase
         .from('course_phase_questions')
-        .select(`
-          id, module_id, question_text, question_type, configuration, image_url, explanation, order_index,
-          course_modules!inner(
-            course_id,
-           deleted_at,
-            courses!inner(company_id, deleted_at)
-          )
-        `)
-        .eq('course_modules.courses.company_id', companyId)
-        .is('deleted_at', null)
-        .is('course_modules.deleted_at', null)
-        .is('course_modules.courses.deleted_at', null);
+        .select('id, module_id, question_text, question_type, configuration, image_url, explanation, order_index')
+        .in('module_id', moduleIds)
+        .is('deleted_at', null);
       
       if (error) throw error;
-      
+      if (!data || data.length === 0) return [];
+
+      // 4. Buscar opções das perguntas encontradas
+      const questionIds = data.map(q => q.id);
       const { data: options, error: optErr } = await supabase
         .from('course_question_options')
-        .select('id, question_id, option_text, is_correct, created_at, deleted_at')
+        .select('id, question_id, option_text, is_correct')
+        .in('question_id', questionIds)
         .is('deleted_at', null);
       
       if (optErr) throw optErr;
 
       return data.map(q => ({
         ...q,
-        options: options.filter(o => o.question_id === q.id)
+        options: (options || []).filter(o => o.question_id === q.id)
       }));
-    }
+    },
+    swrOpts
   );
 
   const mutate = async () => {

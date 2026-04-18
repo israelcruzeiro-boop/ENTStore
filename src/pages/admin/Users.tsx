@@ -33,11 +33,15 @@ import {
   FileSpreadsheet, 
   AlertCircle, 
   Download,
-  Loader2
+  Loader2,
+  HelpCircle
 } from 'lucide-react';
 import { User, Content, SimpleLink, Repository } from '../../types';
 import { userSchema } from '../../types/schemas';
 import * as XLSX from 'xlsx';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { USERS_STEPS } from '../../data/tourSteps';
 
 const isValidCPF = (cpf: string) => {
   cpf = cpf.replace(/[^\d]+/g, '');
@@ -69,6 +73,9 @@ export const AdminUsers = () => {
   const { repositories } = useRepositories(company?.id);
 
   const unitLabel = company?.org_unit_name || 'Unidade';
+
+  // Tour Guiado (Tutorial)
+  const { startTour, joyrideProps } = useTour(USERS_STEPS);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -213,10 +220,14 @@ export const AdminUsers = () => {
         if (error) throw error;
         toast.success('Usuário atualizado com sucesso!');
       } else {
-        const { error } = await supabase.from('users').insert({
-          ...validation.data,
-          password: '123456',
-          status: 'ACTIVE'
+        // Provisionamento via RPC: o servidor grava em provisioned_invites
+        // e valida tenant/role. A senha é definida pelo próprio usuário no
+        // primeiro login (signUp), não mais hardcoded aqui.
+        const { error } = await supabase.rpc('provision_invite', {
+          target_email: validation.data.email,
+          target_name: validation.data.name,
+          target_role: validation.data.role || 'USER',
+          target_company_id: company.id
         });
         if (error) throw error;
         toast.success('Usuário criado com sucesso!');
@@ -371,7 +382,6 @@ export const AdminUsers = () => {
         name: row.nome,
         cpf: row.cpf,
         email: `${row.cpf}@storepage.com`,
-        password: '123456',
         role: 'USER' as const,
         status: 'PENDING_SETUP',
         first_access: true,
@@ -386,10 +396,27 @@ export const AdminUsers = () => {
         }
       }
 
-      const { error } = await supabase.from('users').insert(newUsers);
-      if (error) throw error;
+      // Provisionamento via RPC: uma chamada por linha para que o servidor
+      // valide cada convite individualmente (tenant, role, duplicidade).
+      const failures: string[] = [];
+      for (const u of newUsers) {
+        const { error } = await supabase.rpc('provision_invite', {
+          target_email: u.email,
+          target_name: u.name,
+          target_role: 'USER',
+          target_company_id: company.id
+        });
+        if (error) failures.push(`${u.name}: ${error.message}`);
+      }
 
-      toast.success(`${validRows.length} usuários importados com sucesso!`);
+      if (failures.length > 0) {
+        Logger.error('Falhas no import:', failures);
+        toast.error(`${failures.length} linha(s) falharam. Veja o console.`);
+      }
+      const successCount = newUsers.length - failures.length;
+      if (successCount > 0) {
+        toast.success(`${successCount} usuário(s) importado(s) com sucesso!`);
+      }
       mutateUsers();
       handleCloseImport();
     } catch (err) {
@@ -408,13 +435,17 @@ export const AdminUsers = () => {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <Joyride {...joyrideProps} />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 tour-users-header">
          <div>
            <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
            <p className="text-sm text-slate-500 mt-1">Gerencie quem tem acesso aos conteúdos da {company.name}.</p>
          </div>
          <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={() => { setIsImportModalOpen(true); setImportStep('upload'); }} className="bg-white border-slate-200 flex-1 sm:flex-none text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200">
+            <Button variant="ghost" size="sm" className="hidden sm:flex text-indigo-600 font-bold hover:bg-indigo-50" onClick={startTour}>
+               <HelpCircle size={16} className="mr-1" /> Como funciona?
+            </Button>
+            <Button variant="outline" onClick={() => { setIsImportModalOpen(true); setImportStep('upload'); }} className="bg-white border-slate-200 flex-1 sm:flex-none text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 tour-users-import">
                <Upload size={16} className="mr-2" /> Importar Planilha
             </Button>
             <Button onClick={openCreate} className="bg-slate-900 hover:bg-slate-800 text-white shadow-sm flex-1 sm:flex-none">
@@ -431,7 +462,7 @@ export const AdminUsers = () => {
                    <th className="p-4 w-16 text-center">Status</th>
                    <th className="p-4">Usuário</th>
                    <th className="p-4">Identificação</th>
-                   <th className="p-4">Permissão</th>
+                   <th className="p-4 tour-users-roles">Permissão</th>
                    <th className="p-4 text-right">Ações</th>
                 </tr>
              </thead>

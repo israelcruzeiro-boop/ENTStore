@@ -200,52 +200,27 @@ export const SuperAdminDashboard = () => {
       }
 
       // --- PROVISIONAMENTO DO ADMIN (Apenas na Criação) ---
+      // Chama a RPC provision_invite: o servidor valida role/tenant, grava em
+      // provisioned_invites (ou atualiza o perfil existente se já houver conta
+      // no auth.users). A "Senha Inicial" do formulário é apenas visual — não
+      // trafega mais daqui pra frente; o usuário define a senha dele no
+      // primeiro login, via signUp.
       if (!editingId && formData.adminEmail && formData.adminName) {
         const cleanEmail = formData.adminEmail.toLowerCase().trim();
-        
-        // 1. Verifica se o usuário já existe no sistema (independente da empresa)
-        const { data: existingUser } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', cleanEmail)
-          .maybeSingle();
 
-        const adminPayload: any = {
-          email: cleanEmail,
-          name: formData.adminName,
-          role: 'ADMIN', 
-          company_id: companyIdForSave,
-          active: true,
-          deleted_at: null, // LIMPEZA CRÍTICA DO SOFT DELETE
-          updated_at: new Date().toISOString()
-        };
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('provision_invite', {
+          target_email: cleanEmail,
+          target_name: formData.adminName,
+          target_role: 'ADMIN',
+          target_company_id: companyIdForSave
+        });
 
-        // Só enviamos a senha se ela for nova ou se o usuário for novo
-        if (formData.adminPassword) {
-          adminPayload.password = formData.adminPassword;
-        }
-
-        let adminError;
-        if (existingUser) {
-          // UPDATE: O usuário já existe, apenas atualizamos seus dados e o vinculamos à empresa
-          const { error: updError } = await supabase
-            .from('users')
-            .update(adminPayload)
-            .eq('id', existingUser.id);
-          adminError = updError;
+        if (rpcError) {
+          Logger.error('Erro ao provisionar admin:', rpcError);
+          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${rpcError.message}`);
         } else {
-          // INSERT: Usuário totalmente novo
-          const { error: insError } = await supabase
-            .from('users')
-            .insert(adminPayload);
-          adminError = insError;
-        }
-
-        if (adminError) {
-          Logger.error('Erro ao provisionar admin:', adminError);
-          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${adminError.message}`);
-        } else {
-          toast.success(`Admin ${cleanEmail} ${existingUser ? 'atualizado' : 'provisionado'}!`);
+          const status = (rpcResult as any)?.status;
+          toast.success(`Admin ${cleanEmail} ${status === 'updated_existing' ? 'atualizado' : 'convidado'}!`);
         }
       }
 
@@ -316,35 +291,20 @@ export const SuperAdminDashboard = () => {
          if (error) throw error;
          toast.success('Admin atualizado!');
       } else {
-         if (!adminFormData.password || adminFormData.password.length < 6) {
-           throw new Error("A senha inicial deve ter pelo menos 6 caracteres.");
-         }
          if (!cleanEmail || !adminFormData.name) {
            throw new Error("Nome e E-mail são obrigatórios.");
          }
-         
-         const { data: existingUser } = await supabase.from('users').select('id').eq('email', cleanEmail).maybeSingle();
-         
-         const insertPayload = {
-           name: adminFormData.name,
-           email: cleanEmail,
-           password: adminFormData.password,
-           role: 'ADMIN',
-           company_id: activeCompany.id,
-           active: true,
-           deleted_at: null,
-           updated_at: new Date().toISOString()
-         };
-         
-         let saveError;
-         if (existingUser) {
-           const { error } = await supabase.from('users').update(insertPayload).eq('id', existingUser.id);
-           saveError = error;
-         } else {
-           const { error } = await supabase.from('users').insert(insertPayload);
-           saveError = error;
-         }
-         if (saveError) throw saveError;
+
+         // Senha inicial é apenas visual — ignorada no provisionamento.
+         // O admin define a própria senha no primeiro login (signUp).
+         const { error: rpcError } = await supabase.rpc('provision_invite', {
+           target_email: cleanEmail,
+           target_name: adminFormData.name,
+           target_role: 'ADMIN',
+           target_company_id: activeCompany.id
+         });
+
+         if (rpcError) throw rpcError;
          toast.success('Novo administrador provisionado!');
       }
       

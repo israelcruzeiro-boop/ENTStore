@@ -180,7 +180,7 @@ const QuestionRender = ({
   };
 
   return (
-    <div className={`p-4 transition-all duration-300 ${isSelected('CHECKED') || isSelected('C') || isSelected('NA') || (answer.value && q.type !== 'CHECK' && q.type !== 'COMPLIANCE') ? 'bg-white/5' : 'bg-transparent'}`}>
+    <div className={`p-4 transition-all duration-300 tour-checklist-question ${isSelected('CHECKED') || isSelected('C') || isSelected('NA') || (answer.value && q.type !== 'CHECK' && q.type !== 'COMPLIANCE') ? 'bg-white/5' : 'bg-transparent'}`}>
       <div className={`flex ${q.type === 'CHECK' ? 'flex-row items-center gap-4' : 'flex-col gap-4'}`}>
         
         {q.type === 'CHECK' && (
@@ -215,7 +215,7 @@ const QuestionRender = ({
         {q.type !== 'CHECK' && (
           <div className="flex flex-wrap items-center gap-3">
           {q.type === 'COMPLIANCE' && (
-            <div className="flex gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+            <div className="flex gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100 tour-checklist-compliance">
               {[
                 { id: 'C', label: 'Sim', color: 'bg-emerald-500' },
                 { id: 'NA', label: 'N/A', color: 'bg-slate-400' },
@@ -288,7 +288,7 @@ const QuestionRender = ({
           )}
 
           {canShowPhotos && (
-            <div className="ml-auto">
+            <div className="ml-auto tour-checklist-photo">
               <input type="file" accept="image/*" onChange={onFileSelect} className="hidden" id={`upload-${q.id}`} disabled={isUploading} />
               <label htmlFor={`upload-${q.id}`} className="bg-white/5 border border-white/10 text-white text-[9px] font-bold p-2 rounded-lg cursor-pointer flex items-center gap-2 hover:bg-white/10 transition-colors">
                 {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={14} />}
@@ -568,7 +568,9 @@ export const ChecklistPlayer = () => {
         <Button variant="ghost" onClick={() => navigate(`/${companySlug}/checklists`)} className="text-zinc-500 hover:text-white hover:bg-red-500/10 hover:text-red-500 font-bold uppercase tracking-widest text-[10px] transition-colors">
           <X size={14} className="mr-1" /> Sair
         </Button>
-        {lastSaved && <span className="text-[8px] text-[var(--c-primary)] border border-[var(--c-primary)]/20 font-black bg-[var(--c-primary)]/10 px-3 py-1 rounded-full uppercase tracking-widest">SALVO</span>}
+        <div className="flex items-center gap-3">
+          {lastSaved && <span className="text-[8px] text-[var(--c-primary)] border border-[var(--c-primary)]/20 font-black bg-[var(--c-primary)]/10 px-3 py-1 rounded-full uppercase tracking-widest">SALVO</span>}
+        </div>
       </div>
 
       <div className="bg-[#141414] border border-white/5 rounded-2xl p-5 flex items-center justify-between shadow-2xl">
@@ -578,7 +580,7 @@ export const ChecklistPlayer = () => {
           </div>
           <div>
             <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Etapa Atual</span>
-            <h1 className="text-xl font-black text-white">
+            <h1 className="text-xl font-black text-white tour-checklist-header">
               {hasGeral && currentPage === 0 
                 ? 'Geral' 
                 : (sections[hasGeral ? currentPage - 1 : currentPage]?.title || 'Itens')}
@@ -611,12 +613,12 @@ export const ChecklistPlayer = () => {
         ))}
       </div>
 
-      <div className="flex gap-4 pt-4">
+      <div className="flex gap-4 pt-4 tour-checklist-navigation">
         <Button variant="ghost" disabled={currentPage === 0} onClick={() => setCurrentPage(p => p - 1)} className="flex-1 bg-white/5 border border-white/5 text-white hover:bg-white/10 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Anterior</Button>
         {currentPage < totalPages - 1 ? (
           <Button onClick={handleNext} className="flex-1 bg-white/10 text-white hover:bg-white/20 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">Próxima Etapa</Button>
         ) : (
-          <Button onClick={() => validateAll() && handleFinish()} disabled={isFinishing} className="flex-1 bg-[var(--c-primary)] text-white hover:opacity-90 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg hover:-translate-y-0.5">
+          <Button onClick={() => validateAll() && handleFinish()} disabled={isFinishing} className="flex-1 bg-[var(--c-primary)] text-white hover:opacity-90 h-14 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg hover:-translate-y-0.5 tour-checklist-finish">
             {isFinishing ? <Loader2 className="animate-spin" /> : 'Finalizar Checklist'}
           </Button>
         )}

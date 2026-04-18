@@ -8,10 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Network, Save, Building2, Store, Edit2, Trash2, Plus, Loader2, FolderOpen, ChevronRight, Layers } from 'lucide-react';
+import { Network, Save, Building2, Store, Edit2, Trash2, Plus, Loader2, FolderOpen, ChevronRight, Layers, HelpCircle } from 'lucide-react';
 import { OrgTopLevel, OrgUnit } from '../../types';
 import { orgTopLevelSchema, orgUnitSchema } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { STRUCTURE_STEPS } from '../../data/tourSteps';
 
 export const AdminStructure = () => {
   const { companySlug } = useParams();
@@ -20,6 +23,9 @@ export const AdminStructure = () => {
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
 
   const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutateTopLevels, mutateUnits, isLoading } = useOrgStructure(company?.id);
+
+  // Tour Guiado (Tutorial)
+  const { startTour, joyrideProps } = useTour(STRUCTURE_STEPS);
 
   // Estados Fixos para os 3 níveis
   const [l1, setL1] = useState({ active: false, id: 'level-1', name: 'Diretoria' });
@@ -347,14 +353,20 @@ export const AdminStructure = () => {
 
   return (
     <div className="max-w-6xl mx-auto pb-12 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Network className="text-indigo-600" size={28} />
-          Estrutura Organizacional
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Configure a hierarquia em até 3 níveis e cadastre suas instâncias.
-        </p>
+      <Joyride {...joyrideProps} />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 tour-structure-header">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Network className="text-indigo-600" size={28} />
+            Estrutura Organizacional
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Configure a hierarquia em até 3 níveis e cadastre suas instâncias.
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" className="text-indigo-600 font-bold hover:bg-indigo-50" onClick={startTour}>
+          <HelpCircle size={16} className="mr-1" /> Como funciona?
+        </Button>
       </div>
 
       <form onSubmit={handleSaveSettings} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -437,7 +449,7 @@ export const AdminStructure = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Passo 2: Níveis Intermediários */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px] tour-structure-toplevel">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-3 flex items-center gap-2">
                <Layers size={18} className="text-indigo-500" /> Passo 2: Cadastrar Agrupamentos
@@ -627,7 +639,7 @@ export const AdminStructure = () => {
         </div>
 
         {/* Passo 3: Unidades (Agrupadas por Pai) */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px]">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[400px] tour-structure-unit">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
              <h2 className="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
                <Store size={18} className="text-emerald-500" /> Passo 3: Cadastrar {l3Name}s

@@ -8,14 +8,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Theme } from '../../types';
-import { Play, Search, UserCircle, ChevronRight, Loader2, Save, ExternalLink, LayoutTemplate, Sparkles, Image as ImageIcon, PanelTop } from 'lucide-react';
+import { Play, Search, UserCircle, ChevronRight, Loader2, Save, ExternalLink, LayoutTemplate, Sparkles, Image as ImageIcon, PanelTop, HelpCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Joyride } from 'react-joyride';
+import { useTour } from '../../hooks/useTour';
+import { APPEARANCE_STEPS } from '../../data/tourSteps';
 
 export const AdminAppearance = () => {
   const { companySlug } = useParams();
   const { companies, mutate: mutateCompanies } = useCompanies();
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
+  // Tour Guiado
+  const { startTour, joyrideProps } = useTour(APPEARANCE_STEPS);
+
   const [activeThemeKey, setActiveThemeKey] = useState('custom');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localTheme, setLocalTheme] = useState<Theme>({
@@ -97,18 +103,24 @@ export const AdminAppearance = () => {
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
-      <div className="mb-8 flex justify-between items-center">
+      <Joyride {...joyrideProps} />
+      <div className="mb-8 flex justify-between items-center tour-appearance-header">
          <div>
             <h1 className="text-2xl font-bold text-slate-900">Identidade Visual</h1>
             <p className="text-sm text-slate-500 mt-1">Personalize a aparência do painel dos seus usuários na <strong>{company.name}</strong>.</p>
          </div>
-         <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white hidden md:flex items-center gap-2" disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            Salvar Aparência
-         </Button>
+         <div className="flex gap-2">
+           <Button variant="ghost" size="sm" className="hidden sm:flex text-indigo-600 font-bold hover:bg-indigo-50" onClick={startTour}>
+              <HelpCircle size={16} className="mr-1" /> Como funciona?
+           </Button>
+           <Button onClick={handleSaveTheme} className="bg-indigo-600 hover:bg-indigo-700 text-white hidden md:flex items-center gap-2" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              Salvar Aparência
+           </Button>
+         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 tour-appearance-visual">
          <div className="space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h2 className="text-base font-semibold text-slate-900 mb-4">Temas Pré-definidos</h2>
@@ -186,7 +198,7 @@ export const AdminAppearance = () => {
             </div>
 
             {company.landing_page_enabled !== false && (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 tour-appearance-forms">
                  <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
                    <div>
                       <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">Página Pública (Landing Page)</h2>

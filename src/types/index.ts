@@ -56,6 +56,7 @@ export interface User {
   status?: 'ACTIVE' | 'INACTIVE' | 'PENDING_SETUP';
   xp_total?: number;
   coins_total?: number;
+  onboarding_completed?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -156,7 +157,7 @@ export interface CourseContent {
   updated_at?: string;
 }
 
-export type CourseQuestionType = 'MULTIPLE_CHOICE' | 'WORD_SEARCH' | 'ORDERING' | 'HOTSPOT';
+export type CourseQuestionType = 'MULTIPLE_CHOICE' | 'WORD_SEARCH' | 'ORDERING' | 'HOTSPOT' | 'FILE' | 'HANGMAN';
 
 export interface CoursePhaseQuestion {
   id: string;
@@ -243,7 +244,9 @@ export interface QuizOption {
 export interface QuizAttempt {
   id: string;
   company_id: string;
-  user_id: string;
+  // nullable after 20260417123000_refactor_user_provisioning — deleted users
+  // become NULL here to preserve the audit row.
+  user_id: string | null;
   quiz_id: string;
   score: number;
   passed: boolean;
@@ -266,7 +269,8 @@ export interface SimpleLink {
 
 export interface ContentViewMetric {
   id: string;
-  user_id: string;
+  // nullable after 20260417123000 — SET NULL on user delete preserves the view.
+  user_id: string | null;
   content_id: string;
   company_id: string;
   repository_id: string;
@@ -278,7 +282,8 @@ export interface ContentViewMetric {
 
 export interface ContentRating {
   id: string;
-  user_id: string;
+  // nullable after 20260417123000 — SET NULL on user delete preserves the rating.
+  user_id: string | null;
   content_id: string;
   company_id: string;
   repository_id: string;

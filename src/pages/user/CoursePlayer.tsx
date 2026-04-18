@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  useCourseModules, 
-  useCourseContents, 
+import {
+  useCourseModules,
+  useCourseContents,
   useCourses,
   useCourseQuestions,
+  useCourseContentsByCourse,
+  useCourseQuestionsByCourse,
   useCourseEnrollment,
   startEnrollment,
   submitCourseAnswer,
@@ -13,6 +15,7 @@ import {
   useCourseAnswers,
   useOrgStructure
 } from '../../hooks/useSupabaseData';
+import type { CourseContent, CoursePhaseQuestion } from '../../types';
 import { checkCourseAccess } from '../../lib/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
@@ -41,24 +44,26 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LMSMentor } from '../../components/user/LMSMentor';
-import { Viewer } from '../../components/user/Viewer';
+// Viewer é pesado (video/audio/pdf/image players) — carrega sob demanda.
+const Viewer = lazy(() => import('../../components/user/Viewer').then(m => ({ default: m.Viewer })));
 import { CourseQuestionPlayer } from '../../components/user/CourseQuestionPlayer';
 import { CourseResultScreen } from '../../components/user/CourseResultScreen';
 import type { Content } from '../../types';
 import { printDiploma, type DiplomaTemplateId } from '../../components/user/CourseDiploma';
 import { supabase } from '../../lib/supabaseClient';
 
-const CircularProgress = ({ progress, size = 60, strokeWidth = 5, primaryColor = '#3b82f6' }: { progress: number, size?: number, strokeWidth?: number, primaryColor?: string }) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (progress / 100) * circumference;
+const CircularProgress = memo(({ progress, size = 60, strokeWidth = 5, primaryColor = '#3b82f6' }: { progress: number, size?: number, strokeWidth?: number, primaryColor?: string }) => {
+  const { radius, circumference, offset } = useMemo(() => {
+    const r = (size - strokeWidth) / 2;
+    const c = r * 2 * Math.PI;
+    return { radius: r, circumference: c, offset: c - (progress / 100) * c };
+  }, [size, strokeWidth, progress]);
 
-  // Cor dinâmica baseada no progresso
-  const getProgressColor = () => {
-    if (progress < 30) return '#ef4444'; // Red
-    if (progress < 70) return '#f59e0b'; // Amber
-    return primaryColor; // Green/Blue
-  };
+  const progressColor = useMemo(() => {
+    if (progress < 30) return '#ef4444';
+    if (progress < 70) return '#f59e0b';
+    return primaryColor;
+  }, [progress, primaryColor]);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -78,7 +83,7 @@ const CircularProgress = ({ progress, size = 60, strokeWidth = 5, primaryColor =
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={getProgressColor()}
+          stroke={progressColor}
           strokeWidth={strokeWidth}
           fill="transparent"
           strokeDasharray={circumference}
@@ -94,7 +99,8 @@ const CircularProgress = ({ progress, size = 60, strokeWidth = 5, primaryColor =
       </div>
     </div>
   );
-};
+});
+CircularProgress.displayName = 'CircularProgress';
 
 export const UserCoursePlayer = () => {
   const { companySlug, courseId } = useParams();
@@ -120,6 +126,10 @@ export const UserCoursePlayer = () => {
   }, [loadingCourses, orgLoading, courses, courseId, user, orgUnits, orgTopLevels, navigate, companySlug]);
 
   const { modules, isLoading: modulesLoading } = useCourseModules(courseId);
+  // Pré-carrega TODOS os conteúdos e perguntas do curso em 2 queries (elimina N+1 na navegação).
+  const allModuleIds = useMemo(() => modules.map(m => m.id), [modules]);
+  const { contentsByModule } = useCourseContentsByCourse(allModuleIds);
+  const { questionsByModule } = useCourseQuestionsByCourse(allModuleIds);
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [activeContentId, setActiveContentId] = useState<string | null>(null);
   const [showNav, setShowNav] = useState(false);
@@ -128,9 +138,8 @@ export const UserCoursePlayer = () => {
   const [isReviewMode, setIsReviewMode] = useState(false);
   
   // Enrollment (matrícula e tracking)
-  const { enrollment, mutate: mutateEnrollment } = useCourseEnrollment(courseId, user?.id);
+  const { enrollment, isLoading: enrollmentLoading, mutate: mutateEnrollment } = useCourseEnrollment(courseId, user?.id);
 
-  // Inicializa a contagem a partir do banco de dados na primeira carga
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
 
@@ -157,6 +166,10 @@ export const UserCoursePlayer = () => {
   const currentModuleIndex = modules.findIndex(m => m.id === activeModuleId);
   const currentContentIndex = activeModuleContents.findIndex(c => c.id === activeContentId);
 
+  // Durante a fase de perguntas (fora de review), o usuário não pode voltar para aulas anteriores
+  // nem sair do curso sem confirmar — respostas são persistidas incrementalmente via autosave.
+  const isLockedInQuestions = showPhaseQuestions && !isReviewMode;
+
   // Inicia enrollment ao abrir o curso (APENAS se não existir ou se não estiver COMPLETED)
   useEffect(() => {
     if (courseId && user?.id && course?.company_id && !enrollment) {
@@ -175,62 +188,50 @@ export const UserCoursePlayer = () => {
 
   // Recuperação de Progresso Salvo
   useEffect(() => {
-    if (enrollment && enrollment.status === 'IN_PROGRESS') {
-      if (enrollment.current_module_id && !activeModuleId) {
+    // Auto-selecionar o primeiro módulo se nenhum está ativo
+    if (modules.length > 0 && !activeModuleId) {
+      if (enrollment?.status === 'IN_PROGRESS' && enrollment.current_module_id) {
         setActiveModuleId(enrollment.current_module_id);
-      } else if (modules.length > 0 && !activeModuleId) {
+      } else {
         setActiveModuleId(modules[0].id);
       }
+      return; // Aguarda o próximo ciclo para os conteúdos carregarem
+    }
 
-      if (enrollment.current_content_id && !activeContentId) {
+    // Auto-selecionar o primeiro conteúdo quando os conteúdos do módulo carregarem
+    if (activeModuleContents.length > 0 && !activeContentId) {
+      // Verificar se o enrollment tem um content_id que pertence a ESTE módulo
+      if (
+        enrollment?.status === 'IN_PROGRESS' &&
+        enrollment.current_content_id &&
+        activeModuleContents.some(c => c.id === enrollment.current_content_id)
+      ) {
         setActiveContentId(enrollment.current_content_id);
-      } else if (activeModuleContents.length > 0 && !activeContentId) {
-        setActiveContentId(activeModuleContents[0].id);
-      }
-    } else if (isReviewMode) {
-      // Em modo revisão, começar do primeiro módulo
-      if (modules.length > 0 && !activeModuleId) {
-        setActiveModuleId(modules[0].id);
-      }
-      if (activeModuleContents.length > 0 && !activeContentId) {
-        setActiveContentId(activeModuleContents[0].id);
-      }
-    } else {
-      if (modules.length > 0 && !activeModuleId) {
-        setActiveModuleId(modules[0].id);
-      }
-      if (activeModuleContents.length > 0 && !activeContentId) {
+      } else {
+        // Fallback: primeiro conteúdo do módulo
         setActiveContentId(activeModuleContents[0].id);
       }
     }
   }, [enrollment, modules, activeModuleContents, activeModuleId, activeContentId, isReviewMode]);
 
-  // Direcionamento automático para perguntas pendentes em cursos em andamento
+  // Direcionamento automático para perguntas pendentes ou última posição ao RETORNAR
   useEffect(() => {
-    if (
-      enrollment?.status === 'IN_PROGRESS' &&
-      activeModuleId &&
-      activeModuleContents.length > 0 &&
-      activeContentId &&
-      moduleQuestions.length > 0 &&
-      savedAnswers &&
-      !showPhaseQuestions
-    ) {
-      // Verificar se é o último conteúdo do módulo atual
+    if (enrollment?.status === 'IN_PROGRESS' && activeModuleId && activeModuleContents.length > 0 && !showPhaseQuestions && !isReviewMode) {
+      // 1. Se o usuário já concluiu todos os conteúdos do módulo, pula para as perguntas
       const lastContent = activeModuleContents[activeModuleContents.length - 1];
-      if (activeContentId === lastContent?.id) {
-        // Verificar quais questões do módulo atual já foram respondidas
+      const isAtLastContent = activeContentId === lastContent?.id;
+      
+      if (isAtLastContent && moduleQuestions.length > 0 && savedAnswers) {
         const moduleQuestionIds = moduleQuestions.map(q => q.id);
         const answeredIds = savedAnswers.filter(a => moduleQuestionIds.includes(a.question_id)).map(a => a.question_id);
         const hasPendingQuestions = moduleQuestionIds.some(qId => !answeredIds.includes(qId));
         
         if (hasPendingQuestions) {
-          // Há perguntas não respondidas neste módulo — ir direto para elas
           setShowPhaseQuestions(true);
         }
       }
     }
-  }, [enrollment?.status, activeModuleId, activeModuleContents, activeContentId, moduleQuestions, savedAnswers, showPhaseQuestions]);
+  }, [enrollment?.status, activeModuleId, activeContentId, activeModuleContents.length, moduleQuestions.length, savedAnswers?.length, isReviewMode, showPhaseQuestions]);
 
   // Salvar Progresso sempre que mudar de módulo ou conteúdo
   useEffect(() => {
@@ -303,13 +304,26 @@ export const UserCoursePlayer = () => {
     }
   };
 
+  const handleAutosaveAnswer = useCallback(async (
+    questionId: string,
+    payload: { optionId?: string; complexAnswer?: any; isCorrect: boolean }
+  ) => {
+    if (!enrollment) return;
+    try {
+      await submitCourseAnswer(enrollment.id, questionId, payload.optionId, payload.isCorrect, payload.complexAnswer);
+      mutateAnswers();
+    } catch (err) {
+      console.error('Autosave answer failed:', err);
+    }
+  }, [enrollment, mutateAnswers]);
+
   const handlePhaseQuestionsComplete = async (correct: number, total: number, answers: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>) => {
     const newTotalCorrect = totalCorrect + correct;
     const newTotalQuestions = totalQuestions + total;
     setTotalCorrect(newTotalCorrect);
     setTotalQuestions(newTotalQuestions);
 
-    // Salva respostas (se enrollment existir)
+    // Salva respostas finais (autosave já persistiu os parciais; isso garante o estado final)
     if (enrollment) {
       for (const [questionId, answer] of Object.entries(answers)) {
         try {
@@ -365,7 +379,7 @@ export const UserCoursePlayer = () => {
   const coverUrl = getImageUrl(course?.image_url || course?.thumbnail_url);
   const progress = calculateProgress();
 
-  if (modulesLoading) {
+  if (modulesLoading || enrollmentLoading) {
     return (
       <div className="flex h-[100dvh] items-center justify-center bg-gradient-to-b from-slate-900 to-slate-950">
         <div className="flex flex-col items-center gap-4">
@@ -443,8 +457,30 @@ export const UserCoursePlayer = () => {
   }
 
   // Helper: Adaptar CourseContent para a interface Content (necessário para o Viewer)
+  // Refatoração robusta para detecção de vídeo e URLs de embed
   const adaptContentForViewer = (cc: typeof currentContent): Content | null => {
     if (!cc) return null;
+    
+    let type = cc.type as Content['type'];
+    if (cc.type === 'AUDIO') type = 'MUSIC';
+    
+    // Detecção inteligente de YouTube se o tipo for VIDEO mas a URL for link normal
+    let finalUrl = cc.url || '';
+    let embedUrl = cc.url || '';
+    
+    if (type === 'VIDEO' && finalUrl) {
+      const isYT = /youtube\.com|youtu\.be/i.test(finalUrl);
+      if (isYT) {
+        // Importar helpers do Viewer (replicados aqui para robustez inline)
+        const extractId = (u: string) => {
+          const match = u.match(/(?:youtu\.be\/|youtube\.com\/(?:shorts\/|watch\?v=|embed\/))([a-zA-Z0-9_-]{11})/);
+          return match?.[1] || null;
+        };
+        const id = extractId(finalUrl);
+        if (id) embedUrl = `https://www.youtube.com/embed/${id}`;
+      }
+    }
+
     return {
       id: cc.id,
       company_id: course?.company_id || '',
@@ -452,13 +488,14 @@ export const UserCoursePlayer = () => {
       title: cc.title,
       description: cc.description || '',
       thumbnail_url: '',
-      type: cc.type === 'AUDIO' ? 'MUSIC' : cc.type as Content['type'],
-      url: cc.url,
-      embed_url: cc.url, // Garante que embed_url sempre existe para o Viewer
+      type,
+      url: finalUrl,
+      embed_url: embedUrl,
       featured: false,
       recent: false,
       status: 'ACTIVE',
-    };
+      _suppressQuiz: true,
+    } as Content;
   };
 
   return (
@@ -472,12 +509,12 @@ export const UserCoursePlayer = () => {
       
       {/* ===== HEADER ===== */}
       <div className="shrink-0 relative overflow-hidden border-b border-white/[0.04] safe-area-top" style={{ zIndex: 30, backgroundColor: tenantCompany?.primary_color ? `${tenantCompany.primary_color}05` : undefined }}>
-        
+
         {/* Conteúdo do Header */}
-        <div className="relative px-4 pt-3 pb-4">
-          {/* Top bar */}
-          <div className="flex items-center justify-between mb-3">
-            <button 
+        <div className="relative px-4 pt-3 pb-3">
+          {/* Top bar — 3 elementos: Voltar | Progresso | Menu */}
+          <div className="flex items-center justify-between gap-3 mb-2.5">
+            <button
               onClick={() => {
                 if (isReviewMode) {
                   setIsReviewMode(false);
@@ -485,57 +522,63 @@ export const UserCoursePlayer = () => {
                   setActiveModuleId(null);
                   setActiveContentId(null);
                   setShowPhaseQuestions(false);
-                } else {
-                  navigate(`/${companySlug}/home`);
+                  return;
                 }
-              }} 
-              className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors active:scale-95"
+                if (isLockedInQuestions) {
+                  const confirmed = window.confirm(
+                    'Você está no meio das perguntas. Suas respostas estão salvas e você pode continuar depois. Deseja sair agora?'
+                  );
+                  if (!confirmed) return;
+                }
+                navigate(`/${companySlug}/home`);
+              }}
+              className="flex items-center gap-1.5 text-white/60 hover:text-white transition-colors active:scale-95 h-11 px-2 -ml-2 shrink-0"
+              aria-label="Voltar"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={20} />
               <span className="text-xs font-medium hidden sm:inline">{isReviewMode ? 'Voltar ao Resultado' : 'Voltar'}</span>
             </button>
+
             {isReviewMode && (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded-full">
                 <Eye size={12} className="text-blue-400" />
                 <span className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">Modo Revisão</span>
               </div>
             )}
 
-            <div className="flex items-center gap-3">
-              {/* Barra Circular de Progresso */}
-              <CircularProgress 
-                progress={progress} 
-                primaryColor={tenantCompany?.primary_color || '#3b82f6'} 
-                size={48} 
+            <div className="flex items-center gap-2 shrink-0">
+              <CircularProgress
+                progress={progress}
+                primaryColor={tenantCompany?.primary_color || '#3b82f6'}
+                size={44}
               />
-
               <button
                 onClick={() => setShowNav(!showNav)}
-                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all active:scale-95 shadow-inner"
+                className="w-11 h-11 flex items-center justify-center rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                aria-label={showNav ? 'Fechar menu' : 'Abrir menu'}
               >
                 {showNav ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
           </div>
 
-          {/* Curso info */}
+          {/* Curso info — capa + título + badge de fase (sem FAB aqui) */}
           <div className="flex items-center gap-3">
             {coverUrl && (
-              <div className="w-12 h-12 rounded-xl overflow-hidden border border-white/10 shadow-lg shrink-0">
-                <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl overflow-hidden border border-white/10 shadow-lg shrink-0">
+                <img src={coverUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
               </div>
             )}
             <div className="min-w-0 flex-1">
               <h1 className="text-sm font-bold text-white truncate leading-tight">{course?.title}</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/20 hover:bg-blue-500/20 text-[9px] uppercase px-2 py-0">
+              <div className="flex items-center gap-2 mt-0.5 min-w-0">
+                <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/20 hover:bg-blue-500/20 text-[9px] uppercase px-2 py-0 shrink-0">
                   Fase {currentModuleIndex + 1}/{modules.length}
                 </Badge>
-                <span className="text-[10px] text-white/40 truncate">
-                  {showPhaseQuestions 
-                    ? '📝 Perguntas' 
-                    : currentContent?.title || modules[currentModuleIndex]?.title
-                  }
+                <span className="text-[10px] text-white/40 truncate min-w-0">
+                  {showPhaseQuestions
+                    ? 'Perguntas da fase'
+                    : currentContent?.title || modules[currentModuleIndex]?.title}
                 </span>
               </div>
             </div>
@@ -544,7 +587,7 @@ export const UserCoursePlayer = () => {
           {/* Barra de progresso */}
           <div className="mt-3 relative">
             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{ width: `${progress}%`, backgroundColor: tenantCompany?.primary_color || '#3b82f6' }}
               />
@@ -558,32 +601,32 @@ export const UserCoursePlayer = () => {
         
         {/* HERO COVER HEADER (NO TOPO DO CONTEÚDO) */}
         {coverUrl && (
-          <div className="relative w-full h-64 md:h-80 lg:h-96 shrink-0 overflow-hidden mb-2 border-b border-white/[0.04]">
-            <motion.div 
-              initial={{ scale: 1.1, opacity: 0 }}
+          <div className="relative w-full h-48 sm:h-64 md:h-80 lg:h-96 shrink-0 overflow-hidden mb-2 border-b border-white/[0.04]">
+            <motion.div
+              initial={{ scale: 1.05, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 1.5, ease: "easeOut" }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
               className="absolute inset-0"
             >
-              <img src={coverUrl} alt="Capa" className="w-full h-full object-cover" />
+              <img src={coverUrl} alt="Capa" className="w-full h-full object-cover" fetchPriority="high" />
             </motion.div>
             <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/40 to-transparent z-10 pointer-events-none" />
             <div className="absolute inset-0 z-10 mix-blend-overlay" style={{ backgroundColor: tenantCompany?.primary_color || '#1e3a8a', opacity: 0.15 }} />
-            
-            <div className="absolute bottom-8 left-4 md:left-10 z-20 max-w-3xl">
-              <motion.div 
-                initial={{ x: -20, opacity: 0 }}
+
+            <div className="absolute bottom-6 left-4 md:left-10 z-20 max-w-3xl">
+              <motion.div
+                initial={{ x: -16, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="inline-flex items-center gap-1.5 mb-4 px-3 py-1.5 bg-white/10 backdrop-blur-2xl rounded-xl border border-white/20 text-xs font-bold text-white/90 shadow-2xl"
+                transition={{ delay: 0.3 }}
+                className="inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 bg-white/10 rounded-xl border border-white/20 text-xs font-bold text-white/90"
               >
                 <BookOpen size={14} className="text-blue-400" /> Trilha de Conhecimento
               </motion.div>
-              <motion.h1 
-                initial={{ y: 20, opacity: 0 }}
+              <motion.h1
+                initial={{ y: 12, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="text-4xl md:text-5xl lg:text-7xl font-black text-white leading-tight drop-shadow-2xl tracking-tighter"
+                transition={{ delay: 0.45 }}
+                className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white leading-tight drop-shadow-2xl tracking-tighter"
               >
                 {course?.title}
               </motion.h1>
@@ -591,7 +634,7 @@ export const UserCoursePlayer = () => {
           </div>
         )}
 
-        <div className="w-full max-w-4xl mx-auto px-4 pt-6 pb-40 space-y-8 relative z-10">
+        <div className="w-full max-w-4xl mx-auto px-4 pt-5 pb-32 sm:pb-40 space-y-6 sm:space-y-8 relative z-10">
           
           {/* MENTOR CONVERSACIONAL */}
           <LMSMentor 
@@ -600,26 +643,26 @@ export const UserCoursePlayer = () => {
             currentContentTitle={currentContent?.title} 
           />
           
-          {/* ===== STEP INDICATORS (Horizontais) ===== */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-1 px-1">
+          {/* ===== STEP INDICATORS (Horizontais com snap) ===== */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-1 px-1 tour-course-nav snap-x snap-mandatory scroll-px-4">
             {activeModuleContents.map((c, idx) => {
               const isActive = activeContentId === c.id && !showPhaseQuestions;
               const isCompleted = idx < currentContentIndex;
-              // Em review mode, tudo é acessível; caso contrário, bloquear aulas futuras
-              const isLocked = !isReviewMode && idx > currentContentIndex;
+              // Bloqueios: aulas futuras (fora de review) e TODAS as aulas quando usuário está nas perguntas da fase
+              const isLocked = (!isReviewMode && idx > currentContentIndex) || isLockedInQuestions;
 
               return (
                 <button
                   key={c.id}
-                  onClick={() => { 
+                  onClick={() => {
                     if (!isLocked) {
-                      setActiveContentId(c.id); 
-                      setShowPhaseQuestions(false); 
+                      setActiveContentId(c.id);
+                      setShowPhaseQuestions(false);
                     }
                   }}
                   disabled={isLocked}
                   style={isActive ? { background: `linear-gradient(to right, ${tenantCompany?.primary_color || '#2563eb'}, ${tenantCompany?.primary_color || '#3b82f6'}80)` } : {}}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${!isLocked ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
+                  className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${!isLocked ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
                     isActive
                       ? 'text-white shadow-lg scale-105'
                       : isCompleted || isReviewMode
@@ -644,7 +687,7 @@ export const UserCoursePlayer = () => {
                 <button
                   onClick={() => { if (canAccessQuestions) setShowPhaseQuestions(true); }}
                   disabled={!canAccessQuestions}
-                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${canAccessQuestions ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
+                  className={`snap-start shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all duration-300 ${canAccessQuestions ? 'active:scale-95 cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
                     showPhaseQuestions
                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
                       : canAccessQuestions
@@ -670,12 +713,13 @@ export const UserCoursePlayer = () => {
               className="w-full"
             >
               {showPhaseQuestions && moduleQuestions.length > 0 ? (
-                <CourseQuestionPlayer 
+                <CourseQuestionPlayer
                   questions={moduleQuestions}
                   phaseTitle={modules.find(m => m.id === activeModuleId)?.title || 'Fase'}
                   primaryColor={tenantCompany?.primary_color}
                   courseThumbnail={coverUrl}
                   onComplete={handlePhaseQuestionsComplete}
+                  onAutosave={handleAutosaveAnswer}
                   reviewMode={isReviewMode}
                   initialAnswers={savedAnswers ? Object.fromEntries(
                     savedAnswers
@@ -709,18 +753,26 @@ export const UserCoursePlayer = () => {
                   )}
 
                   {/* Viewer de Conteúdo */}
-                  {currentContent.type === 'HTML' && currentContent.html_content ? (
-                    <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.06] bg-white">
-                      <div 
-                        className="prose prose-slate max-w-none text-slate-800 p-6 md:p-12 text-sm md:text-lg leading-relaxed shadow-inner"
-                        dangerouslySetInnerHTML={{ __html: currentContent.html_content }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.08] ring-1 ring-white/5 bg-black/20">
-                      <Viewer content={adaptContentForViewer(currentContent) as Content} />
-                    </div>
-                  )}
+                  <div className="tour-course-viewer">
+                    {currentContent.type === 'HTML' && currentContent.html_content ? (
+                      <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.06] bg-white">
+                        <div 
+                          className="prose prose-slate max-w-none text-slate-800 p-6 md:p-12 text-sm md:text-lg leading-relaxed shadow-inner"
+                          dangerouslySetInnerHTML={{ __html: currentContent.html_content }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.08] ring-1 ring-white/5 bg-black/20">
+                        <Suspense fallback={
+                          <div className="flex items-center justify-center py-20">
+                            <Loader2 className="animate-spin text-blue-400" size={32} />
+                          </div>
+                        }>
+                          <Viewer content={adaptContentForViewer(currentContent) as Content} />
+                        </Suspense>
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Info Card */}
                   <div className="bg-gradient-to-br from-white/[0.06] to-white/[0.02] rounded-3xl p-6 md:p-8 border border-white/[0.1] shadow-2xl backdrop-blur-xl relative overflow-hidden group">
@@ -748,13 +800,13 @@ export const UserCoursePlayer = () => {
                     </div>
                   </div>
 
-                  {/* Navegação de aulas (Próximo / Anterior) */}
-                  <div className="pt-6 grid grid-cols-2 gap-4">
+                  {/* Navegação de aulas — empilha no mobile, lado-a-lado >=sm. Primária em destaque (primeiro no DOM para ordem visual lógica) */}
+                  <div className="pt-4 flex flex-col-reverse sm:grid sm:grid-cols-2 gap-3">
                     <Button
                       variant="ghost"
                       onClick={handlePrevious}
                       disabled={currentContentIndex === 0 && !showPhaseQuestions}
-                      className="h-14 rounded-2xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20"
+                      className="h-12 sm:h-14 rounded-2xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-20"
                     >
                       <ChevronLeft className="mr-2" size={20} /> Aula Anterior
                     </Button>
@@ -762,8 +814,8 @@ export const UserCoursePlayer = () => {
                     {currentContentIndex < activeModuleContents.length - 1 ? (
                       <Button
                         onClick={handleNext}
-                        className="h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)]"
-                        style={{ 
+                        className="h-12 sm:h-14 rounded-2xl text-black font-black text-base sm:text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] tour-course-next"
+                        style={{
                           backgroundColor: tenantCompany?.primary_color || '#ffffff',
                           '--primary-glow': (tenantCompany?.primary_color || '#ffffff') + '40'
                         } as any}
@@ -773,19 +825,19 @@ export const UserCoursePlayer = () => {
                     ) : (
                       <Button
                         onClick={handleNext}
-                        className={`h-14 rounded-2xl text-black font-black text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] ${isReviewMode ? '' : 'animate-pulse'}`}
-                        style={{ 
-                          backgroundColor: isReviewMode 
+                        className={`h-12 sm:h-14 rounded-2xl text-black font-black text-base sm:text-lg transition-transform active:scale-95 shadow-[0_0_30px_-5px_var(--primary-glow)] tour-course-next ${isReviewMode ? '' : 'animate-pulse'}`}
+                        style={{
+                          backgroundColor: isReviewMode
                             ? (tenantCompany?.primary_color || '#ffffff')
                             : (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff')),
-                          '--primary-glow': (isReviewMode 
+                          '--primary-glow': (isReviewMode
                             ? (tenantCompany?.primary_color || '#ffffff')
                             : (moduleQuestions.length > 0 ? '#f59e0b' : (tenantCompany?.primary_color || '#ffffff'))) + '40'
                         } as any}
                       >
                         {isReviewMode 
                           ? (moduleQuestions.length > 0 ? 'Ver Perguntas' : 'Próxima Fase')
-                          : (moduleQuestions.length > 0 ? 'Iniciar Quiz' : 'Concluir Fase')} 
+                          : (moduleQuestions.length > 0 ? 'Ir para Perguntas' : 'Concluir Fase')} 
                         <ChevronRight className="ml-2" size={20} />
                       </Button>
                     )}
@@ -863,41 +915,59 @@ export const UserCoursePlayer = () => {
                 {modules.map((module, mIdx) => (
                   <div key={module.id} className="space-y-1.5">
                     {/* Fase header */}
-                    <div className="flex items-center gap-2.5 px-1.5">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all duration-300 ${
-                        mIdx === currentModuleIndex 
-                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-2 ring-blue-400/30 shadow-lg shadow-blue-500/20' 
-                          : mIdx < currentModuleIndex
-                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-white/[0.04] text-white/25 border border-white/[0.06]'
-                      }`}>
-                        {mIdx < currentModuleIndex ? <CheckCircle2 size={14} /> : mIdx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className={`text-sm font-bold truncate transition-colors ${
-                          mIdx === currentModuleIndex ? 'text-white' : 'text-white/50'
-                        }`}>{module.title}</h4>
-                      </div>
-                      {mIdx === currentModuleIndex && (
-                        <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/20 text-[9px] uppercase shrink-0">
-                          Atual
-                        </Badge>
-                      )}
-                    </div>
+                    {(() => {
+                      const isModuleLocked = !isReviewMode && mIdx > currentModuleIndex;
+                      return (
+                        <>
+                          <div className="flex items-center gap-2.5 px-1.5">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 transition-all duration-300 ${
+                              mIdx === currentModuleIndex 
+                                ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-2 ring-blue-400/30 shadow-lg shadow-blue-500/20' 
+                                : mIdx < currentModuleIndex || isReviewMode
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-white/[0.04] text-white/25 border border-white/[0.06]'
+                            }`}>
+                              {(mIdx < currentModuleIndex || isReviewMode) ? <CheckCircle2 size={14} /> : mIdx + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className={`text-sm font-bold truncate transition-colors ${
+                                isModuleLocked ? 'text-white/25' : mIdx === currentModuleIndex ? 'text-white' : 'text-white/50'
+                              }`}>{module.title}</h4>
+                              {isModuleLocked && (
+                                <p className="text-[9px] text-white/20 mt-0.5">Conclua a fase anterior para desbloquear</p>
+                              )}
+                            </div>
+                            {mIdx === currentModuleIndex && (
+                              <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/20 text-[9px] uppercase shrink-0">
+                                Atual
+                              </Badge>
+                            )}
+                            {isModuleLocked && (
+                              <div className="w-6 h-6 flex items-center justify-center rounded-lg bg-white/5 border border-white/10">
+                                <Layers size={10} className="text-white/20" />
+                              </div>
+                            )}
+                          </div>
 
-                    {/* Conteúdos da fase */}
-                    <NavModuleContents 
-                      moduleId={module.id} 
-                      activeContentId={activeContentId}
-                      isCurrentModule={mIdx === currentModuleIndex}
-                      onSelect={(id) => {
-                        setActiveModuleId(module.id);
-                        setActiveContentId(id);
-                        setShowPhaseQuestions(false);
-                        setShowNav(false);
-                      }}
-                      getIcon={getContentIcon}
-                    />
+                          {/* Conteúdos da fase */}
+                          <NavModuleContents
+                            contents={contentsByModule.get(module.id) || []}
+                            questions={questionsByModule.get(module.id) || []}
+                            activeContentId={activeContentId}
+                            isCurrentModule={mIdx === currentModuleIndex}
+                            isLocked={isModuleLocked || isLockedInQuestions}
+                            onSelect={(id) => {
+                              if (isModuleLocked || isLockedInQuestions) return;
+                              setActiveModuleId(module.id);
+                              setActiveContentId(id);
+                              setShowPhaseQuestions(false);
+                              setShowNav(false);
+                            }}
+                            getIcon={getContentIcon}
+                          />
+                        </>
+                      );
+                    })()}
 
                   </div>
                 ))}
@@ -918,22 +988,35 @@ export const UserCoursePlayer = () => {
   );
 };
 
-// Sub-componente para listar conteúdos de um módulo na navegação
-const NavModuleContents = ({ 
-  moduleId, 
-  activeContentId, 
+// Sub-componente para listar conteúdos de um módulo na navegação.
+// Recebe contents/questions pré-carregados (via useCourseContentsByCourse no pai)
+// para evitar N+1 quando renderizado em loop no bottom sheet.
+const NavModuleContents = ({
+  contents,
+  questions,
+  activeContentId,
   isCurrentModule,
+  isLocked = false,
   onSelect,
   getIcon
-}: { 
-  moduleId: string; 
+}: {
+  contents: CourseContent[];
+  questions: CoursePhaseQuestion[];
   activeContentId: string | null;
   isCurrentModule: boolean;
+  isLocked?: boolean;
   onSelect: (id: string) => void;
   getIcon: (type: string, size?: number) => React.ReactNode;
 }) => {
-  const { contents } = useCourseContents(moduleId);
-  const { questions } = useCourseQuestions(moduleId);
+  if (isLocked) {
+    return (
+      <div className="ml-4 pl-4 border-l-2 border-white/[0.03] space-y-0.5">
+        <div className="px-3 py-2 text-[10px] text-white/15 font-medium">
+          {contents.length} {contents.length === 1 ? 'aula' : 'aulas'}{questions.length > 0 ? ` + ${questions.length} ${questions.length === 1 ? 'pergunta' : 'perguntas'}` : ''}
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="ml-4 pl-4 border-l-2 border-white/[0.05] space-y-0.5">
