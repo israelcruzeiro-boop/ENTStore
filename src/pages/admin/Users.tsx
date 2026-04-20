@@ -42,6 +42,7 @@ import * as XLSX from 'xlsx';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { USERS_STEPS } from '../../data/tourSteps';
+import { Logger } from '../../utils/logger';
 
 const isValidCPF = (cpf: string) => {
   cpf = cpf.replace(/[^\d]+/g, '');

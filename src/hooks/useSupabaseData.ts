@@ -80,7 +80,8 @@ export function useUsers(companyId?: string, includeDeleted = false) {
   const { data, error, isLoading, mutate } = useSWR<User[]>(
     cacheKey,
     async () => {
-      const data = await fetcher(() => {
+      // 1. Busca usuários já registrados
+      const usersPromise = fetcher(() => {
         let query = supabase.from('users')
           .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at, deleted_at')
           .order('name');
@@ -96,8 +97,41 @@ export function useUsers(companyId?: string, includeDeleted = false) {
         return query;
       });
 
+      // 2. Busca convites pendentes (usuários convidados que ainda não fizeram signUp)
+      const invitesPromise = fetcher(() => {
+        let query = supabase.from('provisioned_invites')
+          .select('id, name, email, role, company_id, created_at')
+          .is('consumed_at', null);
+        
+        if (companyId) {
+          query = query.eq('company_id', companyId);
+        }
+        
+        return query;
+      });
+
+      const [usersData, invitesData] = await Promise.all([usersPromise, invitesPromise]);
+
+      // 3. Mapeia convites para o formato de User
+      const mappedInvites = (invitesData as any[]).map(inv => ({
+        id: inv.id,
+        name: inv.name,
+        email: inv.email,
+        role: inv.role,
+        company_id: inv.company_id,
+        status: 'PENDING_SETUP',
+        active: true,
+        created_at: inv.created_at,
+        is_invite: true
+      }));
+
+      // 4. Combina e ordena por nome
+      const combined = [...(usersData as any[]), ...mappedInvites].sort((a, b) => 
+        (a.name || '').localeCompare(b.name || '')
+      );
+
       try {
-        const validated = z.array(userSchema.partial()).parse(data);
+        const validated = z.array(userSchema.partial()).parse(combined);
 
         // Máscara de CPF (Passo 2)
         return validated.map(u => ({
@@ -110,7 +144,7 @@ export function useUsers(companyId?: string, includeDeleted = false) {
         if (err instanceof z.ZodError) {
           Logger.error('Zod Details:', JSON.stringify(err.errors, null, 2));
         }
-        return (data as any[]).map(u => ({
+        return combined.map(u => ({
           ...u,
           cpf_raw: u?.cpf,
           cpf: maskCPF(u?.cpf)
