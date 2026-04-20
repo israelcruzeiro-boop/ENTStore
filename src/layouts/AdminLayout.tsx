@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompanies } from '../hooks/useSupabaseData';
-import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2, BookOpen, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2, BookOpen, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -96,6 +96,7 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
     { label: 'Dashboard', icon: LayoutDashboard, path: `/admin/${activeSlug}` },
     { label: 'Repositórios', icon: FolderTree, path: `/admin/${activeSlug}/repos` },
     ...(targetCompany?.checklists_enabled ? [{ label: 'Checklists', icon: ClipboardCheck, path: `/admin/${activeSlug}/checklists` }] : []),
+    { label: 'Pesquisas', icon: MessageSquare, path: `/admin/${activeSlug}/surveys` },
     { label: 'Cursos', icon: BookOpen, path: `/admin/${activeSlug}/courses` },
     { label: 'Usuários', icon: Users, path: `/admin/${activeSlug}/users` },
     { label: 'Estrutura Org.', icon: Network, path: `/admin/${activeSlug}/structure` },

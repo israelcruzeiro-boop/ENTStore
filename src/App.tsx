@@ -44,7 +44,12 @@ const AdminChecklistDashboard = lazy(() => import('./pages/admin/ChecklistDashbo
 const ChecklistSubmissionDetail = lazy(() => import('./pages/admin/ChecklistSubmissionDetail').then(m => ({ default: m.ChecklistSubmissionDetail })));
 const ActionPlans = lazy(() => import('./pages/user/ActionPlans').then(m => ({ default: m.ActionPlans })));
 
-
+// Surveys (Pesquisas)
+const AdminSurveys = lazy(() => import('./pages/admin/Surveys').then(m => ({ default: m.AdminSurveys })));
+const SurveyBuilder = lazy(() => import('./pages/admin/SurveyBuilder').then(m => ({ default: m.SurveyBuilder })));
+const SurveyDashboard = lazy(() => import('./pages/admin/SurveyDashboard').then(m => ({ default: m.SurveyDashboard })));
+const UserSurveys = lazy(() => import('./pages/user/Surveys').then(m => ({ default: m.UserSurveys })));
+const SurveyPlayer = lazy(() => import('./pages/user/SurveyPlayer').then(m => ({ default: m.SurveyPlayer })));
 
 // Route Protectors
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
@@ -135,6 +140,9 @@ const AppRoutes = () => (
       <Route path="checklists/dashboard" element={<AdminChecklistDashboard />} />
       <Route path="checklists/submissions/:submissionId" element={<ChecklistSubmissionDetail />} />
       <Route path="checklists/:checklistId/builder" element={<ChecklistBuilder />} />
+      <Route path="surveys" element={<AdminSurveys />} />
+      <Route path="surveys/:surveyId/builder" element={<SurveyBuilder />} />
+      <Route path="surveys/:surveyId/dashboard" element={<SurveyDashboard />} />
       <Route path="structure" element={<AdminStructure />} />
       <Route path="appearance" element={<AdminAppearance />} />
       <Route path="settings" element={<AdminSettings />} />
@@ -164,6 +172,8 @@ const AppRoutes = () => (
         <Route path="checklists" element={<UserChecklists />} />
         <Route path="action-plans" element={<ActionPlans />} />
         <Route path="checklists/:submissionId" element={<UserChecklistPlayer />} />
+        <Route path="pesquisas" element={<UserSurveys />} />
+        <Route path="pesquisas/:surveyId" element={<SurveyPlayer />} />
         <Route path="repo/:id" element={<RepositoryDetail />} />
         <Route path="content/:id" element={<ContentDetail />} />
         {/* Fallback interno do Tenant */}

@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target } from 'lucide-react';
+import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target, MessageSquare } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useOrgStructure, useRepositories, useCourses } from '../hooks/useSupabaseData';
@@ -186,6 +186,7 @@ export const UserLayout = () => {
             {hasChecklists && (
               <Link to={`${basePath}/checklists`} className={`transition-colors hover:text-white tour-nav-checklist ${isActive('/checklists') ? 'text-white font-bold' : ''}`}>Checklists</Link>
             )}
+            <Link to={`${basePath}/pesquisas`} className={`transition-colors hover:text-white tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-white font-bold' : ''}`}>Pesquisas</Link>
           </nav>
         </div>
         
@@ -243,6 +244,10 @@ export const UserLayout = () => {
               <span className="text-[10px] font-medium">Checklist</span>
            </Link>
          )}
+         <Link to={`${basePath}/pesquisas`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <MessageSquare size={22} />
+            <span className="text-[10px] font-medium">Pesquisas</span>
+         </Link>
          <Link to={`${basePath}/perfil`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-perfil ${isActive('/perfil') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
             {user?.avatar_url ? (
                <img src={user.avatar_url} alt="avatar" className="w-6 h-6 rounded-full object-cover" />

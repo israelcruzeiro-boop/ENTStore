@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(node -e \"const m = require\\('react-joyride'\\); console.log\\('keys:', Object.keys\\(m\\)\\); console.log\\('default?', typeof m.default\\); console.log\\('Joyride?', typeof m.Joyride\\);\")",
-      "Bash(node -p \"require\\('./node_modules/react-joyride/package.json'\\).version\")"
+      "Bash(node -p \"require\\('./node_modules/react-joyride/package.json'\\).version\")",
+      "Bash(supabase --version)",
+      "Bash(psql --version)"
     ]
   }
 }

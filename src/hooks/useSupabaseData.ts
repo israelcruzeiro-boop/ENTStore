@@ -60,7 +60,9 @@ export function useCompanies(includeDeleted = false, enabled = true) {
       Logger.error('Zod Validation Error [useCompanies]:', err);
       return data as Company[];
     }
-  });
+  },
+  { revalidateOnFocus: false }
+  );
 
   return {
     companies: data || [],
@@ -114,7 +116,8 @@ export function useUsers(companyId?: string, includeDeleted = false) {
           cpf: maskCPF(u?.cpf)
         })) as User[];
       }
-    }
+    },
+    { revalidateOnFocus: false }
   );
 
   return {
@@ -132,13 +135,15 @@ export function useOrgStructure(companyId?: string) {
   // Busca Níveis Macro (Top Levels)
   const { data: topLevels, isLoading: loadingTopLevels, mutate: mutateTopLevels } = useSWR<OrgTopLevel[]>(
     companyId ? `org_top_levels_${companyId}` : null,
-    () => fetcher(() => supabase.from('org_top_levels').select('id, company_id, level_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name'))
+    () => fetcher(() => supabase.from('org_top_levels').select('id, company_id, level_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name')),
+    { revalidateOnFocus: false }
   );
 
   // Busca Unidades Lojas
   const { data: units, isLoading: loadingUnits, mutate: mutateUnits } = useSWR<OrgUnit[]>(
     companyId ? `org_units_${companyId}` : null,
-    () => fetcher(() => supabase.from('org_units').select('id, company_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name'))
+    () => fetcher(() => supabase.from('org_units').select('id, company_id, parent_id, name, active, created_at, deleted_at').eq('company_id', companyId).is('deleted_at', null).order('name')),
+    { revalidateOnFocus: false }
   );
 
   return {

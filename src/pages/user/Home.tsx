@@ -62,8 +62,8 @@ export const UserHome = () => {
   const filteredCourses = query ? companyCourses.filter(c => c.title.toLowerCase().includes(query)) : [];
   
   const hero_image = company?.hero_image || (companyRepos.length > 0 ? (companyRepos[0].banner_image || companyRepos[0].cover_image) : null);
-  const hero_title = company?.hero_title || (companyRepos.length > 0 ? companyRepos[0].name : `Bem-vindo à ${company?.name}`);
-  const hero_subtitle = company?.hero_subtitle || (companyRepos.length > 0 ? companyRepos[0].description : 'Explore os hubs e bibliotecas exclusivas da sua plataforma corporativa.');
+  const hero_title = company?.hero_title || company?.name || 'Área do Usuário';
+  const hero_subtitle = company?.hero_subtitle || 'Explore os treinamentos, checklists e bibliotecas exclusivas da sua corporação.';
 
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
