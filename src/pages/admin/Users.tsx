@@ -196,6 +196,11 @@ export const AdminUsers = () => {
         throw new Error('É obrigatório informar o E-mail ou o CPF.');
       }
 
+      // Bloqueio preventivo de auto-modificação (Segurança/UX)
+      if (generatedEmail.toLowerCase().trim() === currentUser?.email?.toLowerCase().trim()) {
+        throw new Error('Você não pode alterar sua própria conta através deste painel. Isso evita que você perca seu nível de acesso acidentalmente.');
+      }
+
       const payload = {
         name: formData.name,
         email: generatedEmail,
