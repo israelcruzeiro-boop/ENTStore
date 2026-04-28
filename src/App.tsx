@@ -1,11 +1,10 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { TourProvider } from './contexts/TourContext';
-import { useCompanies } from './hooks/useSupabaseData';
 
 // Layouts
 import { UserLayout } from './layouts/UserLayout';
@@ -13,6 +12,7 @@ import { AdminLayout } from './layouts/AdminLayout';
 
 // Lazy Loaded Pages
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const ActivateInvite = lazy(() => import('./pages/ActivateInvite').then(m => ({ default: m.ActivateInvite })));
 const UserHome = lazy(() => import('./pages/user/Home').then(m => ({ default: m.UserHome })));
 const UserBiblioteca = lazy(() => import('./pages/user/Biblioteca').then(m => ({ default: m.UserBiblioteca })));
 const UserHub = lazy(() => import('./pages/user/Hub').then(m => ({ default: m.UserHub })));
@@ -53,15 +53,11 @@ const SurveyPlayer = lazy(() => import('./pages/user/SurveyPlayer').then(m => ({
 
 // Route Protectors
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, company, loading: authLoading } = useAuth();
   const params = useParams();
-  const { companies, isLoading: companiesLoading } = useCompanies(false, !!user);
-  
-  // companySlug é usado em todas as rotas unificadas
   const currentSlug = params.companySlug;
-  const loading = authLoading || (!!user && companiesLoading);
-  
-  if (loading) {
+
+  if (authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">
         <div className="flex flex-col items-center gap-4">
@@ -72,47 +68,33 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: Re
     );
   }
 
-  // Se não houver usuário logado (Supabase Auth reporta nulo)
   if (!user) {
-     if (currentSlug) return <Navigate to={`/${currentSlug}/login`} replace />;
-     return <Navigate to="/login" replace />;
+    if (currentSlug) return <Navigate to={`/${currentSlug}/login`} replace />;
+    return <Navigate to="/login" replace />;
   }
 
-  // Validação Multi-tenant rigorosa para rotas de usuário e admin
-  if (currentSlug) {
-     const targetCompany = companies.find(c => c.link_name === currentSlug || c.slug === currentSlug);
-     
-     // 1. Se acessar um slug de empresa que não existe (ou foi inativada)
-     if (!targetCompany && companies.length > 0) {
-        const userCompany = companies.find(c => c.id === user.company_id);
-        if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
-        // Evita loop: se não sabemos para onde ir, força login global
-        return <Navigate to="/login" replace />;
-     }
-     
-     // 2. Se tentar acessar o painel/slug de uma empresa que não é a sua (Proteção de Tenant)
-     if (targetCompany && user.company_id !== targetCompany.id && user.role !== 'SUPER_ADMIN') {
-        const userCompany = companies.find(c => c.id === user.company_id);
-        if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
-        return <Navigate to="/login" replace />;
-     }
+  const ownSlug = company ? company.link_name || company.slug : null;
+
+  if (currentSlug && user.role !== 'SUPER_ADMIN') {
+    const matchesTenant = company && (company.link_name === currentSlug || company.slug === currentSlug);
+    if (!matchesTenant) {
+      if (ownSlug) return <Navigate to={`/${ownSlug}/home`} replace />;
+      return <Navigate to="/login" replace />;
+    }
   }
-  
+
   if (role && user.role !== role) {
-     if (allowSuperAdmin && user.role === 'SUPER_ADMIN') return children; 
-     
-     if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
-     if (user.role === 'ADMIN') {
-        const adminCompany = companies.find(c => c.id === user.company_id);
-        if (adminCompany) return <Navigate to={`/admin/${adminCompany.link_name || adminCompany.slug}`} replace />;
-        return <Navigate to="/login" replace />;
-     }
-     
-     const userCompany = companies.find(c => c.id === user.company_id);
-     if (userCompany) return <Navigate to={`/${userCompany.link_name || userCompany.slug}/home`} replace />;
-     return <Navigate to="/login" replace />;
+    if (allowSuperAdmin && user.role === 'SUPER_ADMIN') return children;
+
+    if (user.role === 'SUPER_ADMIN') return <Navigate to="/super-admin" replace />;
+    if (user.role === 'ADMIN') {
+      if (ownSlug) return <Navigate to={`/admin/${ownSlug}`} replace />;
+      return <Navigate to="/login" replace />;
+    }
+    if (ownSlug) return <Navigate to={`/${ownSlug}/home`} replace />;
+    return <Navigate to="/login" replace />;
   }
-  
+
   return children;
 };
 
@@ -122,6 +104,8 @@ const AppRoutes = () => (
     <Route path="/" element={<Navigate to="/login" replace />} />
     <Route path="/login" element={<Login />} />
     <Route path="/lpage" element={<LandingPage />} />
+    <Route path="/ativar-convite" element={<ActivateInvite />} />
+    <Route path="/ativar-convite/:token" element={<ActivateInvite />} />
 
     <Route path="/super-admin" element={<RequireAuth role="SUPER_ADMIN"><AdminLayout superAdmin /></RequireAuth>}>
       <Route index element={<SuperAdminDashboard />} />

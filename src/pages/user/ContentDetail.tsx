@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRepositories, useContents, useOrgStructure, useRepositoryMetrics, addContentView, rateContent } from '../../hooks/useSupabaseData';
+import { useRepositories, useContents, useOrgStructure, useRepositoryMetrics, addContentView, rateContent } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
 import { toast } from 'sonner';
+import { Logger } from '../../utils/logger';
 
 export const ContentDetail = () => {
   const { id } = useParams();
@@ -14,7 +15,7 @@ export const ContentDetail = () => {
   const { company, user } = useAuth();
   const hasTrackedView = useRef(false);
 
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { contents, isLoading: loadingContents } = useContents({ contentId: id });
   const content = contents.find(c => c.id === id);
 
@@ -47,7 +48,7 @@ export const ContentDetail = () => {
       }).then(() => {
         hasTrackedView.current = true;
       }).catch(err => {
-        console.error('Erro ao registrar visualização:', err);
+        Logger.warn('Failed to register content view', err);
       });
     }
   }, [content, repo, isAuthorized, user]);
@@ -74,7 +75,7 @@ export const ContentDetail = () => {
       // Recarregar métricas para atualizar a média na tela
       mutateMetrics();
     } catch (err) {
-      console.error('Erro ao registrar avaliação:', err);
+      Logger.warn('Failed to register content rating', err);
     }
   };
 

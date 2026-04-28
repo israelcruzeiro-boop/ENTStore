@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { mutate as globalMutate } from 'swr';
 import { cn } from '../../lib/utils';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useCompanies, useCourses, useCourseModules, useCourseContents, useOrgStructure, useUsers, useCourseQuestions, resetEnrollment } from '../../hooks/useSupabaseData';
+import { useCompanies, useCourses, useCourseModules, useCourseContents, useOrgStructure, useUsers, useCourseQuestions, resetEnrollment } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -58,13 +58,19 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { uploadToSupabase } from '../../lib/storage';
-import { supabase } from '../../lib/supabaseClient';
+import { uploadFile } from '../../lib/storage';
 import { toast } from 'sonner';
 import { DIPLOMA_TEMPLATES } from '../../components/user/CourseDiploma';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { COURSE_DETAILS_STEPS } from '../../data/tourSteps';
+
+interface HotspotPoint {
+  id: string;
+  x: number;
+  y: number;
+  radius?: number;
+}
 
 export const AdminCourseDetails = () => {
   const { companySlug, courseId } = useParams();
@@ -135,7 +141,7 @@ export const AdminCourseDetails = () => {
   const [wordSearchWords, setWordSearchWords] = useState<string[]>(['']);
   const [wordSearchDifficulty, setWordSearchDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('MEDIUM');
   const [orderingItems, setOrderingItems] = useState<string[]>(['']);
-  const [hotspotPoints, setHotspotPoints] = useState<{ x: number; y: number; radius?: number }[]>([]);
+  const [hotspotPoints, setHotspotPoints] = useState<HotspotPoint[]>([]);
   const [hangmanWord, setHangmanWord] = useState('');
   const [hangmanMaxAttempts, setHangmanMaxAttempts] = useState(6);
   const [hangmanHint, setHangmanHint] = useState('');
@@ -185,7 +191,7 @@ export const AdminCourseDetails = () => {
     if (!company?.id || !courseId) return;
     setIsUploadingCover(true);
     try {
-      const publicUrl = await uploadToSupabase(file, 'assets', `courses/${company.id}/covers`, 'thumbnail');
+      const publicUrl = await uploadFile(file, 'assets', `courses/${company.id}/covers`, 'thumbnail');
       if (publicUrl) {
         setThumbnailUrl(publicUrl);
         toast.success('Capa carregada!');
@@ -303,7 +309,7 @@ export const AdminCourseDetails = () => {
       let publicUrl = '';
       
       if (addMethod === 'upload' && newContent.file) {
-        publicUrl = await uploadToSupabase(
+        publicUrl = await uploadFile(
           newContent.file,
           'course-materials',
           `courses/${courseId}/modules/${selectedModuleId}`
@@ -412,7 +418,7 @@ export const AdminCourseDetails = () => {
     } else if (q.question_type === "ORDERING") {
       setOrderingItems(q.configuration?.items || [""]);
     } else if (q.question_type === "HOTSPOT") {
-      setHotspotPoints(q.configuration?.hotspots || []);
+      setHotspotPoints((q.configuration?.hotspots || []) as HotspotPoint[]);
     } else if (q.question_type === "HANGMAN") {
       setHangmanWord(q.configuration?.word || '');
       setHangmanMaxAttempts(q.configuration?.maxAttempts || 6);
@@ -1201,7 +1207,7 @@ export const AdminCourseDetails = () => {
                           if (!file || !company?.id) return;
                           try {
                             toast.loading('Enviando imagem...');
-                            const publicUrl = await uploadToSupabase(
+                            const publicUrl = await uploadFile(
                               file,
                               'course-materials',
                               `courses/${courseId}/questions/hotspot`
@@ -1557,7 +1563,7 @@ const ModuleItem = ({
       await courseService.updateModule(module.id, { title });
       setIsEditing(false);
       toast.success("Módulo renomeado");
-      mutateModules(); // Refresh modules from parent context
+      mutateContents();
     } catch (err) {
       Logger.error("Erro ao renomear módulo:", err);
       toast.error("Erro ao renomear módulo.");
@@ -1674,13 +1680,7 @@ const ModuleQuestionsSection = ({
   const handleDeleteQuestion = async (questionId: string) => {
     if (!confirm("Remover esta pergunta?")) return;
     try {
-      // IMPLEMENTAÇÃO DE SOFT DELETE
-      const { error } = await supabase
-        .from('course_phase_questions')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', questionId);
-        
-      if (error) throw error;
+      await courseService.deleteQuestion(questionId);
       mutate();
       toast.success('Pergunta removida');
     } catch (err) {

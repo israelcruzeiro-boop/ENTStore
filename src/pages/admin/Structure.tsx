@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies, useOrgStructure } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAdminStructure } from '../../hooks/useApiData';
+import { adminStructureService, settingsService } from '../../services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,19 +17,18 @@ import { useTour } from '../../hooks/useTour';
 import { STRUCTURE_STEPS } from '../../data/tourSteps';
 
 export const AdminStructure = () => {
-  const { companySlug } = useParams();
-  
-  const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+  const { company, refreshUser } = useAuth();
 
-  const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutateTopLevels, mutateUnits, isLoading } = useOrgStructure(company?.id);
+  const { orgTopLevels: allTopLevels, orgUnits: allUnits, mutate: mutateStructure, isLoading } = useAdminStructure(company?.id);
+  const mutateTopLevels = mutateStructure;
+  const mutateUnits = mutateStructure;
 
   // Tour Guiado (Tutorial)
   const { startTour, joyrideProps } = useTour(STRUCTURE_STEPS);
 
-  // Estados Fixos para os 3 níveis
-  const [l1, setL1] = useState({ active: false, id: 'level-1', name: 'Diretoria' });
-  const [l2, setL2] = useState({ active: true, id: 'level-2', name: 'Regional' });
+  // Estados Fixos para os 3 níveis (id corresponde ao levelIndex do backend)
+  const [l1, setL1] = useState({ active: false, id: '1', name: 'Diretoria' });
+  const [l2, setL2] = useState({ active: true, id: '2', name: 'Regional' });
   const [l3Name, setL3Name] = useState('Unidade');
 
   const [activeTabIndex, setActiveTabIndex] = useState(0);
@@ -52,28 +51,16 @@ export const AdminStructure = () => {
     if (company) {
       setL3Name(company.org_unit_name || 'Unidade');
       const levels = company.org_levels || [];
-      
-      // Carregando do banco de forma retrocompatível
-      if (levels.length === 2) {
-        setL1({ active: true, id: levels[0].id, name: levels[0].name });
-        setL2({ active: true, id: levels[1].id, name: levels[1].name });
+
+      if (levels.length >= 2) {
+        setL1({ active: true, id: '1', name: levels[0].name });
+        setL2({ active: true, id: '2', name: levels[1].name });
       } else if (levels.length === 1) {
-        if (levels[0].id === 'level-1') {
-          setL1({ active: true, id: levels[0].id, name: levels[0].name });
-          setL2(prev => ({ ...prev, active: false }));
-        } else {
-          setL1(prev => ({ ...prev, active: false }));
-          setL2({ active: true, id: levels[0].id, name: levels[0].name });
-        }
-      } else if (levels.length === 0) {
-        if (company.org_top_level_name) {
-          // Legacy support
-          setL1(prev => ({ ...prev, active: false }));
-          setL2({ active: true, id: 'legacy', name: company.org_top_level_name });
-        } else {
-          setL1(prev => ({ ...prev, active: false }));
-          setL2(prev => ({ ...prev, active: false }));
-        }
+        setL1(prev => ({ ...prev, active: false }));
+        setL2({ active: true, id: '2', name: levels[0].name });
+      } else {
+        setL1(prev => ({ ...prev, active: false }));
+        setL2(prev => ({ ...prev, active: false }));
       }
     }
   }, [company]);
@@ -113,20 +100,18 @@ export const AdminStructure = () => {
     if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Nível 1.");
     if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Nível 2.");
     
-    const newLevels = [];
-    if (l1.active) newLevels.push({ id: l1.id, name: l1.name.trim() });
-    if (l2.active) newLevels.push({ id: l2.id, name: l2.name.trim() });
+    const newLevelNames: string[] = [];
+    if (l1.active) newLevelNames.push(l1.name.trim());
+    if (l2.active) newLevelNames.push(l2.name.trim());
 
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('companies').update({
-        org_levels: newLevels,
-        org_unit_name: l3Name.trim()
-      }).eq('id', company.id);
-
-      if (error) throw error;
+      await settingsService.updateGeneral({
+        orgLevels: newLevelNames,
+        orgUnitName: l3Name.trim(),
+      });
       toast.success('Nomenclaturas da estrutura configuradas com sucesso!');
-      mutateCompanies();
+      await refreshUser();
     } catch (err) {
       const error = err as Error;
       toast.error(`Erro ao salvar nomenclaturas: ${error.message}`);
@@ -187,16 +172,16 @@ export const AdminStructure = () => {
 
     try {
       setIsSubmitting(true);
-      
-      const payload = { 
+
+      const payload = {
         company_id: company.id,
         level_id: currentActiveLevel?.id || null,
-        name, 
-        parent_id: topLevelFormData.parent_id || null, 
-        active: topLevelFormData.active 
+        name,
+        parent_id: topLevelFormData.parent_id || null,
+        active: topLevelFormData.active
       };
 
-      const validation = editingTopLevelId 
+      const validation = editingTopLevelId
         ? orgTopLevelSchema.partial().safeParse(payload)
         : orgTopLevelSchema.safeParse(payload);
 
@@ -204,13 +189,21 @@ export const AdminStructure = () => {
         return toast.error("Dados inválidos: " + validation.error.issues.map(i => i.message).join(', '));
       }
 
+      const levelIndex = currentActiveLevel?.id ? parseInt(currentActiveLevel.id, 10) : 1;
+
       if (editingTopLevelId) {
-        const { error } = await supabase.from('org_top_levels').update(validation.data).eq('id', editingTopLevelId);
-        if (error) throw error;
+        await adminStructureService.updateTopLevel(editingTopLevelId, {
+          name,
+          levelIndex,
+          parentId: topLevelFormData.parent_id || null,
+        });
         toast.success(`${currentActiveLevel?.name} atualizado(a) com sucesso!`);
       } else {
-        const { error } = await supabase.from('org_top_levels').insert(validation.data);
-        if (error) throw error;
+        await adminStructureService.createTopLevel({
+          name,
+          levelIndex,
+          parentId: topLevelFormData.parent_id || null,
+        });
         toast.success(`${currentActiveLevel?.name} cadastrado(a) com sucesso!`);
       }
       mutateTopLevels();
@@ -224,15 +217,8 @@ export const AdminStructure = () => {
     }
   };
 
-  const toggleOrgTopLevelStatus = async (id: string, active: boolean) => {
-    try {
-      const { error } = await supabase.from('org_top_levels').update({ active: !active }).eq('id', id);
-      if (error) throw error;
-      mutateTopLevels();
-    } catch (err) {
-      const error = err as Error;
-      toast.error(`Erro ao alterar status: ${error.message}`);
-    }
+  const toggleOrgTopLevelStatus = async (_id: string, _active: boolean) => {
+    toast.info('Ativar/desativar agrupamentos ainda não é suportado nesta versão.');
   };
 
   // ==== HANDLERS PARA UNIDADES (L3) ====
@@ -277,12 +263,18 @@ export const AdminStructure = () => {
       }
 
       if (editingUnitId) {
-        const { error } = await supabase.from('org_units').update(validation.data).eq('id', editingUnitId);
-        if (error) throw error;
+        await adminStructureService.updateUnit(editingUnitId, {
+          name,
+          topLevelId: unitFormData.parent_id || null,
+          active: unitFormData.active,
+        });
         toast.success(`${l3Name} atualizada!`);
       } else {
-        const { error } = await supabase.from('org_units').insert(validation.data);
-        if (error) throw error;
+        await adminStructureService.createUnit({
+          name,
+          topLevelId: unitFormData.parent_id || null,
+          active: unitFormData.active,
+        });
         toast.success(`${l3Name} cadastrada!`);
       }
       mutateUnits();
@@ -298,8 +290,7 @@ export const AdminStructure = () => {
 
   const toggleOrgUnitStatus = async (id: string, active: boolean) => {
     try {
-      const { error } = await supabase.from('org_units').update({ active: !active }).eq('id', id);
-      if (error) throw error;
+      await adminStructureService.updateUnit(id, { active: !active });
       mutateUnits();
     } catch (err) {
       const error = err as Error;
@@ -316,18 +307,12 @@ export const AdminStructure = () => {
     if (itemToDelete) {
       try {
         setIsSubmitting(true);
-        // Implementação de Soft Delete
-        const { error } = await supabase
-          .from(itemToDelete.type === 'TOP_LEVEL' ? 'org_top_levels' : 'org_units')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', itemToDelete.id);
-
-        if (error) throw error;
-        
         if (itemToDelete.type === 'TOP_LEVEL') {
+          await adminStructureService.deleteTopLevel(itemToDelete.id);
           mutateTopLevels();
           toast.success(`Registro removido da lista.`);
         } else {
+          await adminStructureService.deleteUnit(itemToDelete.id);
           mutateUnits();
           toast.success(`Unidade removida da lista.`);
         }

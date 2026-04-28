@@ -12,6 +12,7 @@ export const userSchema = z.object({
   company_id: z.string().uuid().nullable().optional(),
   avatar_url: z.string().nullable().optional(),
   first_access: z.boolean().optional().nullable(),
+  onboarding_completed: z.boolean().optional().nullable(),
   status: z.enum(['ACTIVE', 'INACTIVE', 'PENDING_SETUP']).optional().nullable(),
   xp_total: z.number().int().optional().nullable(),
   coins_total: z.number().int().optional().nullable(),

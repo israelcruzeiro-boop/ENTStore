@@ -1,15 +1,20 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { User, Company, UserRole } from '../types';
-import { supabase } from '../lib/supabaseClient';
-import { maskCPF } from '../hooks/useSupabaseData';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Logger } from '../utils/logger';
+import { authService } from '@/services/api/auth.service';
+import { ApiException, onSessionExpired, refreshAccessToken, tokenStorage } from '@/services/api/client';
+import { mapApiCompanyToFrontend, mapApiUserToFrontend } from '@/services/api/mappers';
+import type { Company, User } from '@/types';
+import { Logger } from '@/utils/logger';
 
 interface AuthContextType {
   user: User | null;
   company: Company | null;
   loading: boolean;
-  login: (identifier: string, pass: string, targetCompanyId?: string) => Promise<User | null>;
+  login: (
+    identifier: string,
+    password: string,
+    companySlug?: string,
+  ) => Promise<{ user: User; company: Company } | null>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -20,261 +25,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Ref para o callback do listener sempre ler o valor mais recente do state
-  const userRef = useRef<User | null>(null);
   const mountedRef = useRef(true);
 
-  // Sincroniza ref com state
-  useEffect(() => {
-    userRef.current = user;
-  }, [user]);
+  const clearSession = useCallback(() => {
+    if (!mountedRef.current) return;
+    setUser(null);
+    setCompany(null);
+  }, []);
 
-  // Busca o perfil completo do usuário no public.users via Supabase
-  const fetchUserProfile = useCallback(async (userId: string) => {
+  const loadMe = useCallback(async () => {
     try {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, name, email, cpf, role, company_id, org_unit_id, org_top_level_id, avatar_url, active, first_access, status, xp_total, coins_total, created_at')
-        .eq('id', userId)
-        .single();
-
-      if (userError) {
-        Logger.error('Core Auth Error [User Fetch]:', JSON.stringify(userError, null, 2));
-        return null;
-      }
-
-      if (!userData) {
-        Logger.error('User not found in public.users for ID:', userId);
-        return null;
-      }
-
-      let companyData = null;
-
-      if (userData.company_id) {
-        const { data: compData, error: compError } = await supabase
-          .from('companies')
-          .select('id, name, slug, link_name, theme, logo_url, hero_image, hero_title, hero_subtitle, hero_position, hero_brightness, public_bio, active, checklists_enabled, landing_page_enabled, landing_page_active, landing_page_layout, org_unit_name, org_top_level_name, org_levels')
-          .eq('id', userData.company_id)
-          .single();
-        
-        if (compError) {
-          Logger.error('Core Auth Error [Company Fetch]:', JSON.stringify(compError, null, 2));
-          // Fallback para resolver o objeto company como nulo em vez de travar
-          companyData = null;
-        } else {
-          companyData = compData;
-        }
-      }
-
-      const rawRole = (userData.role || 'USER').toUpperCase();
-      const finalRole = (rawRole === 'MAESTRO' ? 'SUPER_ADMIN' : rawRole) as UserRole;
-
-      return { 
-        user: { 
-          ...userData, 
-          role: finalRole,
-          cpf_raw: userData.cpf,
-          cpf: maskCPF(userData.cpf)
-        } as User, 
-        company: companyData as Company 
-      };
+      const me = await authService.me();
+      if (!mountedRef.current) return;
+      setUser(mapApiUserToFrontend(me.user));
+      setCompany(mapApiCompanyToFrontend(me.company));
     } catch (err) {
-      Logger.error('Critical Auth Exception:', err);
-      return null;
+      // Token / session cleanup for 401 with session-expired codes is handled
+      // centrally in services/api/client (clearSessionFromError + onSessionExpired
+      // handler). We only need to log here and propagate for the caller to react.
+      if (err instanceof ApiException) {
+        Logger.warn(`Failed to load authenticated profile (${err.code ?? err.status})`);
+      } else {
+        Logger.error('Failed to load authenticated profile', err);
+      }
+      throw err;
     }
   }, []);
 
-  // Carrega ou atualiza o perfil de forma segura (fora de callbacks do Supabase)
-  const loadProfile = useCallback(async (userId: string, showLoading: boolean) => {
-    if (showLoading && mountedRef.current) {
-      setLoading(true);
-    }
-
-    const profile = await fetchUserProfile(userId);
-    
-    if (mountedRef.current) {
-      if (profile) {
-        setUser(profile.user);
-        setCompany(profile.company);
-      } else {
-        // Se falhou mas já temos user, mantemos (resiliência)
-        const currentUser = userRef.current;
-        if (!currentUser) {
-          Logger.warn('Profile fetch failed, no existing user. Clearing session to stop loop.');
-          setUser(null);
-          setCompany(null);
-        } else {
-          Logger.warn('Profile fetch failed but keeping current session for stability.');
-        }
-      }
-      setLoading(false);
-    }
-  }, [fetchUserProfile]);
-
   useEffect(() => {
     mountedRef.current = true;
+    const unregister = onSessionExpired(() => {
+      clearSession();
+      toast.error('Sua sessão expirou. Faça login novamente.');
+    });
 
-    // 1. SESSÃO INICIAL: usa getSession() (NÃO bloqueia o auth lock)
-    const initSession = async () => {
+    const bootstrap = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          Logger.info('Initial session found for:', session.user.email);
-          await loadProfile(session.user.id, false); // loading já começa true
-        } else {
-          Logger.info('No initial session.');
-          if (mountedRef.current) {
-            setUser(null);
-            setCompany(null);
-            setLoading(false);
-          }
+        if (!tokenStorage.hasSession()) {
+          const refreshed = await refreshAccessToken();
+          if (!refreshed) return;
         }
-      } catch (err) {
-        Logger.error('Error getting initial session:', err);
+        await loadMe();
+      } catch {
+        // loadMe already handled session cleanup when applicable.
+      } finally {
         if (mountedRef.current) setLoading(false);
       }
     };
 
-    initSession();
-
-    // 2. LISTENER: para eventos SUBSEQUENTES (login, logout, token refresh)
-    // IMPORTANTE: NÃO faz await de queries de banco DENTRO do callback 
-    // para evitar deadlock com o auth lock do Supabase.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const currentUser = userRef.current;
-      Logger.info(`Auth Event: ${event} | Has User: ${currentUser?.id ? 'Yes' : 'No'} | Session: ${session?.user?.email || 'none'}`);
-
-      // INITIAL_SESSION já foi tratada pelo getSession() acima — ignora
-      if (event === 'INITIAL_SESSION') {
-        return;
-      }
-
-      if (event === 'SIGNED_OUT') {
-        if (mountedRef.current) {
-          setUser(null);
-          setCompany(null);
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (session?.user) {
-        // Se já temos o mesmo user, nada muda (troca de aba, token refresh silencioso)
-        if (currentUser && currentUser.id === session.user.id && event !== 'USER_UPDATED') {
-          Logger.info('Same user session, skipping profile reload.');
-          if (mountedRef.current) setLoading(false);
-          return;
-        }
-
-        // Novo login ou user atualizado — carrega perfil FORA do callback via setTimeout
-        // Isso evita o deadlock do auth lock do Supabase
-        setTimeout(() => {
-          loadProfile(session.user.id, !currentUser);
-        }, 0);
-      }
-    });
+    bootstrap();
 
     return () => {
       mountedRef.current = false;
-      subscription.unsubscribe();
+      unregister();
     };
-  }, [loadProfile]);
+  }, [clearSession, loadMe]);
 
-  const login = async (identifier: string, pass: string, targetCompanyId?: string): Promise<User | null> => {
+  const login = async (
+    identifier: string,
+    password: string,
+    companySlug?: string,
+  ): Promise<{ user: User; company: Company } | null> => {
     setLoading(true);
     try {
-      const emailToUse = identifier.includes('@') ? identifier.trim() : `${identifier.trim()}@storepage.com`;
-      
-      let { data, error } = await supabase.auth.signInWithPassword({
-        email: emailToUse,
-        password: pass
+      const session = await authService.login({
+        identifier: identifier.trim(),
+        password,
+        ...(companySlug ? { company_slug: companySlug } : {}),
       });
-
-      // Lógica resiliente: se der erro de credenciais e o e-mail pertencer a um
-      // perfil ainda em estado "provisionado" (password IS NOT NULL no banco),
-      // cria a conta no Auth usando a senha que o PRÓPRIO usuário digitou neste
-      // formulário. A RPC `get_provisioned_user` só retorna payload quando o
-      // usuário está provisionado; NULL caso contrário. Aceitamos ambos os
-      // shapes: o novo { name, role, is_provisioned: true } e o antigo
-      // { name, role, password }. Nunca lemos `publicUser.password` para que a
-      // senha em texto plano — se ainda existir no banco — jamais atravesse
-      // o cliente.
-      if (error && error.message.includes('Invalid login credentials')) {
-        // Use RPC to bypass RLS since unauthenticated users cannot read public.users
-        const { data: publicUser } = await supabase.rpc('get_provisioned_user', { lookup_email: emailToUse });
-
-        if (publicUser && typeof publicUser === 'object' && publicUser.name) {
-          Logger.info("Usuário provisionado detectado, criando conta de autenticação...");
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: emailToUse,
-            password: pass, // senha digitada pelo usuário; a RPC não devolve mais nenhuma senha
-            options: {
-              data: {
-                name: publicUser.name,
-                role: publicUser.role,
-                is_provisioned: true
-              }
-            }
-          });
-
-          if (signUpError) {
-            Logger.error("SignUp Error (Provisioned):", signUpError.message);
-            toast.error(`Sua conta está provisionada mas houve um erro ao ativá-la: ${signUpError.message}`);
-          } else if (signUpData.user) {
-            // Pequeno delay para o trigger handle_new_user terminar no banco
-            await new Promise(resolve => setTimeout(resolve, 800));
-            const retry = await supabase.auth.signInWithPassword({ email: emailToUse, password: pass });
-            data = retry.data;
-            error = retry.error;
-          }
-        }
-      }
-
-      if (error || !data.user) {
-        if (error) Logger.error("Supabase Auth Error:", error.message);
-        setLoading(false);
-        return null;
-      }
-
-      // Login direto: fetch do perfil aqui (fora do listener, sem deadlock)
-      const profile = await fetchUserProfile(data.user.id);
-      if (profile) {
-        if (targetCompanyId && profile.user.role !== 'SUPER_ADMIN' && profile.user.company_id !== targetCompanyId) {
-           await logout();
-           setLoading(false);
-           return null;
-        }
-        setUser(profile.user);
-        setCompany(profile.company);
-        setLoading(false);
-        return profile.user;
-      }
-      
-      setLoading(false);
-      return null;
+      tokenStorage.set(session.accessToken);
+      const mappedUser = mapApiUserToFrontend(session.user);
+      const mappedCompany = mapApiCompanyToFrontend(session.company);
+      setUser(mappedUser);
+      setCompany(mappedCompany);
+      return { user: mappedUser, company: mappedCompany };
     } catch (err) {
-      Logger.error("Login catch error:", err);
-      setLoading(false);
+      if (err instanceof ApiException) {
+        Logger.warn(`Login failed: ${err.code ?? err.status}`);
+      } else {
+        Logger.error('Login unexpected error', err);
+      }
+      tokenStorage.clear();
+      clearSession();
       return null;
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setCompany(null);
-    localStorage.removeItem('storepage_auth_user');
+    try {
+      if (tokenStorage.getAccess()) {
+        await authService.logout();
+      }
+    } catch (err) {
+      Logger.warn('Logout request failed', err);
+    } finally {
+      tokenStorage.clear();
+      clearSession();
+    }
   };
 
   const refreshUser = async () => {
-    if (user?.id) {
-      const profile = await fetchUserProfile(user.id);
-      if (profile) {
-        setUser(profile.user);
-        setCompany(profile.company);
+    try {
+      if (!tokenStorage.hasSession()) {
+        const refreshed = await refreshAccessToken();
+        if (!refreshed) return;
       }
+      await loadMe();
+    } catch {
+      // already handled
     }
   };
 

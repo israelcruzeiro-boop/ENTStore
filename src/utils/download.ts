@@ -1,6 +1,8 @@
 /**
  * Utility to download a file from a URL.
  */
+import { Logger } from './logger';
+
 export const downloadFile = async (url: string, fileName?: string) => {
   if (!url) return;
 
@@ -26,7 +28,7 @@ export const downloadFile = async (url: string, fileName?: string) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
   } catch (error) {
-    console.error('Erro ao baixar arquivo:', error);
+    Logger.warn('Failed to download file', error);
     // Fallback: open in new tab
     window.open(url, '_blank', 'noopener,noreferrer');
   }

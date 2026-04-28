@@ -132,7 +132,7 @@ export const ChecklistBuilder = () => {
     }
   };
 
-  const updateQuestionType = async (id: string, type: string) => {
+  const updateQuestionType = async (id: string, type: ChecklistQuestion['type']) => {
     try {
       await checklistActions.updateQuestion(id, { type });
       mutateQuestions();
@@ -300,6 +300,7 @@ export const ChecklistBuilder = () => {
                   onDelete={handleDeleteQuestion}
                   onUpdateText={updateQuestionText}
                   onUpdateType={updateQuestionType}
+                  onUpdateConfig={updateQuestionConfig}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDrop={onDrop}
@@ -397,7 +398,7 @@ const DebouncedInput = ({ value: externalValue, onSave, className }: {
   className?: string;
 }) => {
   const [localValue, setLocalValue] = useState(externalValue);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
 
   useEffect(() => {
@@ -441,7 +442,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
   question: ChecklistQuestion;
   onDelete: (id: string) => void;
   onUpdateText: (id: string, text: string) => void;
-  onUpdateType: (id: string, value: string) => void;
+  onUpdateType: (id: string, value: ChecklistQuestion['type']) => void;
   onUpdateConfig: (id: string, config: any) => void;
   onDragStart: (e: React.DragEvent, item: Record<string, unknown>, type: 'section' | 'question') => void;
   onDragOver: (e: React.DragEvent, sectionId?: string, questionId?: string) => void;
@@ -452,7 +453,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
   return (
     <div 
       draggable={isDraggable}
-      onDragStart={(e) => onDragStart(e, question, 'question')}
+      onDragStart={(e) => onDragStart(e, question as unknown as Record<string, unknown>, 'question')}
       onDragEnd={() => setIsDraggable(false)}
       onDragOver={(e) => onDragOver(e, question.section_id || undefined, question.id)}
       onDrop={(e) => onDrop(e, question.section_id || undefined, question.id)}
@@ -475,7 +476,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
         <div className="flex items-center gap-3">
            <select 
              value={question.type} 
-             onChange={(e) => onUpdateType(question.id, e.target.value)}
+             onChange={(e) => onUpdateType(question.id, e.target.value as ChecklistQuestion['type'])}
              className="text-[10px] uppercase font-black tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded outline-none border-none cursor-pointer"
            >
               <option value="COMPLIANCE">Conformidade</option>
@@ -519,7 +520,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
                         <p className="text-xs text-slate-500">Obriga o usuário a anexar pelo menos uma foto.</p>
                       </div>
                       <Switch 
-                        checked={question.config?.photo_required || false}
+                        checked={Boolean(question.config?.photo_required)}
                         onCheckedChange={(checked) => onUpdateConfig(question.id, { ...question.config, photo_required: checked })}
                       />
                     </div>
@@ -528,7 +529,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
                       <div className="space-y-2 pt-2 border-t border-slate-100">
                         <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Política de Obrigatoriedade</Label>
                         <Select 
-                          value={question.config?.photo_policy || 'OPTIONAL'} 
+                          value={String(question.config?.photo_policy || 'OPTIONAL')} 
                           onValueChange={(val) => onUpdateConfig(question.id, { ...question.config, photo_policy: val })}
                         >
                           <SelectTrigger className="w-full">

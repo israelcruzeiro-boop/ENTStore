@@ -33,8 +33,6 @@ export function useTour(steps: Step[]) {
       showProgress: true,
       buttons: ['back', 'close', 'skip', 'primary'],
     },
-    disableScrolling: true,
-    disableScrollParentFix: true,
     locale: {
       back: 'Voltar',
       close: 'Fechar',

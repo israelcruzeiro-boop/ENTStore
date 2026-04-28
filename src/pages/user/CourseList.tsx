@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useCourses, useOrgStructure } from '../../hooks/useSupabaseData';
+import { useCourses, useOrgStructure } from '../../hooks/usePlatformData';
 import { checkCourseAccess } from '../../lib/permissions';
 import { useAuth } from '../../contexts/AuthContext';
 import { BookOpen, Loader2, Search } from 'lucide-react';

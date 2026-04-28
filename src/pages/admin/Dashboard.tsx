@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useCompanies, useRepositories, useContents, useUsers } from '../../hooks/useSupabaseData';
+import { useCompanies, useRepositories, useContents, useUsers } from '../../hooks/usePlatformData';
 import { Users, FolderTree, FileVideo, ArrowRight, Loader2, BookOpen, CheckSquare, HelpCircle } from 'lucide-react';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';

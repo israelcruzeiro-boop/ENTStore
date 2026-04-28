@@ -8,9 +8,9 @@ import {
   useChecklistSections,
   checklistActions 
 } from '../../hooks/useChecklists';
-import { useUsers } from '../../hooks/useSupabaseData';
+import { useUsers } from '../../hooks/usePlatformData';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabaseClient';
+import { uploadFile } from '../../lib/storage';
 import { 
   ChevronLeft, 
   CheckCircle2, 
@@ -159,19 +159,13 @@ const QuestionRender = ({
     setIsUploading(true);
     try {
       const compressed = await compressImage(files[0]);
-      const fileName = `checklist/${Date.now()}.jpg`;
+      const checklistFile = new File([compressed], `checklist-${Date.now()}.jpg`, {
+        type: 'image/jpeg',
+        lastModified: Date.now(),
+      });
+      const publicUrl = await uploadFile(checklistFile, 'checklist-photos', 'checklist', 'generic');
 
-      const { error } = await supabase.storage
-        .from('checklist-photos')
-        .upload(fileName, compressed, { contentType: 'image/jpeg' });
-
-      if (error) throw error;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('checklist-photos')
-        .getPublicUrl(fileName);
-
-      handlePhotoUpload(q.id, publicUrl);
+      if (publicUrl) handlePhotoUpload(q.id, publicUrl);
     } catch (err) {
       toast.error('Erro ao subir foto.');
     } finally {
@@ -448,7 +442,7 @@ export const ChecklistPlayer = () => {
     }
   }, [answers]);
 
-  const saveTimeoutRefs = useRef<Record<string, NodeJS.Timeout>>({});
+  const saveTimeoutRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const scheduleSave = useCallback((qId: string, data: LocalAnswer) => {
     if (!submissionId) return;

@@ -2,14 +2,33 @@ import { useState, useEffect, useRef } from 'react';
 import { Content } from '../../types';
 import { ExternalLink, Maximize, Minimize, FileText, Music, Pause, Play, Volume2, Loader2, ZoomIn, ZoomOut, X } from 'lucide-react';
 import { QuizPlayer } from './QuizPlayer';
-import { useQuiz, useQuizQuestions } from '../../hooks/useSupabaseData';
+import { useQuiz, useQuizQuestions } from '../../hooks/usePlatformData';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
+import { Logger } from '../../utils/logger';
 
 // YouTube API Types
 declare global {
   interface Window {
-    YT: typeof YT;
+    YT?: {
+      Player: new (
+        elementId: string,
+        options: {
+          videoId: string;
+          height: string;
+          width: string;
+          playerVars: Record<string, number>;
+          events: {
+            onReady?: (event: YTEvent) => void;
+            onStateChange?: (event: YTEvent) => void;
+          };
+        },
+      ) => YTPlayer;
+      PlayerState: {
+        PLAYING: number;
+        ENDED: number;
+      };
+    };
     onYouTubeIframeAPIReady: () => void;
   }
 }
@@ -59,7 +78,7 @@ export const extractYouTubeId = (url: string): string | null => {
     const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
     if (shortMatch?.[1]) return shortMatch[1];
   } catch (e) {
-    console.error("Erro ao extrair YouTube ID", e);
+    Logger.warn('Failed to extract YouTube ID', e);
   }
   return null;
 };
@@ -123,7 +142,6 @@ export const MusicPlayer = ({
       containerRef.current.innerHTML = '';
       containerRef.current.appendChild(targetDiv);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const YT = (window as any).YT;
       playerRef.current = new YT.Player(playerId, {
         videoId: youtubeId,
@@ -144,7 +162,6 @@ export const MusicPlayer = ({
             event.target.setVolume(volume);
             event.target.playVideo();
           },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (event: YTEvent) => {
             if (event.data === YT.PlayerState.PLAYING) {
               setIsPlaying(true);
@@ -176,7 +193,6 @@ export const MusicPlayer = ({
       });
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((window as any).YT && (window as any).YT.Player) {
       createPlayer();
     } else {
@@ -186,7 +202,6 @@ export const MusicPlayer = ({
         tag.src = 'https://www.youtube.com/iframe_api';
         document.head.appendChild(tag);
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).onYouTubeIframeAPIReady = createPlayer;
     }
 
@@ -403,7 +418,6 @@ export const VideoPlayer = ({
   hasPrevious?: boolean;
   hasNext?: boolean;
 }) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<YTPlayer | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
@@ -443,7 +457,6 @@ export const VideoPlayer = ({
       containerRef.current.innerHTML = '';
       containerRef.current.appendChild(targetDiv);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const YT = (window as any).YT;
       playerRef.current = new YT.Player(playerId, {
         videoId: youtubeId,
@@ -461,7 +474,6 @@ export const VideoPlayer = ({
           onReady: () => {
             setIsReady(true);
           },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (event: YTEvent) => {
             if (event.data === YT.PlayerState.ENDED) {
               if (onEnded) onEnded();
@@ -471,7 +483,6 @@ export const VideoPlayer = ({
       });
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((window as any).YT && (window as any).YT.Player) {
       createPlayer();
     } else {
@@ -481,7 +492,6 @@ export const VideoPlayer = ({
         tag.src = 'https://www.youtube.com/iframe_api';
         document.head.appendChild(tag);
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).onYouTubeIframeAPIReady = createPlayer;
     }
 
@@ -558,7 +568,6 @@ export const VideoPlayer = ({
 };
 
 export const Viewer = ({ content }: { content: Content }) => {
-  const { tenantCompany } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isZoomMode, setIsZoomMode] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
@@ -590,7 +599,7 @@ export const Viewer = ({ content }: { content: Content }) => {
   }, [content.url]);
   
   // Quiz specific data - Detecta se é conteúdo de curso ou repositório legado
-  const quizParams = (content as Record<string, unknown>).module_id 
+  const quizParams = (content as unknown as Record<string, unknown>).module_id
     ? { courseContentId: content.id } 
     : { contentId: content.id };
 
@@ -598,7 +607,7 @@ export const Viewer = ({ content }: { content: Content }) => {
   const { questions, isLoading: isQuestionsLoading } = useQuizQuestions(quiz?.id);
 
   // Reset state when content change
-  const contentUrl = (content as Record<string, unknown>).url;
+  const contentUrl = (content as unknown as Record<string, unknown>).url;
   useEffect(() => {
     setIsLoading(true);
     setShowQuiz(false);
@@ -606,7 +615,7 @@ export const Viewer = ({ content }: { content: Content }) => {
 
   const QuizButton = () => {
     // Suprimir QuizButton em contexto de curso (cursos usam CourseQuestionPlayer)
-    if ((content as Record<string, unknown>)._suppressQuiz) return null;
+    if ((content as unknown as Record<string, unknown>)._suppressQuiz) return null;
     if (!quiz || questions.length === 0) return null;
     return (
       <div className="fixed bottom-8 right-8 z-[100] animate-in slide-in-from-bottom-10 duration-500">
@@ -719,7 +728,7 @@ export const Viewer = ({ content }: { content: Content }) => {
         if (videoId) videoSrc = `https://player.vimeo.com/video/${videoId}`;
       }
     } catch (e) {
-      console.error("Erro ao converter URL de vídeo", e);
+        Logger.warn('Failed to convert video URL', e);
     }
 
     // YouTube Shorts: renderiza em formato vertical 9:16
@@ -779,7 +788,7 @@ export const Viewer = ({ content }: { content: Content }) => {
         const vId = iframeUrl.split('vimeo.com/')[1]?.split('/')[0]?.split('?')[0];
         if (vId) iframeUrl = `https://player.vimeo.com/video/${vId}`;
     }
-  } catch (e) { console.error("URL Format Error", e); }
+      } catch (e) { Logger.warn('URL format error', e); }
 
   const isExternalLink = content.type === 'LINK' && !content.url.includes('google.com') && !content.url.includes('youtube.com');
 

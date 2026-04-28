@@ -1,28 +1,31 @@
-import { supabase } from './supabaseClient';
-import { Logger } from '../utils/logger';
+import { api } from '../services/api/client';
 
-/**
- * Dimensões máximas por contexto de uso
- */
 export type ImageContext = 'avatar' | 'logo' | 'hero' | 'banner' | 'thumbnail' | 'generic';
 
 const CONTEXT_SETTINGS: Record<ImageContext, { maxWidth: number; quality: number }> = {
-  avatar:    { maxWidth: 256,  quality: 0.85 },
-  logo:      { maxWidth: 512,  quality: 0.85 },
-  hero:      { maxWidth: 1280, quality: 0.80 },
-  banner:    { maxWidth: 1280, quality: 0.80 },
-  thumbnail: { maxWidth: 640,  quality: 0.80 },
-  generic:   { maxWidth: 1024, quality: 0.82 },
+  avatar: { maxWidth: 256, quality: 0.85 },
+  logo: { maxWidth: 512, quality: 0.85 },
+  hero: { maxWidth: 1280, quality: 0.8 },
+  banner: { maxWidth: 1280, quality: 0.8 },
+  thumbnail: { maxWidth: 640, quality: 0.8 },
+  generic: { maxWidth: 1024, quality: 0.82 },
 };
 
-/**
- * Comprime e redimensiona uma imagem usando Canvas API nativa (sem dependências).
- * Converte para WebP para máxima eficiência.
- */
-export const compressImage = (
-  file: File,
-  context: ImageContext = 'generic'
-): Promise<File> => {
+interface StorageUploadResponse {
+  bucket: string;
+  path: string;
+  publicUrl: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+interface StoragePublicUrlResponse {
+  bucket: string;
+  path: string;
+  publicUrl: string;
+}
+
+export const compressImage = (file: File, context: ImageContext = 'generic'): Promise<File> => {
   const { maxWidth, quality } = CONTEXT_SETTINGS[context];
 
   return new Promise((resolve, reject) => {
@@ -32,7 +35,6 @@ export const compressImage = (
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
 
-      // Calcular dimensões mantendo proporção
       let { width, height } = img;
       if (width > maxWidth) {
         height = Math.round((height * maxWidth) / width);
@@ -54,72 +56,82 @@ export const compressImage = (
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            // Fallback: retorna o arquivo original sem compressão
             resolve(file);
             return;
           }
-          // Gera nome com extensão .webp
+
           const baseName = file.name.replace(/\.[^.]+$/, '');
-          const compressedFile = new File([blob], `${baseName}.webp`, {
-            type: 'image/webp',
-            lastModified: Date.now(),
-          });
-          resolve(compressedFile);
+          resolve(
+            new File([blob], `${baseName}.webp`, {
+              type: 'image/webp',
+              lastModified: Date.now(),
+            }),
+          );
         },
         'image/webp',
-        quality
+        quality,
       );
     };
 
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error('Falha ao carregar a imagem para compressão.'));
+      reject(new Error('Falha ao carregar a imagem para compressao.'));
     };
 
     img.src = objectUrl;
   });
 };
 
-/**
- * Faz upload de um arquivo para o Supabase Storage com compressão automática.
- * Retorna a URL pública do arquivo.
- */
-export const uploadToSupabase = async (
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      resolve(result.includes(',') ? result.slice(result.indexOf(',') + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Falha ao preparar arquivo para upload.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export const uploadFile = async (
   file: File,
-  bucket: string = 'uploads',
-  folder: string = 'uploads',
-  context: ImageContext = 'generic'
+  bucket = 'uploads',
+  folder = 'uploads',
+  context: ImageContext = 'generic',
 ): Promise<string | null> => {
   if (!file) throw new Error('Nenhum arquivo fornecido.');
 
-  // Comprime somente imagens (ignora PDF, XLSX, etc.)
   let fileToUpload = file;
   if (file.type.startsWith('image/')) {
     fileToUpload = await compressImage(file, context);
   }
 
-  // Nome único e seguro com crypto.randomUUID
   const fileExt = fileToUpload.name.split('.').pop() ?? 'webp';
-  const uuid = typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Math.random().toString(36).slice(2)}_${Date.now()}`;
+  const uuid =
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Math.random().toString(36).slice(2)}_${Date.now()}`;
   const filePath = `${folder}/${uuid}.${fileExt}`;
 
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(filePath, fileToUpload, {
-      cacheControl: '31536000', // 1 ano — paths são únicos (imutáveis)
-      upsert: false,
-    });
+  const data = await api.post<StorageUploadResponse>('/storage/upload', {
+    bucket,
+    folder,
+    fileName: filePath,
+    contentType: fileToUpload.type || 'application/octet-stream',
+    base64: await fileToBase64(fileToUpload),
+  });
 
-  if (error) {
-    Logger.error('Erro de upload Supabase:', error);
-    throw error;
-  }
+  return data.publicUrl;
+};
 
-  const { data: publicUrlData } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(filePath);
+export const getPublicStorageUrl = async (path: string, bucket = 'uploads'): Promise<string | null> => {
+  if (!path) return null;
 
-  return publicUrlData.publicUrl;
+  const data = await api.get<StoragePublicUrlResponse>('/storage/public-url', {
+    query: { bucket, path },
+  });
+
+  return data.publicUrl;
 };

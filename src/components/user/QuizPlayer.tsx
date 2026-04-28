@@ -4,9 +4,10 @@ import { Quiz, QuizQuestion } from '../../types';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '../ui/card';
 import { cn } from '../../lib/utils';
-import { submitQuizAttempt, awardXP } from '../../hooks/useSupabaseData';
+import { submitQuizAttempt, awardXP } from '../../hooks/usePlatformData';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
+import { Logger } from '../../utils/logger';
 
 interface QuizPlayerProps {
   quiz: Quiz;
@@ -86,14 +87,14 @@ export function QuizPlayer({ quiz, questions: initialQuestions, userId, companyI
         try {
           await awardXP(userId, quiz.points_reward);
         } catch (xpError) {
-          console.error('Error awarding XP:', xpError);
+        Logger.error('Error awarding XP', xpError);
         }
       }
 
       setShowResults(true);
       if (onComplete) onComplete(finalScore, passed);
     } catch (error) {
-      console.error('Error saving quiz attempt:', error);
+      Logger.error('Error saving quiz attempt', error);
       toast.error('Erro ao salvar seu progresso no quiz.');
       setShowResults(true);
     }

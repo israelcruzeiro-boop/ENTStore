@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrgStructure, useRepositories } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { MonitorPlay, LayoutGrid, Music, PlaySquare, Folder } from 'lucide-react';
@@ -9,7 +9,7 @@ export const UserHub = () => {
   const { company, user } = useAuth();
   const [activeTab, setActiveTab] = useState<'ALL' | 'FULL' | 'PLAYLIST' | 'VIDEO_PLAYLIST'>('ALL');
 
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
 

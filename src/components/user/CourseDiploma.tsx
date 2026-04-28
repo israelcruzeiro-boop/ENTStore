@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { CourseEnrollment } from '../../types';
+import { Logger } from '../../utils/logger';
 
 // Templates de diploma disponíveis
 export const DIPLOMA_TEMPLATES = [
@@ -221,7 +222,7 @@ export function printDiploma(
       
       toast.success('Certificado baixado com sucesso!', { id: tId });
     } catch (error) {
-      console.error('Error generating diploma PDF:', error);
+    Logger.error('Error generating diploma PDF', error);
       toast.error('Erro ao gerar certificado', { id: tId });
     } finally {
       // Limpeza
@@ -247,4 +248,3 @@ export function printDiploma(
   // Dispara a conversão logo após montar o componente principal
   setTimeout(generatePdf, 100);
 }
-

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useCompanies } from '../../hooks/useSupabaseData';
+import { useCompanies } from '../../hooks/usePlatformData';
 import { useSurveys } from '../../hooks/useSurveys';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronRight, Layout, Loader2, Search, Target, MessageSquareText, BarChart3, Settings2 } from 'lucide-react';

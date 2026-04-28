@@ -54,8 +54,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
-import { Checklist, ChecklistQuestion, ChecklistSection, ChecklistQuestionType } from '../../types';
+import { useOrgStructure, useUsers } from '../../hooks/usePlatformData';
+import { Checklist, ChecklistFolder, ChecklistQuestion, ChecklistSection, ChecklistQuestionType } from '../../types';
 import * as XLSX from 'xlsx';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
@@ -201,7 +201,7 @@ export const AdminChecklists = () => {
     }
   };
 
-  const openEditFolder = (folder: ChecklistFolder) => {
+  const openEditFolder = (folder: FolderWithChecklists) => {
     setEditingFolderId(folder.id);
     setFolderName(folder.name);
     setIsFolderModalOpen(true);
@@ -275,7 +275,7 @@ export const AdminChecklists = () => {
         if (data.length === 0) throw new Error('Planilha vazia');
 
         // Pega o nome do checklist da primeira linha
-        const checklistName = data[0]['Nome do Checklist'] || 'Importado via Planilha';
+        const checklistName = String(data[0]['Nome do Checklist'] || 'Importado via Planilha');
 
         // 1. Cria o Checklist
         const newChecklist = await checklistActions.createChecklist({
@@ -296,8 +296,8 @@ export const AdminChecklists = () => {
         };
 
         for (const [idx, row] of data.entries()) {
-          const phaseName = row['Fase/Sub-tema'] || 'Geral';
-          const questionText = row['Pergunta'];
+          const phaseName = String(row['Fase/Sub-tema'] || 'Geral');
+          const questionText = row['Pergunta'] ? String(row['Pergunta']) : '';
           const typeCode = row['Tipo (Código)'] || 1;
 
           if (!questionText) continue;

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useRepositoryMetrics } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useRepositoryMetrics } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
 import { MusicPlayer, VideoPlayer, extractYouTubeId, isYouTubeShorts } from '../../components/user/Viewer';
@@ -11,6 +11,7 @@ import { SimpleLink } from '../../types';
 import { toast } from 'sonner';
 import { HeaderLayout } from '../../components/user/HeaderLayout';
 import { downloadFile } from '../../utils/download';
+import { Logger } from '../../utils/logger';
 
 
 const getPremiumLinkConfig = (type: string) => {
@@ -41,7 +42,7 @@ export const RepositoryDetail = () => {
   const { slug } = useTenant();
   const { company, user } = useAuth();
 
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { categories, isLoading: loadingCats } = useCategories(id);
   const { contents, isLoading: loadingContents } = useContents({ repositoryId: id });
@@ -86,7 +87,7 @@ export const RepositoryDetail = () => {
             content_type: link.type || 'LINK'
          });
        } catch (error) {
-         console.error('Falha ao registrar visualização:', error);
+        Logger.warn('Failed to register repository view', error);
        }
     }
   };
@@ -113,7 +114,7 @@ export const RepositoryDetail = () => {
       await promise;
       mutateMetrics();
     } catch (error) {
-      console.error('Falha ao registrar avaliação:', error);
+      Logger.warn('Failed to register repository rating', error);
     }
   };
 
@@ -228,7 +229,7 @@ export const RepositoryDetail = () => {
       } else if (!iframeUrl.includes('google.com') && iframeUrl.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i)) {
         iframeUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
       }
-    } catch (e) { console.error("Erro ao formatar URL", e); }
+  } catch (e) { Logger.warn('Failed to format URL', e); }
     return iframeUrl;
   };
 

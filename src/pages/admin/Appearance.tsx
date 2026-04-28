@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { settingsService } from '../../services/api';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { Theme } from '../../types';
+import { Company, Theme } from '../../types';
 import { Play, Search, UserCircle, ChevronRight, Loader2, Save, ExternalLink, LayoutTemplate, Sparkles, Image as ImageIcon, PanelTop, HelpCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Joyride } from 'react-joyride';
@@ -15,9 +14,7 @@ import { useTour } from '../../hooks/useTour';
 import { APPEARANCE_STEPS } from '../../data/tourSteps';
 
 export const AdminAppearance = () => {
-  const { companySlug } = useParams();
-  const { companies, mutate: mutateCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+  const { company, refreshUser } = useAuth();
   
   // Tour Guiado
   const { startTour, joyrideProps } = useTour(APPEARANCE_STEPS);
@@ -33,7 +30,7 @@ export const AdminAppearance = () => {
   });
   const [publicBio, setPublicBio] = useState('');
   const [landingPageActive, setLandingPageActive] = useState(false);
-  const [landingPageLayout, setLandingPageLayout] = useState<'classic' | 'gradient' | 'immersive' | 'solid'>('classic');
+  const [landingPageLayout, setLandingPageLayout] = useState<NonNullable<Company['landing_page_layout']>>('classic');
 
   useEffect(() => {
      if (company?.theme) {
@@ -69,16 +66,17 @@ export const AdminAppearance = () => {
     
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('companies').update({ 
-         theme: localTheme,
-         public_bio: publicBio,
-         landing_page_active: landingPageActive,
-         landing_page_layout: landingPageLayout
-      }).eq('id', company.id);
-      if (error) throw error;
-      
+      await settingsService.updateAppearance({
+        theme: {
+          primary: localTheme.primary,
+          secondary: localTheme.secondary,
+          surface: localTheme.background,
+          text: localTheme.text,
+        },
+      });
+
       toast.success('Aparência atualizada e aplicada com sucesso!');
-      mutateCompanies();
+      await refreshUser();
     } catch (err) {
       const error = err as Error;
       toast.error(`Erro ao salvar identidade visual: ${error.message}`);
@@ -183,7 +181,7 @@ export const AdminAppearance = () => {
                    <button 
                      key={layout.id}
                      type="button"
-                     onClick={() => setLandingPageLayout(layout.id as 'classic' | 'gradient' | 'immersive' | 'solid')}
+                     onClick={() => setLandingPageLayout(layout.id as NonNullable<Company['landing_page_layout']>)}
                      disabled={isSubmitting}
                      className={`flex flex-col items-start p-3 rounded-xl border-2 text-left transition-all ${landingPageLayout === layout.id ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-200' : 'border-slate-200 hover:border-slate-300 bg-slate-50/50 disabled:opacity-50'}`}
                    >

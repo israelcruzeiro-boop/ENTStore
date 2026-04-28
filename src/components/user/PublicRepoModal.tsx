@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { usePublicRepositoryContents, usePublicRepositorySimpleLinks } from '../../hooks/useSupabaseData';
+import { usePublicRepositoryContents, usePublicRepositorySimpleLinks } from '../../hooks/usePlatformData';
 import { Repository, Theme, Content, SimpleLink } from '../../types';
 import { X, PlaySquare, FileText, Music, Image as ImageIcon, ExternalLink, ArrowLeft, Globe, FileCode } from 'lucide-react';
 import { Viewer } from './Viewer';

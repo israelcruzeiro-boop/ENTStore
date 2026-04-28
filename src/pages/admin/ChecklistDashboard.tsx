@@ -10,7 +10,7 @@ import {
   useChecklistDetailedAnswers
 } from '../../hooks/useChecklists';
 import { useAuth } from '../../contexts/AuthContext';
-import { useUsers, useOrgStructure, useUserCourseHistory, useCompanies } from '../../hooks/useSupabaseData';
+import { useUsers, useOrgStructure, useUserCourseHistory, useCompanies } from '../../hooks/usePlatformData';
 import { UserProfileCard } from '../../components/admin/UserProfileCard';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -33,6 +33,7 @@ import { ptBR } from 'date-fns/locale';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import { cn } from '../../lib/utils';
 
 const SURREAL_COLORS = [
   '#6366f1', // Indigo
@@ -376,12 +377,13 @@ export const AdminChecklistDashboard = () => {
     const ws = XLSX.utils.json_to_sheet(detailedAnswers.map(ans => {
       const cl = checklists.find(c => c.id === ans.checklist_submissions?.checklist_id);
       const user = users.find(u => u.id === ans.checklist_submissions?.user_id);
+      const question = Array.isArray(ans.checklist_questions) ? ans.checklist_questions[0] : ans.checklist_questions;
       return {
         'ID Submissão': ans.submission_id,
         'Data': ans.created_at && !isNaN(new Date(ans.created_at).getTime()) ? format(new Date(ans.created_at), 'dd/MM/yyyy HH:mm') : 'N/A',
         'Checklist': cl?.title || 'N/A',
         'Usuário': user?.name || 'Anônimo',
-        'Pergunta': ans.checklist_questions?.text || 'N/A',
+        'Pergunta': question?.text || 'N/A',
         'Resposta': ans.value,
         'Observação': ans.note || '',
         'Status Plano Ação': ans.action_plan_status || 'N/A'
@@ -829,12 +831,18 @@ export const AdminChecklistDashboard = () => {
                     }}
                     history={userChecklistHistory.map(h => ({
                        id: h.id,
-                       title: h.checklists?.title || 'Checklist',
+                       title: (Array.isArray(h.checklists) ? h.checklists[0]?.title : h.checklists?.title) || 'Checklist',
                        status: h.status,
                        completedAt: h.completed_at,
                        createdAt: h.created_at
                     }))}
-                    courseHistory={userCourseHistory}
+                    courseHistory={userCourseHistory.map(entry => ({
+                       id: entry.id,
+                       status: entry.status,
+                       completed_at: entry.completed_at ?? null,
+                       created_at: entry.created_at,
+                       courses: Array.isArray(entry.courses) ? entry.courses[0] : entry.courses
+                    }))}
                  />
                </div>
             )}
@@ -845,7 +853,7 @@ export const AdminChecklistDashboard = () => {
 
       {/* Response Modal */}
       <Dialog open={isResponseModalOpen} onOpenChange={setIsResponseModalOpen}>
-        <DialogContent className="max-w-3xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[95vh] flex flex-col" hideCloseIcon>
+        <DialogContent className="max-w-3xl bg-slate-900 border-white/10 rounded-[32px] overflow-hidden text-left max-h-[95vh] flex flex-col">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-600" />
           <DialogHeader className="p-6 md:p-8 pb-4 shrink-0 border-b border-white/5 flex flex-row justify-between items-center group">
              <div>

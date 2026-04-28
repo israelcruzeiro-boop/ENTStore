@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { BookOpen, PlayCircle, Layers, ChevronRight } from 'lucide-react';
 import { Course } from '../../types';
-import { useCourseModuleStats } from '../../hooks/useSupabaseData';
+import { useCourseModuleStats } from '../../hooks/usePlatformData';
 import { CourseNeonStatus } from './CourseNeonStatus';
 
 interface CourseCardProps {

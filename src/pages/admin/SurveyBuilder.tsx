@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSurvey, useSurveyQuestions } from '../../hooks/useSurveys';
-import { useCompanies, useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
+import { useCompanies, useOrgStructure, useUsers } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { surveyService } from '../../services/surveys.service';
 import { SurveyQuestionType, buildDefaultQuestionConfig, SURVEY_QUESTION_TYPE_LABELS, SurveyQuestion, SURVEY_STATUS_LABELS, SurveyStatus } from '../../types/surveys';
 import { Logger } from '../../utils/logger';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
 
 export const SurveyBuilder = () => {
   const { companySlug, surveyId } = useParams();
@@ -115,7 +115,7 @@ export const SurveyBuilder = () => {
     if (!company?.id || !surveyId) return;
     setIsUploadingCover(true);
     try {
-      const publicUrl = await uploadToSupabase(file, 'assets', `surveys/${company.id}/covers`, 'thumbnail');
+      const publicUrl = await uploadFile(file, 'assets', `surveys/${company.id}/covers`, 'thumbnail');
       if (publicUrl) {
         setCoverImage(publicUrl);
         toast.success('Capa carregada com sucesso!');

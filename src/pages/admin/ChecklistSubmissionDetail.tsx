@@ -6,7 +6,7 @@ import {
   useChecklistQuestions,
   useChecklistSections 
 } from '../../hooks/useChecklists';
-import { useOrgStructure, useUsers } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useUsers } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -44,6 +44,9 @@ export function ChecklistSubmissionDetail() {
   const { users } = useUsers(submission?.company_id);
 
   const isLoading = loadingSubmission || loadingAnswers || loadingQuestions || loadingSections;
+  const checklistTitle = Array.isArray(submission?.checklist)
+    ? submission.checklist[0]?.title
+    : submission?.checklist?.title;
 
   const submissionUser = useMemo(() => 
     users.find(u => u.id === submission?.user_id), 
@@ -146,7 +149,7 @@ export function ChecklistSubmissionDetail() {
     const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
     
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`relatorio-${submission?.checklist?.title || 'auditoria'}-${format(new Date(), 'dd-MM-yyyy')}.pdf`);
+    pdf.save(`relatorio-${checklistTitle || 'auditoria'}-${format(new Date(), 'dd-MM-yyyy')}.pdf`);
   };
 
   if (isLoading) {
@@ -264,7 +267,7 @@ export function ChecklistSubmissionDetail() {
             </div>
             
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-              {submission.checklist?.title}
+              {checklistTitle}
             </h1>
             
             <div className="flex flex-wrap gap-4 mt-6">

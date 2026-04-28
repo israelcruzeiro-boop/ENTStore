@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useRepositories, useContents, useSimpleLinks, useOrgStructure, useCourses } from '../../hooks/useSupabaseData';
+import { useRepositories, useContents, useSimpleLinks, useOrgStructure, useCourses } from '../../hooks/usePlatformData';
 import { checkRepoAccess, checkCourseAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
 import { RepoCard } from '../../components/user/RepoCard';
@@ -14,7 +14,7 @@ export const UserBusca = () => {
   const { slug } = useTenant();
   const [searchParams] = useSearchParams();
 
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });

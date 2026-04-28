@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useCompanies, useUsers, useOrgStructure } from '../../hooks/useSupabaseData';
+import { useCompanies, useUsers, useOrgStructure } from '../../hooks/usePlatformData';
 import {
   useSurvey,
   useSurveyQuestions,
@@ -648,7 +648,7 @@ export const SurveyDashboard = () => {
     const resps = (responses || []) as any[];
     
     resps.forEach(r => {
-      // Supabase pode retornar joins como objeto ou array de 1 item
+      // A API pode retornar joins como objeto ou array de 1 item
       const uData = Array.isArray(r.users) ? r.users[0] : r.users;
       const unitData = Array.isArray(r.org_unit) ? r.org_unit[0] : r.org_unit;
       

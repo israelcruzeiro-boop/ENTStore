@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext';
-import { useOrgStructure, updateSupabaseUser, useUsers, useCourses, useUserCourseHistory } from '../../hooks/useSupabaseData';
+import { authService } from '../../services/api';
+import { ApiException } from '../../services/api/client';
+// NOTE: org structure for the regular user view stays on the legacy database
+// hook (Phase 2 territory). The /admin/structure endpoint is admin-only and
+// must NOT be hit from a USER role page — it would 403 every load.
+import { useCourses, useUserCourseHistory, useOrgStructure } from '../../hooks/usePlatformData';
 import { useChecklists, useAllSubmissions } from '../../hooks/useChecklists';
 import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store, BookOpen, CheckSquare, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { isValidCPF } from '../../utils/validators';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
 import { checkCourseAccess } from '../../lib/permissions';
+import { Logger } from '../../utils/logger';
 
 export const UserProfile = () => {
   const { user, company, logout, refreshUser } = useAuth();
   const { slug } = useTenant();
   const navigate = useNavigate();
   
-  // SWR Hooks para dados do Supabase
-  const { users, mutate: mutateUsers } = useUsers(company?.id);
   const { orgUnits, orgTopLevels } = useOrgStructure(company?.id);
   
   // Hooks de Cursos e Checklists
@@ -83,11 +86,11 @@ export const UserProfile = () => {
       
       try {
         toast.loading('Otimizando e enviando imagem...', { id: 'upload' });
-        const url = await uploadToSupabase(file, 'assets', `companies/${company.id}/avatars`, 'avatar');
+        const url = await uploadFile(file, 'assets', `companies/${company.id}/avatars`, 'avatar');
         setFormData(prev => ({ ...prev, avatar_url: url }));
         toast.success('Imagem preparada!', { id: 'upload' });
       } catch (error) {
-        console.error('Erro no upload:', error);
+        Logger.error('Erro no upload:', error);
         toast.error('Falha ao enviar imagem.', { id: 'upload' });
       }
     }
@@ -101,33 +104,24 @@ export const UserProfile = () => {
       return toast.error('Nome e E-mail são obrigatórios.');
     }
 
-    const emailExists = users.some(u => u.email?.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== user.id);
-    if (emailExists) return toast.error('Este e-mail já está em uso.');
-
-    const cleanCpf = formData.cpf.replace(/\D/g, '');
-    if (cleanCpf && cleanCpf !== user.cpf) {
-       if (!isValidCPF(cleanCpf)) return toast.error('CPF inválido.');
-       const cpfExists = users.some(u => u.cpf === cleanCpf && u.id !== user.id);
-       if (cpfExists) return toast.error('Este CPF já está sendo usado por outro usuário.');
-    }
-
     try {
       setIsSaving(true);
-      await updateSupabaseUser(user.id, {
-        name: formData.name,
-        email: formData.email,
-        cpf: cleanCpf || undefined,
-        avatar_url: formData.avatar_url,
-        org_unit_id: formData.org_unit_id || undefined // Se vazio, não envia para não quebrar UUID
+      await authService.updateProfile({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        avatarUrl: formData.avatar_url || null,
       });
 
-      await refreshUser(); // Atualiza o estado global do AuthContext
-      await mutateUsers();
+      await refreshUser();
       toast.success('Perfil atualizado com sucesso!');
       navigate(`/${slug}/home`);
     } catch (error) {
-      console.error('Erro ao salvar perfil:', error);
-      toast.error('Ocorreu um erro ao salvar as alterações.');
+      Logger.error('Erro ao salvar perfil:', error);
+      const message =
+        error instanceof ApiException
+          ? error.message
+          : 'Ocorreu um erro ao salvar as alterações.';
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }

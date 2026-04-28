@@ -1,16 +1,15 @@
 import { useState, useMemo } from 'react';
-import { z } from 'zod';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies, useRepositories, useContents, useSimpleLinks, useCategories, useRepositoryMetrics } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRepository, useRepositoryCatalog } from '../../hooks/useApiData';
+import { contentsService } from '../../services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Content, SimpleLink } from '../../types';
-import { repositoryContentSchema, repositoryCategorySchema, simpleLinkSchema } from '../../types/schemas';
+import { Content, ContentRating, ContentViewMetric, SimpleLink } from '../../types';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { REPOSITORY_CONTENTS_STEPS, REPOSITORY_CONTENTS_SIMPLE_STEPS } from '../../data/tourSteps';
@@ -47,7 +46,7 @@ import {
   Music,
   HelpCircle
 } from 'lucide-react';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
 
 const getPremiumAdminConfig = (type: string) => {
   const t = type?.toLowerCase();
@@ -72,19 +71,26 @@ const getPremiumAdminConfig = (type: string) => {
 
 export const AdminRepositoryContents = () => {
   const { companySlug, repoId } = useParams();
+  const { company } = useAuth();
 
-  const { companies } = useCompanies();
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+  const { repository: repo } = useRepository(repoId);
+  const {
+    contents,
+    simpleLinks,
+    categories: repoCategories,
+    mutate: mutateCatalog,
+    isLoading: loadingContents,
+  } = useRepositoryCatalog(repoId);
 
-  const { repositories } = useRepositories(company?.id);
-  const repo = repositories.find(r => r.id === repoId && r.company_id === company?.id);
+  const loadingLinks = loadingContents;
+  const contentViews: ContentViewMetric[] = [];
+  const contentRatings: ContentRating[] = [];
 
-  const { contents, mutate: mutateContents, isLoading: loadingContents } = useContents({ repositoryId: repoId });
-  const { simpleLinks, mutate: mutateLinks, isLoading: loadingLinks } = useSimpleLinks({ repositoryId: repoId });
-  const { categories: repoCategories, mutate: mutateCategories } = useCategories(repoId);
-  const { contentViews, contentRatings } = useRepositoryMetrics(repoId);
+  const mutateContents = mutateCatalog;
+  const mutateLinks = mutateCatalog;
+  const mutateCategories = mutateCatalog;
 
-  const isSimple = repo?.repo_type === 'SIMPLE';
+  const isSimple = repo?.type === 'SIMPLE';
   
   // Tour Guiado (Tutorial) - Hook Rule: Must be at the top level
   const { startTour, joyrideProps } = useTour(isSimple ? REPOSITORY_CONTENTS_SIMPLE_STEPS : REPOSITORY_CONTENTS_STEPS);
@@ -121,8 +127,8 @@ export const AdminRepositoryContents = () => {
 
   const PREDEFINED_TYPES = ['Link', 'Vídeo', 'Música', 'PDF', 'Planilha', 'Documento', 'Imagem', 'Apresentação', 'Drive/Pasta'];
 
-  const isPlaylist = repo?.repo_type === 'MUSIC_PLAYLIST';
-  const isVideoPlaylist = repo?.repo_type === 'VIDEO_PLAYLIST';
+  const isPlaylist = repo?.type === 'PLAYLIST';
+  const isVideoPlaylist = repo?.type === 'VIDEO_PLAYLIST';
 
   const availableTypes = useMemo(() => {
     const types = new Set(simpleLinks.map(l => l.type).filter(Boolean));
@@ -147,7 +153,7 @@ export const AdminRepositoryContents = () => {
     return result;
   }, [simpleLinks, searchQuery, filterType, filterDate, sortOrder]);
 
-  if (!company || (!repo && !loadingContents && !loadingLinks)) {
+  if (!repo && !loadingContents) {
     return <div className="p-8 text-center text-slate-500">Repositório não encontrado.</div>;
   }
 
@@ -195,12 +201,11 @@ export const AdminRepositoryContents = () => {
     if (!newCategoryName.trim()) return;
     try {
       setIsSubmitting(true);
-      const { error } = await supabase.from('categories').insert({
-        repository_id: repo!.id,
+      await contentsService.createCategory({
+        repositoryId: repo!.id,
         name: newCategoryName.trim(),
-        order_index: repoCategories.length
+        orderIndex: repoCategories.length,
       });
-      if (error) throw error;
       toast.success('Fase adicionada!');
       setNewCategoryName('');
       mutateCategories();
@@ -224,9 +229,10 @@ export const AdminRepositoryContents = () => {
     const targetOrder = target.order_index ?? targetIndex;
 
     try {
-      const u1 = supabase.from('categories').update({ order_index: targetOrder }).eq('id', current.id);
-      const u2 = supabase.from('categories').update({ order_index: currentOrder }).eq('id', target.id);
-      await Promise.all([u1, u2]);
+      await Promise.all([
+        contentsService.updateCategory(current.id, { orderIndex: targetOrder }),
+        contentsService.updateCategory(target.id, { orderIndex: currentOrder }),
+      ]);
       mutateCategories();
     } catch {
       toast.error('Erro ao reordenar fases.');
@@ -236,18 +242,12 @@ export const AdminRepositoryContents = () => {
   const deleteCategory = async (id: string) => {
     try {
       setIsSubmitting(true);
-      // IMPLEMENTAÇÃO DE SOFT DELETE
-      const { error } = await supabase
-        .from('categories')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-        
-      if (error) throw error;
-      toast.success('Fase removida da lista (Soft Delete).');
+      await contentsService.deleteCategory(id);
+      toast.success('Fase removida.');
       mutateCategories();
     } catch (error) {
       const err = error as Error;
-      Logger.error('Erro ao realizar soft delete de categoria:', err);
+      Logger.error('Erro ao remover categoria:', err);
       toast.error(`Erro ao remover fase: ${err.message}`);
     } finally {
       setIsSubmitting(false);
@@ -264,7 +264,7 @@ export const AdminRepositoryContents = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading('Otimizando e enviando capa...');
-        const publicUrl = await uploadToSupabase(file, 'assets', `contents/${company!.id}/thumbnail`, 'thumbnail');
+        const publicUrl = await uploadFile(file, 'assets', `contents/${company!.id}/thumbnail`, 'thumbnail');
         toast.dismiss(toastId);
         if (publicUrl) {
           setFormData(prev => ({ ...prev, thumbnail_url: publicUrl }));
@@ -290,7 +290,7 @@ export const AdminRepositoryContents = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading(`Enviando ${file.name}...`);
-        const publicUrl = await uploadToSupabase(file, 'assets', `contents/${company!.id}/files`, 'generic');
+        const publicUrl = await uploadFile(file, 'assets', `contents/${company!.id}/files`, 'generic');
         toast.dismiss(toastId);
         
         if (publicUrl) {
@@ -352,35 +352,25 @@ export const AdminRepositoryContents = () => {
     try {
       setIsSubmitting(true);
 
-      const payload = {
-        company_id: company.id,
-        repository_id: repo!.id,
-        category_id: formData.category_id || null,
+      const apiPayload = {
+        repositoryId: repo!.id,
+        categoryId: formData.category_id || null,
         title: formData.title,
         description: formData.description,
-        thumbnail_url: formData.thumbnail_url,
+        thumbnailUrl: formData.thumbnail_url || null,
         type: formData.type,
         url: formData.url,
+        embedUrl: formData.embed_url || null,
         featured: formData.featured,
+        recent: formData.recent,
         status: formData.status,
-        order_index: contents.length
       };
 
-      const validation = editingId
-        ? repositoryContentSchema.partial().safeParse(payload)
-        : repositoryContentSchema.safeParse(payload);
-
-      if (!validation.success) {
-        return toast.error("Dados do conteúdo inválidos: " + validation.error.format());
-      }
-
       if (editingId) {
-        const { error } = await supabase.from('contents').update(validation.data).eq('id', editingId);
-        if (error) throw error;
+        await contentsService.updateContent(editingId, apiPayload);
         toast.success('Conteúdo atualizado com sucesso!');
       } else {
-        const { error } = await supabase.from('contents').insert(validation.data).select('id');
-        if (error) throw error;
+        await contentsService.createContent(apiPayload);
         toast.success('Conteúdo adicionado com sucesso!');
       }
       mutateContents();
@@ -463,66 +453,46 @@ export const AdminRepositoryContents = () => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      
+
       const validLinks = batchLinks.filter(l => l.name.trim() || l.url.trim());
 
       if (editingId) {
         const linkToUpdate = validLinks.find(l => l.id === editingId);
         if (linkToUpdate) {
-          const payload = {
-            company_id: company.id,
-            repository_id: repo!.id,
+          await contentsService.updateSimpleLink(editingId, {
             name: linkToUpdate.name,
             url: linkToUpdate.url,
-            type: linkToUpdate.type || 'link',
-            status: linkToUpdate.status || 'ACTIVE',
-            order_index: simpleLinks.findIndex(l => l.id === editingId) ?? 0
-          };
-
-          const validation = simpleLinkSchema.partial().safeParse(payload);
-          if (!validation.success) throw new Error("Dados inválidos: " + JSON.stringify(validation.error.format()));
-
-          const { error } = await supabase.from('simple_links').update(validation.data).eq('id', editingId);
-          if (error) throw error;
+            type: linkToUpdate.type || 'Link',
+          });
         }
 
         const newLinksInBatch = validLinks.filter(l => l.id !== editingId);
         if (newLinksInBatch.length > 0) {
-          const payloads = newLinksInBatch.map((l, idx) => ({
-            company_id: company.id,
-            repository_id: repo!.id,
-            name: l.name,
-            url: l.url,
-            type: l.type || 'link',
-            status: 'ACTIVE',
-            order_index: simpleLinks.length + idx
-          }));
-
-          const validation = z.array(simpleLinkSchema).safeParse(payloads);
-          if (!validation.success) throw new Error("Dados de novos links inválidos");
-
-          const { error } = await supabase.from('simple_links').insert(validation.data);
-          if (error) throw error;
+          await Promise.all(
+            newLinksInBatch.map(l =>
+              contentsService.createSimpleLink({
+                repositoryId: repo!.id,
+                name: l.name,
+                url: l.url,
+                type: l.type || 'Link',
+                date: new Date().toISOString().split('T')[0],
+              }),
+            ),
+          );
         }
         toast.success('Operação concluída com sucesso!');
       } else {
-        const payloads = validLinks.map((l, idx) => ({
-          company_id: company.id,
-          repository_id: repo!.id,
-          name: l.name,
-          url: l.url,
-          type: l.type || 'link',
-          status: 'ACTIVE',
-          order_index: simpleLinks.length + idx
-        }));
-
-        const validation = z.array(simpleLinkSchema).safeParse(payloads);
-        if (!validation.success) {
-          return toast.error("Alguns links possuem dados inválidos.");
-        }
-
-        const { error } = await supabase.from('simple_links').insert(validation.data);
-        if (error) throw error;
+        await Promise.all(
+          validLinks.map(l =>
+            contentsService.createSimpleLink({
+              repositoryId: repo!.id,
+              name: l.name,
+              url: l.url,
+              type: l.type || 'Link',
+              date: new Date().toISOString().split('T')[0],
+            }),
+          ),
+        );
         toast.success(`${validLinks.length} link(s) adicionado(s)!`);
       }
       mutateLinks();
@@ -545,23 +515,17 @@ export const AdminRepositoryContents = () => {
     if (itemToDelete) {
       try {
         setIsSubmitting(true);
-        // IMPLEMENTAÇÃO DE SOFT DELETE
-        const { error } = await supabase
-          .from(isSimple ? 'simple_links' : 'contents')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', itemToDelete.id);
-
-        if (error) throw error;
-        
         if (isSimple) {
+          await contentsService.deleteSimpleLink(itemToDelete.id);
           mutateLinks();
         } else {
+          await contentsService.deleteContent(itemToDelete.id);
           mutateContents();
         }
-        toast.success('Item removido da lista (Soft Delete).');
+        toast.success('Item removido.');
       } catch (error) {
         const err = error as Error;
-        Logger.error('Erro ao realizar soft delete de conteúdo/link:', err);
+        Logger.error('Erro ao excluir conteúdo/link:', err);
         toast.error(`Erro ao excluir: ${err.message}`);
       } finally {
         setIsSubmitting(false);
@@ -572,14 +536,22 @@ export const AdminRepositoryContents = () => {
 
   const toggleStatusFull = async (content: Content) => {
     const newStatus = content.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE';
-    const { error } = await supabase.from('contents').update({ status: newStatus }).eq('id', content.id);
-    if (!error) mutateContents();
+    try {
+      await contentsService.updateContent(content.id, { status: newStatus });
+      mutateContents();
+    } catch {
+      toast.error('Erro ao alterar status.');
+    }
   };
 
   const toggleStatusSimple = async (link: SimpleLink) => {
     const newStatus = link.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    const { error } = await supabase.from('simple_links').update({ status: newStatus }).eq('id', link.id);
-    if (!error) mutateLinks();
+    try {
+      await contentsService.updateSimpleLink(link.id, { status: newStatus });
+      mutateLinks();
+    } catch {
+      toast.error('Erro ao alterar status.');
+    }
   };
 
   const getTypeIcon = (type: string) => {

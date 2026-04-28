@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useCompanies, useCourses } from '../../hooks/useSupabaseData';
+import { useCompanies, useCourses } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { Plus, BookOpen, ChevronRight, Layout, Loader2, Search, MoreVertical, Edit2, Archive, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '../../lib/supabaseClient';
 import { toast } from 'sonner';
 import { courseSchema } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
+import { courseService } from '../../services/courseService';
 
 export const AdminCourses = () => {
   const { companySlug } = useParams();
@@ -46,9 +46,7 @@ export const AdminCourses = () => {
       const validation = courseSchema.safeParse(payload);
       if (!validation.success) throw new Error("Dados inválidos");
 
-      const { data, error } = await supabase.from('courses').insert(validation.data).select('id').single();
-
-      if (error) throw error;
+      const data = await courseService.createCourse(validation.data);
 
       toast.success("Curso criado com sucesso!");
       setIsCreateDialogOpen(false);

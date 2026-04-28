@@ -4,15 +4,15 @@ import { useTenant } from '../contexts/TenantContext';
 import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target, MessageSquare } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
-import { useOrgStructure, useRepositories, useCourses } from '../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories, useCourses } from '../hooks/usePlatformData';
 import { useChecklists } from '../hooks/useChecklists';
 import { checkRepoAccess, checkCourseAccess, checkChecklistAccess } from '../lib/permissions';
 import { useTourContext } from '../contexts/TourContext';
 import { HelpButton } from '../components/user/HelpButton';
 import { getTourKeyByPath } from '../data/userTourSteps';
-import { updateSupabaseUser } from '../hooks/useSupabaseData';
 import { Joyride, STATUS, EVENTS, type EventData, type Controls } from 'react-joyride';
 import { Logger } from '../utils/logger';
+import { usersMeService } from '../services/api';
 
 export const UserLayout = () => {
   const { user, company, logout, refreshUser } = useAuth();
@@ -70,13 +70,13 @@ export const UserLayout = () => {
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED || type === EVENTS.TOUR_END) {
       stopTour();
       
-      // Apenas marca como completo e atualiza se for o tour GERAL e ainda não estiver completo
+      // Apenas marca como completo e atualiza se for o tour GERAL e ainda não estiver completo.
       if (user && user.onboarding_completed === false && activeTourKey === 'GENERAL') {
         try {
-          await updateSupabaseUser(user.id, { onboarding_completed: true });
-          await refreshUser(); 
+          await usersMeService.updateProfile({ onboardingCompleted: true });
+          await refreshUser();
         } catch (err) {
-          Logger.error('Failed to update onboarding status:', err);
+          Logger.warn('Failed to persist onboarding flag', err);
         }
       }
     }

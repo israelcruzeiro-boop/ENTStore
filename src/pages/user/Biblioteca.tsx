@@ -1,5 +1,5 @@
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrgStructure, useRepositories } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { Library } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Library } from 'lucide-react';
 export const UserBiblioteca = () => {
   const { company, user } = useAuth();
   
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
 

@@ -20,6 +20,7 @@ export interface Company {
   slug: string;
   link_name: string;
   active: boolean;
+  deleted_at?: string | null;
   theme: Theme;
   logo_url?: string;
   hero_image?: string;
@@ -31,6 +32,7 @@ export interface Company {
   landing_page_enabled?: boolean;
   landing_page_active?: boolean;
   landing_page_layout?: 'classic' | 'gradient' | 'immersive' | 'solid' | 'glass' | 'split';
+  primary_color?: string;
   checklists_enabled?: boolean;
   org_levels?: OrgLevelConfig[];
   org_top_level_name?: string;
@@ -116,6 +118,8 @@ export interface Course {
   title: string;
   description: string;
   thumbnail_url?: string;
+  cover_image?: string;
+  image_url?: string;
   status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
   access_type?: 'ALL' | 'RESTRICTED';
   allowed_user_ids?: string[];
@@ -137,6 +141,7 @@ export interface CourseModule {
   order_index: number;
   created_at: string;
   updated_at?: string;
+  contents?: CourseContent[];
 }
 
 export interface CourseContent {
@@ -190,8 +195,8 @@ export interface CourseEnrollment {
   started_at: string;
   completed_at?: string;
   score_percent?: number;
-  total_correct: number;
-  total_questions: number;
+  total_correct?: number;
+  total_questions?: number;
   time_spent_seconds?: number;
   current_module_id?: string;
   current_content_id?: string;
@@ -261,7 +266,7 @@ export interface SimpleLink {
   name: string;
   url: string;
   type: string;
-  date: string;
+  date?: string;
   status: 'ACTIVE' | 'INACTIVE';
   created_at?: string;
   updated_at?: string;
@@ -291,7 +296,7 @@ export interface ContentRating {
   org_unit_id?: string;
   org_top_level_id?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface OrgTopLevel {
@@ -302,7 +307,7 @@ export interface OrgTopLevel {
   name: string;
   active: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface OrgUnit {
@@ -312,7 +317,7 @@ export interface OrgUnit {
   name: string;
   active: boolean;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export type ChecklistStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
@@ -343,7 +348,7 @@ export interface Checklist {
   excluded_user_ids?: string[];
   status: ChecklistStatus;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface ChecklistSection {
@@ -352,8 +357,8 @@ export interface ChecklistSection {
   title: string;
   description?: string;
   order_index: number;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ChecklistQuestion {
@@ -366,8 +371,8 @@ export interface ChecklistQuestion {
   order_index: number;
   description?: string;
   config?: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface ChecklistSubmission {
@@ -379,9 +384,9 @@ export interface ChecklistSubmission {
   status: SubmissionStatus;
   started_at: string;
   completed_at?: string;
-  created_at: string;
-  updated_at: string;
-  checklist?: { title: string };
+  created_at?: string;
+  updated_at?: string;
+  checklist?: { title: string } | Array<{ title: string }>;
 }
 
 export interface ChecklistAnswer {
@@ -391,12 +396,13 @@ export interface ChecklistAnswer {
   value?: string;
   note?: string;
   action_plan?: string;
+  action_plan_created_by?: string;
   assigned_user_id?: string;
   photo_urls?: string[];
   action_plan_due_date?: string;
   action_plan_status?: 'PENDING' | 'RESOLVED';
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Notification {

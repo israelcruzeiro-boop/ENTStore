@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { settingsService } from '../../services/api';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Upload, AlertTriangle, Save, Image as ImageIcon, Loader2, Sun, MoveVertical, HelpCircle, Building } from 'lucide-react';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
 import { Slider } from '@/components/ui/slider';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 import { Joyride } from 'react-joyride';
@@ -16,11 +15,7 @@ import { useTour } from '../../hooks/useTour';
 import { SETTINGS_STEPS } from '../../data/tourSteps';
 
 export const AdminSettings = () => {
-  const { companySlug } = useParams();
-
-  const { companies, mutate: mutateCompanies } = useCompanies();
-  
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+  const { company, refreshUser } = useAuth();
 
   // Tour Guiado
   const { startTour, joyrideProps } = useTour(SETTINGS_STEPS);
@@ -79,7 +74,7 @@ export const AdminSettings = () => {
       setIsUploading(true);
       const toastId = toast.loading('Otimizando e enviando imagem...');
       
-      const publicUrl = await uploadToSupabase(file, 'assets', `companies/${company.id}/${field}`, context);
+      const publicUrl = await uploadFile(file, 'assets', `companies/${company.id}/${field}`, context);
       
       toast.dismiss(toastId);
       
@@ -87,10 +82,10 @@ export const AdminSettings = () => {
         setFormData(prev => ({ ...prev, [field]: publicUrl }));
         toast.success('Upload concluído!');
       } else {
-        toast.error('Falha ao fazer upload da imagem no Supabase.');
+        toast.error('Falha ao fazer upload da imagem.');
       }
     } catch (error) {
-      toast.error('Erro na conexão com o Supabase Storage.');
+      toast.error('Erro na conexão com o serviço de arquivos.');
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -108,37 +103,23 @@ export const AdminSettings = () => {
 
     try {
       setIsSubmitting(true);
-      
-      // link_name é bloqueado — não incluímos no update
-      const updateData = {
+
+      await settingsService.updateGeneral({
         name,
-        logo_url: formData.logo_url,
-        hero_image: formData.hero_image,
-        hero_title: formData.hero_title,
-        hero_subtitle: formData.hero_subtitle,
         active: formData.active,
-        hero_position: formData.hero_position,
-        hero_brightness: formData.hero_brightness,
-        updated_at: new Date().toISOString()
-      };
+      });
 
-      const { error, count } = await supabase
-        .from('companies')
-        .update(updateData)
-        .eq('id', company.id)
-        .select(); // Forçamos o select para garantir que o RLS permitiu a operação
-      
-      if (error) throw error;
-
-      // Se o count for 0, o RLS bloqueou silenciosamente
-      if (count === 0) {
-        throw new Error('Permissão negada ou registro não encontrado no banco.');
-      }
+      await settingsService.updateAppearance({
+        logoUrl: formData.logo_url || null,
+        hero: {
+          title: formData.hero_title,
+          subtitle: formData.hero_subtitle,
+          imageUrl: formData.hero_image || null,
+        },
+      });
 
       toast.success('Configurações atualizadas com sucesso!');
-      
-      // Forçamos a revalidação dos dados do hook SWR/TanStack Query
-      await mutateCompanies();
+      await refreshUser();
     } catch (err) {
       const error = err as Error;
       toast.error(`Erro ao salvar configurações: ${error.message}`);

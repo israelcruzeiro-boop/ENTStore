@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTenant } from '../../contexts/TenantContext'; // Restaurado pois é necessário para o slug
-import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses, useUserCourseHistory } from '../../hooks/useSupabaseData';
+import { useOrgStructure, useRepositories, useContents, useSimpleLinks, useCompanyMetrics, useCourses, useUserCourseHistory } from '../../hooks/usePlatformData';
 import { checkRepoAccess, checkCourseAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
 import { ContentCard } from '../../components/user/ContentCard';
@@ -18,7 +18,7 @@ export const UserHome = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // SWR Hooks para dados do Supabase
+  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
@@ -29,7 +29,7 @@ export const UserHome = () => {
 
   const isLoading = loadingRepos || loadingContents || loadingLinks || loadingCourses || loadingOrg || loadingMetrics;
 
-  // Filtra dados do Supabase usando a função global de validação
+  // Filtra dados da API usando a função global de validação
   const companyRepos = repositories.filter(r => {
      if (r.company_id !== company?.id || r.status !== 'ACTIVE') return false;
      return checkRepoAccess(r, user, orgUnits, orgTopLevels);

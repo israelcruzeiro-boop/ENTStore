@@ -1,23 +1,25 @@
 # GEMINI.md - StorePage Project Intelligence
 
-> Este arquivo serve como a "Fonte da Verdade" para o Antigravity neste projeto. Ele contém a arquitetura, regras de negócio e stack tecnológica para garantir que todas as interações sejam precisas e alinhadas aos objetivos da **StorePage**.
+> Este arquivo serve como a "Fonte da Verdade" para o Antigravity neste projeto. Ele contém a arquitetura, regras de negócio e stack tecnológica para garantir que todas as interações sejam precisas e alinhadas aos objetivos da **StorePage** (Frontend).
 
 ---
 
 ## 🏗️ VISÃO GERAL DO PROJETO
-**StorePage** é uma plataforma multi-tenant modular projetada para gestão de conteúdo corporativo, treinamento (LMS), repositórios de arquivos e checklists operacionais.
+**StorePage** é a interface (Frontend) de uma plataforma multi-tenant modular projetada para gestão de conteúdo corporativo, treinamento (LMS), repositórios de arquivos e checklists operacionais.
+
+O projeto opera de forma **desacoplada**, atuando exclusivamente como a camada de apresentação e experiência do usuário, consumindo recursos através da API do **StorePage_back**.
 
 ### Objetivos Principais
 - Fornecer uma experiência de aprendizado fluida (LMS).
 - Garantir conformidade operacional via Checklists.
 - Centralizar documentos e ativos da empresa.
-- Isolar dados rigorosamente entre diferentes clientes (Multi-tenancy).
+- Apresentar dados isolados rigorosamente entre diferentes clientes (Multi-tenancy).
 
 ---
 
 ## 🛠️ TECH STACK (2025/2026)
 
-### Frontend
+### Frontend (Pure Frontend Role)
 - **Core**: React 19 (Vite) + TypeScript.
 - **Estilização**: Tailwind CSS v3 + `tailwindcss-animate`.
 - **UI/UX**: Shadcn UI (Radix UI) + Lucide React + Embla Carousel.
@@ -26,8 +28,9 @@
 - **Formulários**: React Hook Form + Zod (Validação).
 - **Roteamento**: React Router Dom v6.
 
-### Backend & Infra
-- **BaaS**: Supabase (PostgreSQL, Auth, Storage, Edge Functions).
+### Backend & Infra (Arquitetura de Comunicação)
+- **Fluxo**: Frontend **StorePage** <-> API **StorePage_back** <-> Banco/Storage.
+- **Integração**: O Frontend comunica-se **exclusivamente** com a API REST/GraphQL do backend.
 - **Deploy**: Vercel.
 - **Monitoramento**: Custom Logger (`src/utils/logger.ts`).
 
@@ -50,24 +53,43 @@
 | Diretório | Responsabilidade |
 | :--- | :--- |
 | `src/components/[domínio]/` | Componentes de UI divididos por domínio (`admin`, `user`, `ui`). |
-| `src/services/` | Lógica de banco/API (Clientes Supabase e funções de busca). |
-| `src/hooks/` | Hooks customizados para lógica de estado e fetch de dados. |
+| `src/services/` | Lógica de integração com a API (**StorePage_back**). |
+| `src/hooks/` | Hooks customizados para lógica de estado e consumo da API. |
 | `src/types/` | Definições de tipos TypeScript globais (Interfaces e Enums). |
 | `src/contexts/` | Provedores de contexto React. |
 | `src/pages/` | Rotas da aplicação (divididas por privilégio). |
-| `supabase/` | Migrations SQL e Edge Functions. |
+| `supabase/` | **[LEGADO]** Referência técnica de schema/migrations para o backend. |
+
+---
+
+## 📅 PLANEJAMENTO DE DESACOPLAMENTO (BACKLOG)
+O projeto segue uma migração incremental dividida em 6 fases principais, documentadas detalhadamente em:
+👉 **[BACKLOG_TECNICO_FASES.md](file:///c:/Users/israe/Downloads/StorePage/BACKLOG_TECNICO_FASES.md)**
+
+### Resumo das Fases:
+- **Fase 0**: Fundação da Aplicação (HTTP, Erros, Logs, Middlewares).
+- **Fase 1**: Autenticação, Tenant e Gestão de Usuários.
+- **Fase 2**: Repositórios, Conteúdos e Métricas.
+- **Fase 3**: LMS, Treinamento e Quizzes.
+- **Fase 4**: Checklists, Submissões e Planos de Ação.
+- **Fase 5**: Surveys (Pesquisas).
+- **Fase 6**: Super Admin e Hardening Final.
+
+---
 
 ---
 
 ## 📜 REGRAS DE NEGÓCIO & CÓDIGO (CRÍTICAS)
 
-### 1. Segurança & Multi-tenancy
-- **RLS (Row Level Security)**: Obrigatório no Supabase. Todos os dados devem ser filtrados por `company_id`.
-- **Validação**: NUNCA persistir dados sem validar com **Zod**.
+### 1. Arquitetura de Comunicação (REGRA DE OURO)
+- **Desacoplamento Total**: O Frontend nunca acessa o banco de dados, storage ou RPCs do Supabase diretamente.
+- **API First**: Todas as operações de dados e autenticação devem passar por endpoints de API no Backend.
+- **Segurança**: O Backend (**StorePage_back**) é o único responsável por validar permissões, isolamento de tenant (`company_id`) e autorização.
 
 ### 2. Gestão de Dados
-- **Soft Delete**: NUNCA deletar registros fisicamente. Usar o campo `deleted_at`.
-- **Queries**: NUNCA fazer fetch de banco direto em componentes de UI. Use os Services ou Hooks.
+- **Soft Delete**: O frontend deve enviar requisições de deleção para a API, que gerencia o campo `deleted_at`.
+- **Camada de Serviço**: Proibido chamadas de API diretas em componentes. Use `src/services`.
+- **Validação**: Todas as entradas de dados devem ser validadas com **Zod** antes do envio para o Backend.
 
 ### 3. Padrões de Código
 - **TypeScript**: Proibido usar `any`. Tipagem estrita em tudo.
@@ -78,23 +100,23 @@
 
 ### Área Pública
 - `LandingPage.tsx`: Portal de entrada institucional.
-- `Login.tsx`: Autenticação integrada ao Supabase.
+- `Login.tsx`: Autenticação integrada à API do Backend.
 
 ### Painel Administrativo (`/admin`)
-- `Dashboard.tsx`: Visão geral de métricas.
-- `Courses.tsx` & `CourseDetails.tsx`: Gestão de trilhas, aulas e materiais.
-- `Checklists.tsx` & `ChecklistBuilder.tsx`: Motor de auditorias e vistorias.
-- `ChecklistDashboard.tsx`: Analytics de conformidade operacional.
-- `Repositories.tsx`: Sistema de arquivos corporativo.
-- `Users.tsx` & `Structure.tsx`: Gestão de usuários e hierarquia (Unidades/Cargos).
-- `Appearance.tsx` & `Settings.tsx`: Customização White Label e configurações gerais.
+- `Dashboard.tsx`: Visão geral de métricas consumidas da API.
+- `Courses.tsx` & `CourseDetails.tsx`: Gestão de trilhas via endpoints de treinamento.
+- `Checklists.tsx` & `ChecklistBuilder.tsx`: Motor de auditorias consumindo a API.
+- `ChecklistDashboard.tsx`: Analytics de conformidade.
+- `Repositories.tsx`: Interface para sistema de arquivos corporativo.
+- `Users.tsx` & `Structure.tsx`: Gestão de usuários e hierarquia via API.
+- `Appearance.tsx` & `Settings.tsx`: Customização White Label e configurações.
 
 ### Área do Superadmin (`/superadmin`)
 - `Dashboard.tsx`: Gestão global de tenants e empresas.
 
 ### Área do Usuário (`/user`)
 - `Home.tsx`: Dashboard com cursos e pendências.
-- `CoursePlayer.tsx`: Interface de consumo de aulas e testes de conhecimento.
+- `CoursePlayer.tsx`: Interface de consumo de aulas.
 - `ChecklistPlayer.tsx`: Execução de checklists em campo.
 - `ActionPlans.tsx`: Tratamento de não-conformidades.
 - `RepositoryDetail.tsx`: Central de arquivos.
@@ -105,10 +127,10 @@
 ---
 
 ## ⚠️ DÍVIDA TÉCNICA RECORRENTE
-- Migrar lógica de queries inline para a camada de `services`.
+- Substituir instâncias remanescentes do cliente Supabase por chamadas à API.
+- Migrar lógica de autenticação para o novo fluxo do Backend.
 - Expandir cobertura de Zod em todas as mutações administrativas.
-- Hardening de segurança pós-audit (detalhado em `REVISAO_SEGURANCA.md`).
 
 ---
 
-> **Nota para o Agente**: Ao atuar, sempre verifique o arquivo `REGRAS_AGENTE.md` e `DIVIDA_TECNICA.md` para o contexto mais atualizado de tarefas em andamento.
+> **Nota para o Agente**: Ao atuar, sempre verifique o arquivo `REGRAS_AGENTE.md` para o contexto mais atualizado de tarefas em andamento. O frontend é agora agnóstico à infraestrutura de banco de dados.

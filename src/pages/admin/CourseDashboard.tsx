@@ -6,7 +6,7 @@ import {
   useUsers, 
   useCourseAnalytics, 
   useOrgStructure 
-} from '../../hooks/useSupabaseData';
+} from '../../hooks/usePlatformData';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area
@@ -703,7 +703,6 @@ export const AdminCourseDashboard = () => {
                                         status={s.status} 
                                         size="sm" 
                                         className="scale-90 origin-left"
-                                        title={s.title}
                                       />
                                    ))}
                                    {u.stats.length > 4 && <span className="text-[9px] text-slate-400 font-black self-center">+{u.stats.length - 4}</span>}

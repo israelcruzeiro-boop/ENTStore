@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActionPlansReceived, useActionPlansSent, checklistActions } from '@/hooks/useChecklists';
-import { useUsers } from '@/hooks/useSupabaseData';
+import { useUsers } from '@/hooks/usePlatformData';
 import { AlertTriangle, CheckCircle2, Clock, Check, ChevronRight, Inbox, Send, User as UserIcon } from 'lucide-react';
 import { format, isPast, isToday, addDays, differenceInDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import type { ChecklistAnswer } from '@/types';
 
 type PlanTab = 'RECEIVED' | 'SENT';
 

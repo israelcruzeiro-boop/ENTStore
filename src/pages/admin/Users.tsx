@@ -1,40 +1,41 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabaseClient';
-import { 
-  useCompanies, 
-  useUsers, 
-  useOrgStructure, 
-  useContents, 
-  useSimpleLinks, 
+import { useAdminUsers, useAdminStructure } from '../../hooks/useApiData';
+import type { PendingInvite } from '../../hooks/useApiData';
+import { adminUsersService } from '../../services/api';
+import {
+  useContents,
+  useSimpleLinks,
   useRepositories,
   useUserActivity
-} from '../../hooks/useSupabaseData';
+} from '../../hooks/usePlatformData';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { 
-  CheckCircle2, 
-  XCircle, 
-  Edit2, 
-  Trash2, 
-  Shield, 
-  User as UserIcon, 
-  Activity, 
-  Eye, 
-  BookOpen, 
-  Calendar, 
-  Store, 
-  Upload, 
-  FileSpreadsheet, 
-  AlertCircle, 
+import {
+  CheckCircle2,
+  XCircle,
+  Edit2,
+  Trash2,
+  Shield,
+  User as UserIcon,
+  Activity,
+  Eye,
+  BookOpen,
+  Calendar,
+  Store,
+  Upload,
+  FileSpreadsheet,
+  AlertCircle,
   Download,
   Loader2,
-  HelpCircle
+  HelpCircle,
+  Mail,
+  Clock,
+  Copy,
 } from 'lucide-react';
 import { User, Content, SimpleLink, Repository } from '../../types';
 import { userSchema } from '../../types/schemas';
@@ -61,14 +62,10 @@ const isValidCPF = (cpf: string) => {
 };
 
 export const AdminUsers = () => {
-  const { companySlug } = useParams();
-  const { user: currentUser } = useAuth();
-  
-  const { companies } = useCompanies();
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
+  const { user: currentUser, company } = useAuth();
 
-  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(company?.id);
-  const { orgUnits } = useOrgStructure(company?.id);
+  const { users, invites, mutate: mutateUsers, isLoading: loadingUsers } = useAdminUsers();
+  const { orgUnits } = useAdminStructure(company?.id);
   const { contents } = useContents({ companyId: company?.id });
   const { simpleLinks } = useSimpleLinks({ companyId: company?.id });
   const { repositories } = useRepositories(company?.id);
@@ -86,6 +83,14 @@ export const AdminUsers = () => {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<{id: string, name: string} | null>(null);
+
+  const [isCancelInviteOpen, setIsCancelInviteOpen] = useState(false);
+  const [inviteToCancel, setInviteToCancel] = useState<PendingInvite | null>(null);
+
+  const [activationDialog, setActivationDialog] = useState<{
+    invite: PendingInvite;
+    activationLink: string;
+  } | null>(null);
 
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -212,7 +217,7 @@ export const AdminUsers = () => {
       };
 
       // Validação agressiva via Zod
-      const validation = editingId 
+      const validation = editingId
         ? userSchema.partial().safeParse(payload)
         : userSchema.safeParse(payload);
 
@@ -222,25 +227,45 @@ export const AdminUsers = () => {
       }
 
       if (editingId) {
-        const { error } = await supabase.from('users').update(validation.data).eq('id', editingId);
-        if (error) throw error;
-        toast.success('Usuário atualizado com sucesso!');
-      } else {
-        // Provisionamento via RPC: o servidor grava em provisioned_invites
-        // e valida tenant/role. A senha é definida pelo próprio usuário no
-        // primeiro login (signUp), não mais hardcoded aqui.
-        const { error } = await supabase.rpc('provision_invite', {
-          target_email: validation.data.email,
-          target_name: validation.data.name,
-          target_role: validation.data.role || 'USER',
-          target_company_id: company.id
+        await adminUsersService.update(editingId, {
+          name: formData.name,
+          email: generatedEmail,
+          cpf: cleanCpf || null,
+          role: formData.role,
+          active: formData.active,
+          orgUnitId: formData.org_unit_id || null,
         });
-        if (error) throw error;
-        toast.success('Usuário criado com sucesso!');
+        toast.success('Usuário atualizado com sucesso!');
+        mutateUsers();
+        handleCloseForm();
+      } else {
+        const result = await adminUsersService.createInvite({
+          name: formData.name,
+          email: generatedEmail,
+          cpf: cleanCpf || null,
+          role: formData.role,
+          orgUnitId: formData.org_unit_id || null,
+        });
+        toast.success('Convite criado! Compartilhe o link de ativação.');
+        mutateUsers();
+        handleCloseForm();
+        const activationLink = `${window.location.origin}/ativar-convite/${encodeURIComponent(result.activationToken)}`;
+
+        setActivationDialog({
+          invite: {
+            id: result.invite.id,
+            name: result.invite.name,
+            email: result.invite.email,
+            role: result.invite.role,
+            companyId: result.invite.companyId,
+            orgUnitId: result.invite.orgUnitId,
+            status: result.invite.status,
+            expiresAt: result.invite.expiresAt,
+            createdAt: result.invite.createdAt,
+          },
+          activationLink,
+        });
       }
-      
-      mutateUsers();
-      handleCloseForm();
     } catch (err) {
       const error = err as Error;
       Logger.error('Erro ao salvar usuário:', error);
@@ -257,13 +282,7 @@ export const AdminUsers = () => {
       } else {
          try {
            setIsSubmitting(true);
-           // IMPLEMENTAÇÃO DE SOFT DELETE
-           const { error } = await supabase
-            .from('users')
-            .update({ deleted_at: new Date().toISOString() })
-            .eq('id', userToDelete.id);
-            
-           if (error) throw error;
+           await adminUsersService.delete(userToDelete.id);
            mutateUsers();
            toast.success('Usuário removido da lista (Soft Delete).');
          } catch (err) {
@@ -278,13 +297,40 @@ export const AdminUsers = () => {
     handleCloseDelete();
   };
 
+  const handleCancelInvite = async () => {
+    if (!inviteToCancel) return;
+    try {
+      setIsSubmitting(true);
+      await adminUsersService.cancelInvite(inviteToCancel.id);
+      toast.success('Convite cancelado com sucesso.');
+      mutateUsers();
+    } catch (err) {
+      const error = err as Error;
+      Logger.error('Erro ao cancelar convite:', error);
+      toast.error(`Erro ao cancelar convite: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+      setIsCancelInviteOpen(false);
+      setTimeout(() => setInviteToCancel(null), 300);
+    }
+  };
+
+  const handleCopyActivationLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Link copiado para a área de transferência.');
+    } catch {
+      Logger.warn('Failed to copy activation link');
+      toast.error('Não foi possível copiar o link.');
+    }
+  };
+
   const toggleStatus = async (user: User) => {
     if (user.id === currentUser?.id) return toast.error('Você não pode inativar a sua própria conta.');
     
     try {
       const newStatus = !(user.active !== false);
-      const { error } = await supabase.from('users').update({ active: newStatus }).eq('id', user.id);
-      if (error) throw error;
+      await adminUsersService.update(user.id, { active: newStatus });
       mutateUsers();
       toast.success(`Status alterado para ${newStatus ? 'Ativo' : 'Inativo'}.`);
     } catch (err) {
@@ -402,22 +448,24 @@ export const AdminUsers = () => {
         }
       }
 
-      // Provisionamento via RPC: uma chamada por linha para que o servidor
-      // valide cada convite individualmente (tenant, role, duplicidade).
       const failures: string[] = [];
       for (const u of newUsers) {
-        const { error } = await supabase.rpc('provision_invite', {
-          target_email: u.email,
-          target_name: u.name,
-          target_role: 'USER',
-          target_company_id: company.id
-        });
-        if (error) failures.push(`${u.name}: ${error.message}`);
+        try {
+          await adminUsersService.createInvite({
+            name: u.name,
+            email: u.email,
+            cpf: u.cpf,
+            role: 'USER',
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Erro desconhecido';
+          failures.push(`${u.name}: ${msg}`);
+        }
       }
 
       if (failures.length > 0) {
-        Logger.error('Falhas no import:', failures);
-        toast.error(`${failures.length} linha(s) falharam. Veja o console.`);
+        Logger.warn(`Import finished with ${failures.length} failed row(s)`);
+        toast.error(`${failures.length} linha(s) falharam. Revise os dados e tente novamente.`);
       }
       const successCount = newUsers.length - failures.length;
       if (successCount > 0) {
@@ -459,6 +507,101 @@ export const AdminUsers = () => {
             </Button>
          </div>
       </div>
+
+      {invites.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden mb-6">
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex items-center gap-2">
+            <Mail size={16} className="text-amber-600" />
+            <h2 className="text-sm font-bold text-amber-800 uppercase tracking-wider">
+              Convites pendentes ({invites.length})
+            </h2>
+            <span className="text-xs text-amber-700 ml-2 font-normal normal-case tracking-normal">
+              Aguardando ativação pelo destinatário.
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-semibold">
+                <tr>
+                  <th className="p-4">Convidado</th>
+                  <th className="p-4">Identificação</th>
+                  <th className="p-4">Permissão</th>
+                  <th className="p-4">Expira em</th>
+                  <th className="p-4 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {invites.map((invite) => {
+                  const inviteUnit = orgUnits.find((u) => u.id === invite.orgUnitId);
+                  return (
+                    <tr key={invite.id} className="hover:bg-amber-50/40 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                            {invite.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-slate-900 text-base">{invite.name}</p>
+                              <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">
+                                Convite Pendente
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500">{invite.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <p className="text-sm font-medium text-slate-700">-</p>
+                        {inviteUnit && (
+                          <div className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md mt-1" title={unitLabel}>
+                            <Store size={10} /> {inviteUnit.name}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5">
+                          {invite.role === 'ADMIN' ? (
+                            <>
+                              <Shield size={16} className="text-indigo-600" />
+                              <span className="font-medium text-indigo-700">Admin</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserIcon size={16} className="text-slate-400" />
+                              <span className="text-slate-600">Usuário</span>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Clock size={12} />
+                          {new Date(invite.expiresAt).toLocaleDateString('pt-BR')}
+                        </div>
+                      </td>
+                      <td className="p-4 text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setInviteToCancel(invite);
+                            setIsCancelInviteOpen(true);
+                          }}
+                          className="text-slate-400 hover:text-red-600"
+                          title="Cancelar convite"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -637,7 +780,11 @@ export const AdminUsers = () => {
                      <Shield className="shrink-0 mt-0.5" size={18} />
                      <div>
                         <p className="font-bold mb-1">Como funcionará o acesso?</p>
-                        <p className="leading-relaxed">Os {validRows.length} usuários válidos serão criados. Eles usarão o <strong>CPF (apenas números) como login e a senha temporária 123456</strong> no primeiro login e serão solicitados a preencher os dados restantes do perfil antes de acessar a plataforma.</p>
+                        <p className="leading-relaxed">
+                          Os {validRows.length} usuários válidos serão provisionados como <strong>convites pendentes</strong>.
+                          Cada um receberá um <strong>link de ativação único</strong> para definir a própria
+                          senha antes do primeiro login. Nenhuma senha temporária é exposta pelo sistema.
+                        </p>
                      </div>
                   </div>
                </div>
@@ -770,7 +917,10 @@ export const AdminUsers = () => {
 
             <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex gap-3 text-amber-800 text-xs">
               <AlertCircle className="shrink-0" size={16} />
-              <p>O acesso é realizado via <strong>CPF (apenas números)</strong> ou E-mail. Senhas são gerenciadas pelo sistema de autenticação segura.</p>
+              <p>
+                O acesso é realizado via <strong>CPF (apenas números)</strong> ou E-mail.
+                {!editingId && ' Ao criar, um link de ativação será gerado para que o convidado defina a própria senha — nenhuma senha temporária é exposta.'}
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -832,6 +982,100 @@ export const AdminUsers = () => {
              <Button type="button" variant="destructive" onClick={handleDeleteUser} disabled={isSubmitting}>
                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Sim, excluir'}
              </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isCancelInviteOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsCancelInviteOpen(false);
+            setTimeout(() => setInviteToCancel(null), 300);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Cancelar Convite</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-slate-600 text-sm">
+              Cancelar o convite enviado para <strong>{inviteToCancel?.name}</strong>?
+            </p>
+            <p className="text-slate-500 text-xs mt-2">
+              O token de ativação correspondente deixará de funcionar imediatamente.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsCancelInviteOpen(false);
+                setTimeout(() => setInviteToCancel(null), 300);
+              }}
+              disabled={isSubmitting}
+            >
+              Voltar
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleCancelInvite} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar Convite'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(activationDialog)}
+        onOpenChange={(open) => {
+          if (!open) setActivationDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Convite criado</DialogTitle>
+          </DialogHeader>
+          {activationDialog && (
+            <div className="space-y-4 py-3">
+              <p className="text-sm text-slate-600">
+                Compartilhe o link de ativação abaixo com{' '}
+                <strong>{activationDialog.invite.name}</strong>. Ele permite definir a própria
+                senha e concluir o cadastro de forma segura.
+              </p>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <Label className="text-[10px] uppercase tracking-wider text-slate-500">
+                  Link de ativação
+                </Label>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 break-all text-xs font-mono bg-white border border-slate-200 rounded p-2">
+                    {activationDialog.activationLink}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleCopyActivationLink(activationDialog.activationLink)}
+                    title="Copiar link"
+                  >
+                    <Copy size={14} />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  Expira em{' '}
+                  {new Date(activationDialog.invite.expiresAt).toLocaleString('pt-BR')}.
+                </p>
+              </div>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-800">
+                Este link é exibido apenas neste momento. Caso o convidado não consiga ativar a
+                conta, cancele o convite e gere outro.
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button type="button" onClick={() => setActivationDialog(null)}>
+              Concluir
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

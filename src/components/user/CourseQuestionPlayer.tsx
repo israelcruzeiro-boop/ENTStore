@@ -80,11 +80,6 @@ export function CourseQuestionPlayer({
   const [isAnswered, setIsAnswered] = useState(!!preAnswered || reviewMode);
   const [answersMap, setAnswersMap] = useState<Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>>(initialAnswers);
 
-  if (questions.length === 0) return null;
-
-  const progress = ((currentIndex + 1) / questions.length) * 100;
-  const options = currentQuestion.options || [];
-
   const handleCurrentQuestionChange = (newIndex: number) => {
     setCurrentIndex(newIndex);
     const qId = questions[newIndex].id;
@@ -147,6 +142,11 @@ export function CourseQuestionPlayer({
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
   }, [selectedOptionId, complexAnswer, currentQuestion, isAnswered, reviewMode, onAutosave]);
+
+  if (questions.length === 0) return null;
+
+  const progress = ((currentIndex + 1) / questions.length) * 100;
+  const options = currentQuestion.options || [];
 
   const handleNext = () => {
     if (reviewMode) {

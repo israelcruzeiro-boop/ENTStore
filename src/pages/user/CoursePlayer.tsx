@@ -14,7 +14,7 @@ import {
   updateEnrollmentProgress,
   useCourseAnswers,
   useOrgStructure
-} from '../../hooks/useSupabaseData';
+} from '../../hooks/usePlatformData';
 import type { CourseContent, CoursePhaseQuestion } from '../../types';
 import { checkCourseAccess } from '../../lib/permissions';
 import { useAuth } from '../../contexts/AuthContext';
@@ -50,7 +50,9 @@ import { CourseQuestionPlayer } from '../../components/user/CourseQuestionPlayer
 import { CourseResultScreen } from '../../components/user/CourseResultScreen';
 import type { Content } from '../../types';
 import { printDiploma, type DiplomaTemplateId } from '../../components/user/CourseDiploma';
-import { supabase } from '../../lib/supabaseClient';
+import { getPublicStorageUrl } from '../../lib/storage';
+import { sanitizeHtml } from '../../utils/sanitizeHtml';
+import { Logger } from '../../utils/logger';
 
 const CircularProgress = memo(({ progress, size = 60, strokeWidth = 5, primaryColor = '#3b82f6' }: { progress: number, size?: number, strokeWidth?: number, primaryColor?: string }) => {
   const { radius, circumference, offset } = useMemo(() => {
@@ -175,7 +177,7 @@ export const UserCoursePlayer = () => {
     if (courseId && user?.id && course?.company_id && !enrollment) {
       startEnrollment(courseId, user.id, course.company_id)
         .then(() => mutateEnrollment())
-        .catch(err => console.error('Error starting enrollment:', err));
+        .catch(err => Logger.warn('Error starting enrollment', err));
     }
   }, [courseId, user?.id, course?.company_id, enrollment, mutateEnrollment]);
 
@@ -237,7 +239,7 @@ export const UserCoursePlayer = () => {
   useEffect(() => {
     if (enrollment && enrollment.status === 'IN_PROGRESS' && activeModuleId && activeContentId) {
       updateEnrollmentProgress(enrollment.id, activeModuleId, activeContentId).catch(err => {
-        console.error('Failed to update progress', err);
+      Logger.warn('Failed to update progress', err);
       });
     }
   }, [enrollment, activeModuleId, activeContentId]);
@@ -249,11 +251,11 @@ export const UserCoursePlayer = () => {
         await completeEnrollment(enrollment.id, correct, total, enrollment.started_at);
         await mutateEnrollment();
       } catch (err) {
-        console.error('Error completing enrollment:', err);
+        Logger.warn('Error completing enrollment', err);
         // Não bloqueia — ainda mostra o resultado
       }
     } else {
-      console.warn('Enrollment não encontrado — exibindo resultado local.');
+        Logger.warn('Enrollment not found; showing local result');
     }
     // SEMPRE mostra o resultado, com ou sem enrollment salvo
     setShowResult(true);
@@ -313,7 +315,7 @@ export const UserCoursePlayer = () => {
       await submitCourseAnswer(enrollment.id, questionId, payload.optionId, payload.isCorrect, payload.complexAnswer);
       mutateAnswers();
     } catch (err) {
-      console.error('Autosave answer failed:', err);
+        Logger.warn('Autosave answer failed', err);
     }
   }, [enrollment, mutateAnswers]);
 
@@ -329,7 +331,7 @@ export const UserCoursePlayer = () => {
         try {
           await submitCourseAnswer(enrollment.id, questionId, answer.optionId, answer.isCorrect, answer.complexAnswer);
         } catch (err) {
-          console.error('Error saving answer:', err);
+      Logger.warn('Error saving answer', err);
         }
       }
       await mutateAnswers();
@@ -369,14 +371,38 @@ export const UserCoursePlayer = () => {
     }
   };
 
-  const getImageUrl = (url?: string | null) => {
-    if (!url) return undefined;
-    if (url.startsWith('http') || url.startsWith('data:')) return url;
-    const { data } = supabase.storage.from('company-assets').getPublicUrl(url);
-    return data.publicUrl;
-  };
+  const [coverUrl, setCoverUrl] = useState<string | undefined>();
 
-  const coverUrl = getImageUrl(course?.image_url || course?.thumbnail_url);
+  useEffect(() => {
+    let cancelled = false;
+    const rawUrl = course?.image_url || course?.thumbnail_url;
+
+    async function resolveCoverUrl() {
+      if (!rawUrl) {
+        if (!cancelled) setCoverUrl(undefined);
+        return;
+      }
+
+      if (rawUrl.startsWith('http') || rawUrl.startsWith('data:')) {
+        if (!cancelled) setCoverUrl(rawUrl);
+        return;
+      }
+
+      try {
+        const publicUrl = await getPublicStorageUrl(rawUrl, 'company-assets');
+        if (!cancelled) setCoverUrl(publicUrl ?? undefined);
+      } catch {
+        if (!cancelled) setCoverUrl(undefined);
+      }
+    }
+
+    void resolveCoverUrl();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [course?.image_url, course?.thumbnail_url]);
+
   const progress = calculateProgress();
 
   if (modulesLoading || enrollmentLoading) {
@@ -440,7 +466,7 @@ export const UserCoursePlayer = () => {
           setShowPhaseQuestions(false);
         } : undefined}
         onPrintDiploma={scoreForDiploma >= (course?.passing_score || 70) ? () => {
-          const w = printDiploma(
+          printDiploma(
             user?.name || 'Aluno',
             course?.title || 'Curso',
             tenantCompany?.name || 'Empresa',
@@ -448,9 +474,6 @@ export const UserCoursePlayer = () => {
             (course?.diploma_template || 'azul') as DiplomaTemplateId,
             tenantCompany?.logo_url
           );
-          if (w === false) {
-             toast.error('O navegador bloqueou a abertura do certificado. Por favor, libere os pop-ups para este site.');
-          }
         } : undefined}
       />
     );
@@ -465,7 +488,7 @@ export const UserCoursePlayer = () => {
     if (cc.type === 'AUDIO') type = 'MUSIC';
     
     // Detecção inteligente de YouTube se o tipo for VIDEO mas a URL for link normal
-    let finalUrl = cc.url || '';
+    const finalUrl = cc.url || '';
     let embedUrl = cc.url || '';
     
     if (type === 'VIDEO' && finalUrl) {
@@ -758,7 +781,7 @@ export const UserCoursePlayer = () => {
                       <div className="rounded-3xl overflow-hidden shadow-2xl border border-white/[0.06] bg-white">
                         <div 
                           className="prose prose-slate max-w-none text-slate-800 p-6 md:p-12 text-sm md:text-lg leading-relaxed shadow-inner"
-                          dangerouslySetInnerHTML={{ __html: currentContent.html_content }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentContent.html_content) }}
                         />
                       </div>
                     ) : (

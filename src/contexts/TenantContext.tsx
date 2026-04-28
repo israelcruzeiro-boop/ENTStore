@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect } from 'react';
-import { useParams, Outlet } from 'react-router-dom';
-import { usePublicCompanyBySlug } from '../hooks/useSupabaseData';
-import { Company } from '../types';
+import { Outlet, useParams } from 'react-router-dom';
+import { usePublicTenant } from '@/hooks/useApiData';
+import type { Company } from '@/types';
 
 interface TenantContextType {
   tenantCompany: Company | null;
@@ -12,9 +12,9 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export const TenantProvider = () => {
   const { companySlug } = useParams<{ companySlug: string }>();
-  const { company: tenantCompany } = usePublicCompanyBySlug(companySlug);
-  
-  const slug = companySlug || '';
+  const { company: tenantCompany } = usePublicTenant(companySlug);
+
+  const slug = companySlug ?? '';
 
   useEffect(() => {
     const root = document.documentElement;

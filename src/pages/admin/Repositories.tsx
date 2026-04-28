@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies, useUsers, useRepositories, useOrgStructure, useContents, useSimpleLinks } from '../../hooks/useSupabaseData';
+import { useAuth } from '../../contexts/AuthContext';
+import { useRepositories, useAdminUsers, useAdminStructure } from '../../hooks/useApiData';
+import { repositoriesService } from '../../services/api';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, XCircle, Edit2, Trash2, FolderTree, Image as ImageIcon, Layers, FolderOpen, Lock, Globe, List, MonitorPlay, Loader2, Music, Sun, MoveVertical, PlaySquare, HelpCircle } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Repository } from '../../types';
-import { repositorySchema } from '../../types/schemas';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
 import { Logger } from '../../utils/logger';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 import { Joyride } from 'react-joyride';
@@ -21,15 +21,11 @@ import { REPOSITORIES_STEPS } from '../../data/tourSteps';
 
 export const AdminRepositories = () => {
   const { companySlug } = useParams();
-  
-  const { companies, isLoading: loadingCompanies } = useCompanies();
-  const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
-  
-  const { users, isLoading: loadingUsers } = useUsers(company?.id);
-  const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories(company?.id);
-  const { orgTopLevels, orgUnits, isLoading: loadingOrg } = useOrgStructure(company?.id);
-  const { contents, isLoading: loadingContents } = useContents({ companyId: company?.id });
-  const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ companyId: company?.id });
+  const { company } = useAuth();
+
+  const { users, isLoading: loadingUsers } = useAdminUsers();
+  const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories();
+  const { orgTopLevels, orgUnits, isLoading: loadingOrg } = useAdminStructure(company?.id);
 
   // Tour Guiado (Tutorial) - Regras dos Hooks exigem que seja no topo!
   const { startTour, joyrideProps } = useTour(REPOSITORIES_STEPS);
@@ -49,7 +45,7 @@ export const AdminRepositories = () => {
   const companyUnitsLocal = orgUnits.filter(u => u.active);
 
   const unitLabel = company?.org_unit_name || 'Unidade';
-  const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }];
+  const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: 'Regional' }];
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,7 +93,6 @@ export const AdminRepositories = () => {
           currentParent = companyTopLevels.find(t => t.id === currentParent?.parent_id);
         }
       }
-      if (u.org_top_level_id && formData.allowed_region_ids.includes(u.org_top_level_id)) return true;
       return false;
     });
   }, [formData.allowed_region_ids, formData.allowed_store_ids, companyUsers, companyUnitsLocal, companyTopLevels]);
@@ -111,7 +106,7 @@ export const AdminRepositories = () => {
     });
   }, [usersInScope]);
 
-  if (loadingCompanies || loadingRepos) {
+  if (loadingRepos) {
     return <div className="flex h-[50vh] items-center justify-center">
       <Loader2 className="animate-spin text-slate-400" size={32} />
     </div>;
@@ -130,7 +125,7 @@ export const AdminRepositories = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading('Otimizando e enviando imagem...');
-        const publicUrl = await uploadToSupabase(file, 'assets', `repositories/${company.id}/${field}`, context);
+        const publicUrl = await uploadFile(file, 'assets', `repositories/${company.id}/${field}`, context);
         toast.dismiss(toastId);
         if (publicUrl) {
           setFormData(prev => ({ ...prev, [field]: publicUrl }));
@@ -217,28 +212,30 @@ export const AdminRepositories = () => {
 
     try {
       setIsSubmitting(true);
-      
-      const payload = { 
-        ...formData, 
+
+      const apiPayload = {
         name: repoName,
-        company_id: company.id 
+        description: formData.description,
+        type: formData.type,
+        coverImage: formData.cover_image || null,
+        bannerImage: formData.banner_image || null,
+        bannerPosition: formData.banner_position,
+        bannerBrightness: formData.banner_brightness,
+        featured: formData.featured,
+        showInLanding: formData.show_in_landing,
+        status: formData.status,
+        accessType: formData.access_type,
+        allowedUserIds: formData.allowed_user_ids,
+        allowedRegionIds: formData.allowed_region_ids,
+        allowedStoreIds: formData.allowed_store_ids,
+        excludedUserIds: formData.excluded_user_ids,
       };
 
-      const validation = editingId
-        ? repositorySchema.partial().safeParse(payload)
-        : repositorySchema.safeParse(payload);
-
-      if (!validation.success) {
-        return toast.error("Dados inválidos: " + validation.error.format());
-      }
-
       if (editingId) {
-        const { error } = await supabase.from('repositories').update(validation.data).eq('id', editingId);
-        if (error) throw error;
+        await repositoriesService.update(editingId, apiPayload);
         toast.success('Repositório atualizado com sucesso!');
       } else {
-        const { error } = await supabase.from('repositories').insert(validation.data);
-        if (error) throw error;
+        await repositoriesService.create(apiPayload);
         toast.success('Repositório criado com sucesso!');
       }
       await mutateRepos();
@@ -256,19 +253,12 @@ export const AdminRepositories = () => {
     if (repoToDelete) {
       try {
         setIsSubmitting(true);
-        // IMPLEMENTAÇÃO DE SOFT DELETE
-        const { error } = await supabase
-          .from('repositories')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', repoToDelete.id);
-          
-        if (error) throw error;
-        
-        toast.success('Repositório removido da lista (Soft Delete).');
+        await repositoriesService.delete(repoToDelete.id);
+        toast.success('Repositório removido.');
         mutateRepos();
       } catch (err) {
         const error = err as Error;
-        Logger.error('Erro ao realizar soft delete de repositório:', error);
+        Logger.error('Erro ao excluir repositório:', error);
         toast.error('Erro ao excluir repositório.');
       } finally {
         setIsSubmitting(false);
@@ -279,12 +269,12 @@ export const AdminRepositories = () => {
 
   const toggleStatus = async (repo: Repository) => {
     const newStatus = repo.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE';
-    const { error } = await supabase.from('repositories').update({ status: newStatus }).eq('id', repo.id);
-    if (error) {
-      toast.error('Erro ao alterar status.');
-    } else {
+    try {
+      await repositoriesService.update(repo.id, { status: newStatus });
       toast.success(`Status alterado para ${newStatus === 'ACTIVE' ? 'Ativo' : 'Rascunho'}.`);
       mutateRepos();
+    } catch {
+      toast.error('Erro ao alterar status.');
     }
   };
 
@@ -323,10 +313,6 @@ export const AdminRepositories = () => {
              </thead>
              <tbody className="divide-y divide-slate-100">
                 {companyRepos.map(repo => {
-                   const itemsCount = repo.type === 'SIMPLE' 
-                      ? simpleLinks.filter(l => l.repository_id === repo.id).length 
-                      : contents.filter(c => c.repository_id === repo.id).length;
-                   
                    const isRestricted = repo.access_type === 'RESTRICTED';
 
                    return (
@@ -383,8 +369,8 @@ export const AdminRepositories = () => {
                         </td>
                         <td className="p-4 text-center">
                            <div className="flex flex-col items-center justify-center">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${itemsCount > 0 ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-slate-100 text-slate-500'}`}>
-                                <Layers size={14} /> {(loadingContents || loadingLinks) ? <Loader2 size={12} className="animate-spin" /> : itemsCount}
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
+                                <Layers size={14} /> —
                               </span>
                            </div>
                         </td>
@@ -557,12 +543,12 @@ export const AdminRepositories = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center mb-4">
                  <h3 className="text-sm font-semibold text-slate-900">Privacidade e Acesso</h3>
-                 {company.landing_page_enabled !== false && (
+                 <>
                    <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-slate-600 bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Landing Page Pública</span>
                       <Switch checked={formData.show_in_landing || false} onCheckedChange={(val) => setFormData({...formData, show_in_landing: val})} title="Exibir na Landing Page Pública" disabled={isSubmitting} />
                    </div>
-                 )}
+                 </>
               </div>
               <div className="flex gap-6">
                  <label className="flex items-center gap-2 cursor-pointer">

@@ -1,316 +1,228 @@
-import { supabase } from '../lib/supabaseClient';
-import { 
-  Course, 
-  CourseModule, 
-  CourseContent, 
-  CoursePhaseQuestion, 
+import {
+  coursesService,
+  mapApiCourseAnswerToFrontend,
+  mapApiCourseContentToFrontend,
+  mapApiCourseEnrollmentToFrontend,
+  mapApiCourseModuleToFrontend,
+  mapApiCourseQuestionToFrontend,
+  mapApiCourseToFrontend,
+  mapApiQuizAttemptToFrontend,
+  mapApiQuizQuestionToFrontend,
+  mapApiQuizToFrontend,
+  type CourseContentPayload,
+  type CoursePayload,
+  type CourseQuestionPayload,
+} from './api';
+import type {
+  Course,
+  CourseAnswer,
+  CourseContent,
   CourseEnrollment,
-  CourseAnswer 
+  CourseModule,
+  CoursePhaseQuestion,
+  QuizAttempt,
 } from '../types';
-import { 
-  courseSchema, 
-  courseModuleSchema, 
-  courseContentSchema, 
-  courseEnrollmentSchema, 
-  courseAnswerSchema,
-  coursePhaseQuestionSchema
-} from '../types/schemas';
-import { Logger } from '../utils/logger';
 
-/**
- * Service to handle all Course-related operations.
- * Implements architectural robustness by centralizing Supabase calls and Zod validation.
- */
+function toCoursePayload(course: Partial<Course>): Partial<CoursePayload> {
+  return {
+    title: course.title,
+    description: course.description,
+    thumbnailUrl: course.thumbnail_url ?? course.image_url ?? course.cover_image ?? null,
+    coverImage: course.cover_image ?? null,
+    imageUrl: course.image_url ?? course.thumbnail_url ?? null,
+    status: course.status,
+    accessType: course.access_type,
+    allowedUserIds: course.allowed_user_ids,
+    allowedRegionIds: course.allowed_region_ids,
+    allowedStoreIds: course.allowed_store_ids,
+    excludedUserIds: course.excluded_user_ids,
+    targetAudience: course.target_audience,
+    passingScore: course.passing_score,
+    diplomaTemplate: course.diploma_template,
+  };
+}
+
+function toModulePayload(module: Partial<CourseModule>) {
+  return {
+    title: module.title ?? '',
+    orderIndex: module.order_index ?? 0,
+  };
+}
+
+function toContentPayload(content: Partial<CourseContent>): Partial<CourseContentPayload> {
+  return {
+    title: content.title,
+    description: content.description,
+    type: content.type,
+    url: content.url ?? content.content_url ?? '',
+    contentUrl: content.content_url ?? content.url ?? null,
+    filePath: content.file_path ?? null,
+    sizeBytes: content.size_bytes ?? null,
+    htmlContent: content.html_content ?? null,
+    orderIndex: content.order_index,
+  };
+}
+
+function toQuestionPayload(question: Partial<CoursePhaseQuestion>, options?: Array<Partial<{ id: string; option_text: string; is_correct: boolean; order_index: number }>>): Partial<CourseQuestionPayload> {
+  return {
+    questionText: question.question_text,
+    questionType: question.question_type,
+    configuration: question.configuration,
+    imageUrl: question.image_url ?? null,
+    explanation: question.explanation ?? null,
+    orderIndex: question.order_index,
+    options: options?.map((option, index) => ({
+      id: option.id ?? null,
+      optionText: option.option_text ?? '',
+      isCorrect: option.is_correct ?? false,
+      orderIndex: option.order_index ?? index,
+    })),
+  };
+}
+
 export const courseService = {
-  // --- READ OPERATIONS ---
-
-  async getCourses(companyId: string): Promise<Course[]> {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*, course_modules(count)')
-      .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    
-    // Process module count
-    const processed = (data || []).map((c: any) => ({
-      ...c,
-      module_count: c.course_modules?.[0]?.count ?? 0
-    }));
-
-    return processed as Course[];
+  async getCourses(_companyId: string): Promise<Course[]> {
+    const courses = await coursesService.listCourses();
+    return courses.map(mapApiCourseToFrontend);
   },
 
   async getModules(courseId: string): Promise<CourseModule[]> {
-    const { data, error } = await supabase
-      .from('course_modules')
-      .select('*')
-      .eq('course_id', courseId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true });
-
-    if (error) throw error;
-    return data as CourseModule[];
+    const modules = await coursesService.listModules(courseId);
+    return modules.map(mapApiCourseModuleToFrontend);
   },
 
-  async getContents(moduleId: string): Promise<CourseContent[]> {
-    const { data, error } = await supabase
-      .from('course_contents')
-      .select('*, quizzes(id)')
-      .eq('module_id', moduleId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true });
-
-    if (error) throw error;
-    return data as CourseContent[];
+  async getContents(moduleId: string): Promise<(CourseContent & { quizzes?: Array<{ id: string }> })[]> {
+    const contents = await coursesService.listContents(moduleId);
+    return contents.map(mapApiCourseContentToFrontend);
   },
 
   async getQuestions(moduleId: string): Promise<CoursePhaseQuestion[]> {
-    const { data, error } = await supabase
-      .from('course_phase_questions')
-      .select('*, options:course_question_options(*)')
-      .eq('module_id', moduleId)
-      .is('deleted_at', null)
-      .order('order_index', { ascending: true });
-
-    if (error) throw error;
-    return data as CoursePhaseQuestion[];
+    const questions = await coursesService.listQuestions(moduleId);
+    return questions.map(mapApiCourseQuestionToFrontend);
   },
 
-  async getEnrollment(courseId: string, userId: string): Promise<CourseEnrollment | null> {
-    const { data, error } = await supabase
-      .from('course_enrollments')
-      .select('*')
-      .eq('course_id', courseId)
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
+  async getEnrollment(courseId: string, _userId: string): Promise<CourseEnrollment | null> {
+    const enrollment = await coursesService.getEnrollment(courseId);
+    return enrollment ? mapApiCourseEnrollmentToFrontend(enrollment) : null;
   },
-
-  // --- MUTATION OPERATIONS (User) ---
 
   async startEnrollment(payload: { course_id: string; user_id: string; company_id: string }) {
-    const validated = courseEnrollmentSchema.parse({
-      ...payload,
-      status: 'IN_PROGRESS',
-      started_at: new Date().toISOString()
-    });
-
-    const { data, error } = await supabase
-      .from('course_enrollments')
-      .insert(validated)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const enrollment = await coursesService.startEnrollment(payload.course_id);
+    return mapApiCourseEnrollmentToFrontend(enrollment);
   },
 
-  async updateProgress(enrollmentId: string, moduleId: string, contentId: string) {
-    const { error } = await supabase
-      .from('course_enrollments')
-      .update({
-        current_module_id: moduleId,
-        current_content_id: contentId,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', enrollmentId);
-
-    if (error) throw error;
+  async updateProgress(enrollmentId: string, moduleId: string | null, contentId: string | null) {
+    const enrollment = await coursesService.updateProgress(enrollmentId, {
+      moduleId: moduleId || null,
+      contentId: contentId || null,
+    });
+    return mapApiCourseEnrollmentToFrontend(enrollment);
   },
 
   async completeEnrollment(enrollmentId: string, correct: number, total: number, startedAt?: string) {
-    const score = total > 0 ? Math.round((correct / total) * 100) : 100;
-    const completedAt = new Date().toISOString();
-    
-    // Calculate time spent if startedAt is provided
-    let timeSpent = 0;
-    if (startedAt) {
-      timeSpent = Math.floor((new Date(completedAt).getTime() - new Date(startedAt).getTime()) / 1000);
-    }
-
-    const { error } = await supabase
-      .from('course_enrollments')
-      .update({
-        status: 'COMPLETED',
-        completed_at: completedAt,
-        score_percent: score,
-        total_correct: correct,
-        total_questions: total,
-        time_spent_seconds: timeSpent
-      })
-      .eq('id', enrollmentId);
-
-    if (error) throw error;
+    const enrollment = await coursesService.completeEnrollment(enrollmentId, {
+      totalCorrect: correct,
+      totalQuestions: total,
+      startedAt,
+    });
+    return mapApiCourseEnrollmentToFrontend(enrollment);
   },
 
   async getAnswers(enrollmentId: string): Promise<CourseAnswer[]> {
-    const { data, error } = await supabase
-      .from('course_answers')
-      .select('*')
-      .eq('enrollment_id', enrollmentId);
-
-    if (error) throw error;
-    return data as CourseAnswer[];
+    const answers = await coursesService.listAnswers(enrollmentId);
+    return answers.map(mapApiCourseAnswerToFrontend);
   },
 
-  async saveQuestion(question: any, options?: any[]) {
-    const validated = coursePhaseQuestionSchema.parse(question);
-    let questionId = question.id;
-
-    if (questionId) {
-      const { error } = await supabase.from('course_phase_questions').update(validated).eq('id', questionId);
-      if (error) throw error;
-    } else {
-      const { data, error } = await supabase.from('course_phase_questions').insert(validated).select('id').single();
-      if (error) throw error;
-      questionId = data.id;
-    }
-
-    if (question.question_type === 'MULTIPLE_CHOICE' && options) {
-      if (question.id) {
-        // Soft delete de opções antigas
-        await supabase.from('course_question_options').update({ deleted_at: new Date().toISOString() }).eq('question_id', questionId);
-      }
-      const validatedOptions = options.map((opt, idx) => ({
-        ...opt,
-        question_id: questionId,
-        order_index: idx
-      }));
-      const { error } = await supabase.from('course_question_options').insert(validatedOptions);
-      if (error) throw error;
-    }
-
-    return questionId;
+  async saveQuestion(question: Partial<CoursePhaseQuestion>, options?: Array<Partial<{ id: string; option_text: string; is_correct: boolean; order_index: number }>>) {
+    const payload = toQuestionPayload(question, options);
+    const saved = question.id
+      ? await coursesService.updateQuestion(question.id, payload)
+      : await coursesService.createQuestion(question.module_id ?? '', payload as CourseQuestionPayload);
+    return saved.id;
   },
 
   async deleteQuestion(id: string) {
-    const { error } = await supabase.from('course_phase_questions').update({ deleted_at: new Date().toISOString() }).eq('id', id);
-    if (error) throw error;
+    await coursesService.deleteQuestion(id);
   },
 
-  async submitAnswer(answer: any) {
-    const validated = courseAnswerSchema.parse({
-      ...answer,
-      answered_at: new Date().toISOString()
+  async submitAnswer(answer: Partial<CourseAnswer>) {
+    await coursesService.submitAnswer(answer.enrollment_id ?? '', {
+      questionId: answer.question_id ?? '',
+      selectedOptionId: answer.selected_option_id ?? null,
+      complexAnswer: answer.complex_answer ?? null,
+      isCorrect: answer.is_correct ?? false,
     });
-
-    const { error } = await supabase
-      .from('course_answers')
-      .upsert(validated, { onConflict: 'enrollment_id,question_id' });
-
-    if (error) throw error;
   },
-
-  // --- MUTATION OPERATIONS (Admin) ---
 
   async saveModule(module: Partial<CourseModule>) {
-    const validated = courseModuleSchema.parse(module);
-    const { data, error } = await supabase
-      .from('course_modules')
-      .upsert(validated)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const payload = toModulePayload(module);
+    const saved = module.id
+      ? await coursesService.updateModule(module.id, payload)
+      : await coursesService.createModule(module.course_id ?? '', payload);
+    return mapApiCourseModuleToFrontend(saved);
   },
 
   async deleteModule(id: string) {
-    const { error } = await supabase
-      .from('course_modules')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) throw error;
+    await coursesService.deleteModule(id);
   },
 
   async saveContent(content: Partial<CourseContent>) {
-    const validated = courseContentSchema.parse(content);
-    const { data, error } = await supabase
-      .from('course_contents')
-      .upsert(validated)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const payload = toContentPayload(content);
+    const saved = content.id
+      ? await coursesService.updateContent(content.id, payload)
+      : await coursesService.createContent(content.module_id ?? '', payload as CourseContentPayload);
+    return mapApiCourseContentToFrontend(saved);
   },
 
   async deleteContent(id: string) {
-    const { error } = await supabase
-      .from('course_contents')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) throw error;
+    await coursesService.deleteContent(id);
   },
 
-  async saveCourse(id: string, payload: any) {
-    const validated = courseSchema.partial().parse(payload);
-    const { error } = await supabase
-      .from('courses')
-      .update(validated)
-      .eq('id', id);
-    
-    if (error) throw error;
+  async saveCourse(id: string, payload: Partial<Course>) {
+    await coursesService.updateCourse(id, toCoursePayload(payload));
   },
 
-  // Alias used by CourseDetails admin builder
-  async updateCourse(id: string, payload: any) {
-    const validated = courseSchema.partial().parse(payload);
-    const { error } = await supabase
-      .from('courses')
-      .update(validated)
-      .eq('id', id);
+  async updateCourse(id: string, payload: Partial<Course>) {
+    await coursesService.updateCourse(id, toCoursePayload(payload));
+  },
 
-    if (error) throw error;
+  async createCourse(payload: Partial<Course>) {
+    const saved = await coursesService.createCourse(toCoursePayload(payload) as CoursePayload);
+    return mapApiCourseToFrontend(saved);
   },
 
   async deleteCourse(id: string) {
-    const { error } = await supabase
-      .from('courses')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) throw error;
+    await coursesService.deleteCourse(id);
   },
 
   async createModule(module: Partial<CourseModule>) {
-    const validated = courseModuleSchema.parse(module);
-    const { data, error } = await supabase
-      .from('course_modules')
-      .insert(validated)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const saved = await coursesService.createModule(module.course_id ?? '', toModulePayload(module));
+    return mapApiCourseModuleToFrontend(saved);
   },
 
   async createContent(content: Partial<CourseContent>) {
-    const validated = courseContentSchema.parse(content);
-    const { data, error } = await supabase
-      .from('course_contents')
-      .insert(validated)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const saved = await coursesService.createContent(content.module_id ?? '', toContentPayload(content) as CourseContentPayload);
+    return mapApiCourseContentToFrontend(saved);
   },
 
   async updateModule(id: string, payload: Partial<CourseModule>) {
-    const { error } = await supabase
-      .from('course_modules')
-      .update(payload)
-      .eq('id', id);
+    await coursesService.updateModule(id, toModulePayload(payload));
+  },
 
-    if (error) throw error;
-  }
+  async getQuiz(params: { contentId?: string; courseContentId?: string }) {
+    return mapApiQuizToFrontend(await coursesService.getQuiz(params));
+  },
+
+  async getQuizQuestions(quizId: string) {
+    return (await coursesService.listQuizQuestions(quizId)).map(mapApiQuizQuestionToFrontend);
+  },
+
+  async submitQuizAttempt(attempt: Omit<QuizAttempt, 'id' | 'completed_at'>) {
+    const saved = await coursesService.submitQuizAttempt(attempt.quiz_id, {
+      score: attempt.score,
+      passed: attempt.passed,
+      answers: attempt.answers,
+    });
+    return mapApiQuizAttemptToFrontend(saved);
+  },
 };

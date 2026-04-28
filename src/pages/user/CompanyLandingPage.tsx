@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { usePublicCompanyBySlug, usePublicRepositories } from '../../hooks/useSupabaseData';
+import { usePublicCompanyBySlug, usePublicRepositories } from '../../hooks/usePlatformData';
 import { Loader2, ArrowLeft, Play, Globe, Star, Folder, Library, Search, MonitorPlay, PlaySquare, LayoutGrid } from 'lucide-react';
 import { RepoCard } from '../../components/user/RepoCard';
 import { PublicRepoModal } from '../../components/user/PublicRepoModal';
@@ -10,7 +10,7 @@ import { HeaderLayout } from '../../components/user/HeaderLayout';
 export const CompanyLandingPage = () => {
   const { companySlug } = useParams();
   const { company, isLoading: loadingCompany } = usePublicCompanyBySlug(companySlug);
-  const { repositories, isLoading: loadingRepos } = usePublicRepositories(company?.id);
+  const { repositories, isLoading: loadingRepos } = usePublicRepositories(company?.slug);
 
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useCompanies } from '../hooks/useSupabaseData';
+import { useCompanies } from '../hooks/usePlatformData';
 import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2, BookOpen, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';

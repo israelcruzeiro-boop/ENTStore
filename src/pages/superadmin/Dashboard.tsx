@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
-import { useCompanies, useUsers } from '../../hooks/useSupabaseData';
+import { useCompanies, useUsers } from '../../hooks/usePlatformData';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -11,10 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2, Plus } from 'lucide-react';
 import { Company, User, Theme } from '../../types';
-import { adminProvisioningSchema } from '../../types/schemas';
-import { z } from 'zod';
 import { Logger } from '../../utils/logger';
-import { uploadToSupabase } from '../../lib/storage';
+import { uploadFile } from '../../lib/storage';
+import { superAdminService } from '../../services/api';
+import { ApiException } from '../../services/api/client';
 
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
 
@@ -30,7 +29,7 @@ export const SuperAdminDashboard = () => {
   const [formData, setFormData] = useState({ 
     name: '', link_name: '', logo_url: '', active: true, 
     landing_page_enabled: true, checklists_enabled: false,
-    adminName: '', adminEmail: '', adminPassword: ''
+    adminName: '', adminEmail: ''
   });
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -40,7 +39,7 @@ export const SuperAdminDashboard = () => {
 
   const [adminFormView, setAdminFormView] = useState(false);
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
-  const [adminFormData, setAdminFormData] = useState({ name: '', email: '', password: '', active: true });
+  const [adminFormData, setAdminFormData] = useState({ name: '', email: '', active: true });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -63,7 +62,7 @@ export const SuperAdminDashboard = () => {
       setFormData({ 
         name: '', link_name: '', logo_url: '', active: true, 
         landing_page_enabled: true, checklists_enabled: false,
-        adminName: '', adminEmail: '', adminPassword: ''
+        adminName: '', adminEmail: ''
       });
       setActiveTab('details');
     }, 300);
@@ -111,7 +110,6 @@ export const SuperAdminDashboard = () => {
       checklists_enabled: ckEnabled === true,
       adminName: companyAdmin?.name || '',
       adminEmail: companyAdmin?.email || '',
-      adminPassword: ''
     });
     setActiveTab('details');
     setIsFormOpen(true);
@@ -125,7 +123,6 @@ export const SuperAdminDashboard = () => {
     const normalizedLink = formData.link_name?.toLowerCase().trim();
 
     try {
-      // 1. VALIDAÇÃO RIGOROSA (Zod + Manual)
       if (!formData.name || !formData.link_name) {
         throw new Error('O nome e o link da empresa são obrigatórios.');
       }
@@ -134,22 +131,6 @@ export const SuperAdminDashboard = () => {
         throw new Error('O nome e o e-mail do administrador são obrigatórios.');
       }
 
-      // Validação de E-mail e Senha via Schema Central
-      try {
-        const validationData: any = { 
-          name: formData.adminName,
-          email: formData.adminEmail,
-          password: (isNew || formData.adminPassword) ? formData.adminPassword : 'dummy-pass' 
-        };
-        adminProvisioningSchema.parse(validationData);
-      } catch (e: any) {
-        if (e instanceof z.ZodError) {
-          throw new Error(e.errors[0].message);
-        }
-        throw e;
-      }
-
-      // 2. VERIFICAÇÃO DE EXISTÊNCIA (Incluindo Deletados)
       const existingCompany = companies.find(c => 
         c.link_name?.toLowerCase().trim() === normalizedLink
       );
@@ -163,64 +144,48 @@ export const SuperAdminDashboard = () => {
       }
 
       if (isNew || isReactivating) {
-        // --- INSERÇÃO OU REATIVAÇÃO DA EMPRESA ---
-        const payload: any = {
-          name: formData.name, 
-          link_name: formData.link_name, 
-          slug: formData.link_name, 
-          logo_url: formData.logo_url, 
-          active: true, 
-          landing_page_enabled: Boolean(formData.landing_page_enabled),
-          landing_page_active: Boolean(formData.landing_page_enabled),
-          checklists_enabled: Boolean(formData.checklists_enabled),
-          deleted_at: null // LIMPEZA CRÍTICA DO SOFT DELETE
+        const payload = {
+          name: formData.name,
+          slug: formData.link_name,
+          linkName: formData.link_name,
+          logoUrl: formData.logo_url || null,
+          active: true,
+          landingPageEnabled: Boolean(formData.landing_page_enabled),
+          landingPageActive: Boolean(formData.landing_page_enabled),
+          checklistsEnabled: Boolean(formData.checklists_enabled),
         };
 
-        if (companyIdForSave) payload.id = companyIdForSave;
-
-        const { data: savedCompany, error: insError } = await supabase.from('companies').upsert(payload).select('id').single();
-
-        if (insError) throw insError;
+        const savedCompany = companyIdForSave
+          ? await superAdminService.updateCompany(companyIdForSave, payload)
+          : await superAdminService.createCompany(payload);
         companyIdForSave = savedCompany.id;
         toast.success(isReactivating ? 'Empresa reativada com sucesso!' : 'Empresa criada!');
       } else {
-        // --- ATUALIZAÇÃO DA EMPRESA ---
-        const { error: updError } = await supabase.from('companies').update({
-          name: formData.name, 
-          logo_url: formData.logo_url, 
-          active: Boolean(formData.active), 
-          landing_page_enabled: Boolean(formData.landing_page_enabled),
-          landing_page_active: Boolean(formData.landing_page_enabled),
-          checklists_enabled: Boolean(formData.checklists_enabled),
-          deleted_at: null // Garantindo que não permaneça deletado se houver update
-        }).eq('id', companyIdForSave);
-
-        if (updError) throw updError;
-        toast.success('Configurações salvas!');
+        await superAdminService.updateCompany(companyIdForSave!, {
+          name: formData.name,
+          logoUrl: formData.logo_url || null,
+          active: Boolean(formData.active),
+          landingPageEnabled: Boolean(formData.landing_page_enabled),
+          landingPageActive: Boolean(formData.landing_page_enabled),
+          checklistsEnabled: Boolean(formData.checklists_enabled),
+        });
+        toast.success('Configuracoes salvas!');
       }
 
-      // --- PROVISIONAMENTO DO ADMIN (Apenas na Criação) ---
-      // Chama a RPC provision_invite: o servidor valida role/tenant, grava em
-      // provisioned_invites (ou atualiza o perfil existente se já houver conta
-      // no auth.users). A "Senha Inicial" do formulário é apenas visual — não
-      // trafega mais daqui pra frente; o usuário define a senha dele no
-      // primeiro login, via signUp.
-      if (!editingId && formData.adminEmail && formData.adminName) {
+      if (!editingId && formData.adminEmail && formData.adminName && companyIdForSave) {
         const cleanEmail = formData.adminEmail.toLowerCase().trim();
 
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('provision_invite', {
-          target_email: cleanEmail,
-          target_name: formData.adminName,
-          target_role: 'ADMIN',
-          target_company_id: companyIdForSave
-        });
-
-        if (rpcError) {
-          Logger.error('Erro ao provisionar admin:', rpcError);
-          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${rpcError.message}`);
-        } else {
-          const status = (rpcResult as any)?.status;
-          toast.success(`Admin ${cleanEmail} ${status === 'updated_existing' ? 'atualizado' : 'convidado'}!`);
+        try {
+          const result = await superAdminService.provisionTenantAdmin(companyIdForSave, {
+            name: formData.adminName,
+            email: cleanEmail,
+            role: 'ADMIN',
+          });
+          toast.success(`Admin ${cleanEmail} ${result.status === 'updated_existing' ? 'atualizado' : 'convidado'}!`);
+        } catch (err) {
+          const message = err instanceof ApiException ? err.message : (err as Error).message;
+          Logger.error('Erro ao provisionar admin:', err);
+          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${message}`);
         }
       }
 
@@ -236,26 +201,20 @@ export const SuperAdminDashboard = () => {
   };
 
   const toggleCompanyStatus = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase.from('companies').update({ 
-      active: !currentStatus,
-      updated_at: new Date().toISOString()
-    }).eq('id', id);
-    if (!error) mutateCompanies();
-    else toast.error('Erro ao alterar status.');
+    try {
+      await superAdminService.updateCompanyStatus(id, { active: !currentStatus });
+      mutateCompanies();
+    } catch (error: any) {
+      Logger.error('Erro ao alterar status da empresa:', error);
+      toast.error(error.message || 'Erro ao alterar status.');
+    }
   };
 
   const handleDeleteCompany = async (id: string, name: string) => {
-    if (!window.confirm(`Tem certeza que deseja ARQUIVAR a empresa "${name}"?\nIsso removerá o acesso dos usuários.`)) return;
+    if (!window.confirm(`Tem certeza que deseja ARQUIVAR a empresa "${name}"?\nIsso removera o acesso dos usuarios.`)) return;
     
     try {
-      const { error } = await supabase.from('companies')
-        .update({ 
-          deleted_at: new Date().toISOString(),
-          active: false 
-        })
-        .eq('id', id);
-
-      if (error) throw error;
+      await superAdminService.deleteCompany(id);
       toast.success('Empresa arquivada com sucesso!');
       mutateCompanies();
     } catch (error: any) {
@@ -273,45 +232,34 @@ export const SuperAdminDashboard = () => {
       const cleanEmail = adminFormData.email.toLowerCase().trim();
       
       if (editingAdminId) {
-         if (adminFormData.password && adminFormData.password.length < 6) {
-           throw new Error("A nova senha deve ter pelo menos 6 caracteres.");
-         }
          if (!cleanEmail || !adminFormData.name) {
            throw new Error("Nome e E-mail são obrigatórios.");
          }
          
-         const updatePayload: any = { 
+         const updatePayload = { 
            name: adminFormData.name, 
            email: cleanEmail,
            active: adminFormData.active 
          };
-         if (adminFormData.password) updatePayload.password = adminFormData.password;
          
-         const { error } = await supabase.from('users').update(updatePayload).eq('id', editingAdminId);
-         if (error) throw error;
+         await superAdminService.updateUser(editingAdminId, updatePayload);
          toast.success('Admin atualizado!');
       } else {
          if (!cleanEmail || !adminFormData.name) {
            throw new Error("Nome e E-mail são obrigatórios.");
          }
-
-         // Senha inicial é apenas visual — ignorada no provisionamento.
-         // O admin define a própria senha no primeiro login (signUp).
-         const { error: rpcError } = await supabase.rpc('provision_invite', {
-           target_email: cleanEmail,
-           target_name: adminFormData.name,
-           target_role: 'ADMIN',
-           target_company_id: activeCompany.id
+         await superAdminService.provisionTenantAdmin(activeCompany.id, {
+           name: adminFormData.name,
+           email: cleanEmail,
+           role: 'ADMIN',
          });
-
-         if (rpcError) throw rpcError;
          toast.success('Novo administrador provisionado!');
       }
       
       await mutateUsers();
       setAdminFormView(false);
       setEditingAdminId(null);
-      setAdminFormData({ name: '', email: '', password: '', active: true });
+      setAdminFormData({ name: '', email: '', active: true });
     } catch (error: any) {
       Logger.error('Erro ao salvar admin:', error);
       toast.error(error.message || 'Falha ao salvar administrador.');
@@ -321,8 +269,13 @@ export const SuperAdminDashboard = () => {
   };
 
   const toggleUserStatus = async (id: string, currentStatus: boolean) => {
-     await supabase.from('users').update({ active: !currentStatus }).eq('id', id);
-     mutateUsers();
+     try {
+       await superAdminService.updateUserStatus(id, { active: !currentStatus });
+       mutateUsers();
+     } catch (error: any) {
+       Logger.error('Erro ao alterar status do admin:', error);
+       toast.error(error.message || 'Erro ao alterar status do admin.');
+     }
   };
 
   const activeAdmins = users.filter(u => {
@@ -368,7 +321,7 @@ export const SuperAdminDashboard = () => {
     if (file) {
       try {
         setIsUploading(true);
-        const url = await uploadToSupabase(file, 'uploads', 'companies/logos', 'logo');
+        const url = await uploadFile(file, 'uploads', 'companies/logos', 'logo');
         if (url) setFormData({ ...formData, logo_url: url });
       } catch (err) {
         Logger.error('Erro upload:', err);
@@ -393,7 +346,7 @@ export const SuperAdminDashboard = () => {
               setFormData({
                 name: '', link_name: '', logo_url: '', active: true, 
                 landing_page_enabled: true, checklists_enabled: true,
-                adminName: '', adminEmail: '', adminPassword: ''
+                adminName: '', adminEmail: ''
               });
               setIsFormOpen(true);
             }} 
@@ -507,7 +460,7 @@ export const SuperAdminDashboard = () => {
                     onChange={(e) => setFormData({...formData, link_name: e.target.value})} 
                     placeholder="Ex: everest" 
                     readOnly={!!editingId}
-                    className={!!editingId ? "bg-slate-50 cursor-not-allowed text-slate-500" : ""}
+                    className={editingId ? "bg-slate-50 cursor-not-allowed text-slate-500" : ""}
                   />
                   {!!editingId && <p className="text-[10px] text-slate-400 italic">O link não pode ser alterado após a criação.</p>}
                 </div>
@@ -527,22 +480,14 @@ export const SuperAdminDashboard = () => {
                     <div className="space-y-2">
                         <Label className="text-blue-800">E-mail do Administrador *</Label>
                         <Input 
+                        type="email"
                         value={formData.adminEmail} 
                         onChange={(e) => setFormData({...formData, adminEmail: e.target.value})}
                         placeholder="admin@empresa.com"
                         className="bg-white border-blue-200"
                         />
                         <p className="text-[10px] text-blue-600 font-medium italic">Acesso indicado: admin@{formData.link_name || "empresa"}.com</p>
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-blue-800">Senha Inicial *</Label>
-                        <Input 
-                        type="password"
-                        value={formData.adminPassword} 
-                        onChange={(e) => setFormData({...formData, adminPassword: e.target.value})}
-                        placeholder="******"
-                        className="bg-white border-blue-200"
-                        />
+                        <p className="text-[10px] text-blue-600 italic">O administrador define a senha ao ativar o convite.</p>
                     </div>
                   </div>
                 )}
@@ -583,7 +528,7 @@ export const SuperAdminDashboard = () => {
                 <div className="flex justify-between items-center">
                    <p className="text-sm text-slate-500">Administradores vinculados:</p>
                    {!adminFormView ? (
-                     <Button type="button" size="sm" onClick={() => { setAdminFormData({ name: '', email: '', password: '', active: true }); setEditingAdminId(null); setAdminFormView(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs h-8">
+                     <Button type="button" size="sm" onClick={() => { setAdminFormData({ name: '', email: '', active: true }); setEditingAdminId(null); setAdminFormView(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs h-8">
                        <Plus size={14} className="mr-1" /> Novo Administrador
                      </Button>
                    ) : (
@@ -597,10 +542,7 @@ export const SuperAdminDashboard = () => {
                    <form id="admin-form" onSubmit={handleSaveAdmin} className="p-4 border border-slate-200 rounded-lg space-y-4 bg-slate-50">
                       <div className="space-y-2"><Label>Nome Completo *</Label><Input value={adminFormData.name} onChange={e => setAdminFormData({...adminFormData, name: e.target.value})} placeholder="Ex: João Silva" required /></div>
                       <div className="space-y-2"><Label>E-mail *</Label><Input type="email" value={adminFormData.email} onChange={e => setAdminFormData({...adminFormData, email: e.target.value})} placeholder="admin@empresa.com" required /></div>
-                      <div className="space-y-2">
-                        <Label>{editingAdminId ? 'Nova Senha (opcional)' : 'Senha Inicial *'}</Label>
-                        <Input type="password" value={adminFormData.password} onChange={e => setAdminFormData({...adminFormData, password: e.target.value})} placeholder="Mínimo 6 caracteres" required={!editingAdminId} minLength={6} />
-                      </div>
+                      {!editingAdminId && <p className="text-xs text-slate-500">O administrador define a senha ao ativar o convite.</p>}
                       <div className="flex justify-end pt-2">
                         <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
                           {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Administrador'}
@@ -619,7 +561,7 @@ export const SuperAdminDashboard = () => {
                               <p className="text-sm text-slate-500">{admin.email}</p>
                            </div>
                            <div className="flex items-center gap-3">
-                             <Button type="button" variant="ghost" size="icon" onClick={() => { setEditingAdminId(admin.id); setAdminFormData({ name: admin.name || '', email: admin.email || '', password: '', active: admin.active !== false }); setAdminFormView(true); }} className="text-slate-400 hover:text-blue-600 h-8 w-8">
+                             <Button type="button" variant="ghost" size="icon" onClick={() => { setEditingAdminId(admin.id); setAdminFormData({ name: admin.name || '', email: admin.email || '', active: admin.active !== false }); setAdminFormView(true); }} className="text-slate-400 hover:text-blue-600 h-8 w-8">
                                 <Edit2 size={14} />
                              </Button>
                              <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} />
@@ -652,3 +594,4 @@ export const SuperAdminDashboard = () => {
     </div>
   );
 };
+
