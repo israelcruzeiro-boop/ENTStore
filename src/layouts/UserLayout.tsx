@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import { Home, Library, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target, MessageSquare } from 'lucide-react';
+import { Home, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target, MessageSquare } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useOrgStructure, useRepositories, useCourses } from '../hooks/usePlatformData';
@@ -13,6 +13,7 @@ import { getTourKeyByPath } from '../data/userTourSteps';
 import { Joyride, STATUS, EVENTS, type EventData, type Controls } from 'react-joyride';
 import { Logger } from '../utils/logger';
 import { usersMeService } from '../services/api';
+import { buildThemeStyle, normalizeEnvironmentTemplate, normalizeTheme } from '../lib/appearance';
 
 export const UserLayout = () => {
   const { user, company, logout, refreshUser } = useAuth();
@@ -26,9 +27,8 @@ export const UserLayout = () => {
   const { courses } = useCourses(company?.id);
   const { checklists } = useChecklists(company?.id);
 
-  const availableRepos = repositories.filter(r => r.status === 'ACTIVE' && checkRepoAccess(r, user, orgUnits, orgTopLevels));
-  const hasLibraries = availableRepos.some(r => r.type === 'SIMPLE');
-  const hasHubs = availableRepos.some(r => r.type === 'FULL' || r.type === 'PLAYLIST' || r.type === 'VIDEO_PLAYLIST' || !r.type);
+  const availableRepos = repositories.filter(r => r.company_id === company?.id && r.status === 'ACTIVE' && checkRepoAccess(r, user, orgUnits, orgTopLevels));
+  const hasHubs = availableRepos.length > 0;
   
   const availableCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
   const hasCourses = availableCourses.length > 0;
@@ -104,13 +104,17 @@ export const UserLayout = () => {
     if (path === '/home') return location.pathname === `${basePath}/home` || location.pathname === `${basePath}`;
     return location.pathname === `${basePath}${path}`;
   };
+  const theme = normalizeTheme(company?.theme);
+  const environmentTemplate = normalizeEnvironmentTemplate(company?.landing_page_layout);
 
   return (
     <div 
-      className="min-h-screen pb-20 md:pb-0 selection:bg-[var(--c-primary)] selection:text-white transition-colors duration-300"
+      className={`min-h-screen pb-20 md:pb-0 selection:bg-[var(--c-primary)] selection:text-white transition-colors duration-300 user-template-${environmentTemplate}`}
+      data-user-template={environmentTemplate}
       style={{ 
-        backgroundColor: company?.theme?.background || '#050505',
-        color: company?.theme?.text || '#e2e8f0'
+        ...buildThemeStyle(theme),
+        backgroundColor: theme.background,
+        color: theme.text,
       }}
     >
       <Joyride
@@ -172,27 +176,24 @@ export const UserLayout = () => {
           <div className="flex items-center">
             {/* Logo removido conforme solicitado para evitar redundância visual */}
           </div>
-          <nav className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
-            <Link to={`${basePath}/home`} className={`transition-colors hover:text-white tour-nav-home ${isActive('/home') ? 'text-white font-bold' : ''}`}>Home</Link>
+          <nav className="hidden md:flex gap-6 text-sm font-medium theme-muted-text">
+            <Link to={`${basePath}/home`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-home ${isActive('/home') ? 'text-[var(--c-text)] font-bold' : ''}`}>Home</Link>
             {hasCourses && (
-              <Link to={`${basePath}/cursos`} className={`transition-colors hover:text-white tour-nav-cursos ${isActive('/cursos') ? 'text-white font-bold' : ''}`}>Cursos</Link>
-            )}
-            {hasLibraries && (
-              <Link to={`${basePath}/biblioteca`} className={`transition-colors hover:text-white tour-nav-biblioteca ${isActive('/biblioteca') ? 'text-white font-bold' : ''}`}>Biblioteca</Link>
+              <Link to={`${basePath}/cursos`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-cursos ${isActive('/cursos') ? 'text-[var(--c-text)] font-bold' : ''}`}>Cursos</Link>
             )}
             {hasHubs && (
-              <Link to={`${basePath}/hub`} className={`transition-colors hover:text-white tour-nav-hub ${isActive('/hub') ? 'text-white font-bold' : ''}`}>Hub</Link>
+              <Link to={`${basePath}/hub`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-hub ${isActive('/hub') ? 'text-[var(--c-text)] font-bold' : ''}`}>Hub</Link>
             )}
             {hasChecklists && (
-              <Link to={`${basePath}/checklists`} className={`transition-colors hover:text-white tour-nav-checklist ${isActive('/checklists') ? 'text-white font-bold' : ''}`}>Checklists</Link>
+              <Link to={`${basePath}/checklists`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-checklist ${isActive('/checklists') ? 'text-[var(--c-text)] font-bold' : ''}`}>Checklists</Link>
             )}
-            <Link to={`${basePath}/pesquisas`} className={`transition-colors hover:text-white tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-white font-bold' : ''}`}>Pesquisas</Link>
+            <Link to={`${basePath}/pesquisas`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-text)] font-bold' : ''}`}>Pesquisas</Link>
           </nav>
         </div>
         
         <div className="flex items-center gap-4 md:gap-5">
           <HelpButton onClick={handleTourToggle} />
-          <Link to={`${basePath}/perfil`} className={`flex items-center gap-2 cursor-pointer group hover:text-white transition-colors tour-nav-perfil ${isActive('/perfil') ? 'text-white' : 'text-zinc-400'}`} title="Perfil">
+          <Link to={`${basePath}/perfil`} className={`flex items-center gap-2 cursor-pointer group hover:text-[var(--c-text)] transition-colors tour-nav-perfil ${isActive('/perfil') ? 'text-[var(--c-text)]' : 'theme-muted-text'}`} title="Perfil">
             {user?.avatar_url ? (
                 <img src={user.avatar_url} alt="avatar" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
             ) : (
@@ -224,12 +225,6 @@ export const UserLayout = () => {
            <Link to={`${basePath}/cursos`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-cursos ${isActive('/cursos') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
               <BookOpen size={22} />
               <span className="text-[10px] font-medium">Cursos</span>
-           </Link>
-         )}
-         {hasLibraries && (
-           <Link to={`${basePath}/biblioteca`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-biblioteca ${isActive('/biblioteca') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-              <Library size={22} />
-              <span className="text-[10px] font-medium">Biblioteca</span>
            </Link>
          )}
          {hasHubs && (

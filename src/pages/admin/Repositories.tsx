@@ -14,6 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { Repository } from '../../types';
 import { uploadFile } from '../../lib/storage';
 import { Logger } from '../../utils/logger';
+import { deriveOrgHierarchy, topLevelBelongsToLevel } from '../../utils/orgHierarchy';
 import { CoverPreview } from '../../components/admin/CoverPreview';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
@@ -45,7 +46,11 @@ export const AdminRepositories = () => {
   const companyUnitsLocal = orgUnits.filter(u => u.active);
 
   const unitLabel = company?.org_unit_name || 'Unidade';
-  const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: 'Regional' }];
+  const orgHierarchy = useMemo(
+    () => deriveOrgHierarchy(company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: 'Regional' }]),
+    [company?.org_levels],
+  );
+  const org_levels = orgHierarchy.levels;
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -569,8 +574,8 @@ export const AdminRepositories = () => {
                     ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        
-                       {org_levels.map((lvl, index) => {
-                          const groupsInThisLevel = companyTopLevels.filter(t => t.level_id === lvl.id || (!t.level_id && index === 0));
+                       {org_levels.map((lvl) => {
+                          const groupsInThisLevel = companyTopLevels.filter(t => topLevelBelongsToLevel(t, lvl));
                           if (groupsInThisLevel.length === 0) return null;
                           return (
                              <div key={lvl.id} className="border border-slate-200 rounded-md p-3 max-h-48 overflow-y-auto bg-slate-50">

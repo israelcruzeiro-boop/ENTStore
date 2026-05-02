@@ -599,9 +599,12 @@ export const Viewer = ({ content }: { content: Content }) => {
   }, [content.url]);
   
   // Quiz specific data - Detecta se é conteúdo de curso ou repositório legado
-  const quizParams = (content as unknown as Record<string, unknown>).module_id
-    ? { courseContentId: content.id } 
-    : { contentId: content.id };
+  const suppressQuiz = Boolean((content as unknown as Record<string, unknown>)._suppressQuiz);
+  const quizParams = suppressQuiz
+    ? {}
+    : (content as unknown as Record<string, unknown>).module_id
+      ? { courseContentId: content.id }
+      : { contentId: content.id };
 
   const { quiz, isLoading: isQuizLoading } = useQuiz(quizParams);
   const { questions, isLoading: isQuestionsLoading } = useQuizQuestions(quiz?.id);
@@ -615,7 +618,7 @@ export const Viewer = ({ content }: { content: Content }) => {
 
   const QuizButton = () => {
     // Suprimir QuizButton em contexto de curso (cursos usam CourseQuestionPlayer)
-    if ((content as unknown as Record<string, unknown>)._suppressQuiz) return null;
+    if (suppressQuiz) return null;
     if (!quiz || questions.length === 0) return null;
     return (
       <div className="fixed bottom-8 right-8 z-[100] animate-in slide-in-from-bottom-10 duration-500">

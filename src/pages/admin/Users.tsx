@@ -35,15 +35,15 @@ import {
   HelpCircle,
   Mail,
   Clock,
-  Copy,
+  Send,
 } from 'lucide-react';
 import { User, Content, SimpleLink, Repository } from '../../types';
 import { userSchema } from '../../types/schemas';
-import * as XLSX from 'xlsx';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { USERS_STEPS } from '../../data/tourSteps';
 import { Logger } from '../../utils/logger';
+import { exportWorkbook, readFirstSheetRows } from '../../utils/spreadsheet';
 
 const isValidCPF = (cpf: string) => {
   cpf = cpf.replace(/[^\d]+/g, '');
@@ -59,6 +59,24 @@ const isValidCPF = (cpf: string) => {
   if ((rest === 10) || (rest === 11)) rest = 0;
   if (rest !== parseInt(cpf.substring(10, 11))) return false;
   return true;
+};
+
+const inviteDeliveryLabel = (delivery?: PendingInvite['activationDelivery']) => {
+  if (delivery?.status === 'sent') return 'Enviado';
+  if (delivery?.status === 'failed') return 'Falha no envio';
+  return 'Entrega pendente';
+};
+
+const inviteDeliveryDetail = (delivery?: PendingInvite['activationDelivery']) => {
+  if (!delivery?.lastAttempt) return 'Sem tentativa auditada';
+  if (delivery.channel === 'email') return delivery.sent ? 'E-mail enviado' : 'E-mail solicitado';
+  return 'Canal manual';
+};
+
+const inviteDeliveryBadgeClass = (delivery?: PendingInvite['activationDelivery']) => {
+  if (delivery?.status === 'sent') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+  if (delivery?.status === 'failed') return 'bg-red-50 text-red-700 border-red-100';
+  return 'bg-amber-50 text-amber-700 border-amber-100';
 };
 
 export const AdminUsers = () => {
@@ -89,8 +107,9 @@ export const AdminUsers = () => {
 
   const [activationDialog, setActivationDialog] = useState<{
     invite: PendingInvite;
-    activationLink: string;
+    delivery: PendingInvite['activationDelivery'];
   } | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
 
   const [isActivityOpen, setIsActivityOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -246,25 +265,9 @@ export const AdminUsers = () => {
           role: formData.role,
           orgUnitId: formData.org_unit_id || null,
         });
-        toast.success('Convite criado! Compartilhe o link de ativação.');
+        toast.success(`Usuario ${result.user.email} criado. O primeiro acesso exige troca de senha.`);
         mutateUsers();
         handleCloseForm();
-        const activationLink = `${window.location.origin}/ativar-convite/${encodeURIComponent(result.activationToken)}`;
-
-        setActivationDialog({
-          invite: {
-            id: result.invite.id,
-            name: result.invite.name,
-            email: result.invite.email,
-            role: result.invite.role,
-            companyId: result.invite.companyId,
-            orgUnitId: result.invite.orgUnitId,
-            status: result.invite.status,
-            expiresAt: result.invite.expiresAt,
-            createdAt: result.invite.createdAt,
-          },
-          activationLink,
-        });
       }
     } catch (err) {
       const error = err as Error;
@@ -315,13 +318,24 @@ export const AdminUsers = () => {
     }
   };
 
-  const handleCopyActivationLink = async (link: string) => {
+  const handleResendInvite = async (invite: PendingInvite) => {
     try {
-      await navigator.clipboard.writeText(link);
-      toast.success('Link copiado para a área de transferência.');
-    } catch {
-      Logger.warn('Failed to copy activation link');
-      toast.error('Não foi possível copiar o link.');
+      setResendingInviteId(invite.id);
+      const result = await adminUsersService.resendInvite(invite.id);
+      if (result.activationDelivery.status === 'sent') {
+        toast.success('Convite reenviado por e-mail.');
+      } else if (result.activationDelivery.status === 'failed') {
+        toast.error('Falha ao reenviar convite. A tentativa ficou registrada.');
+      } else {
+        toast.info('Reenvio registrado. A entrega manual continua pendente.');
+      }
+      mutateUsers();
+    } catch (err) {
+      const error = err as Error;
+      Logger.error('Erro ao reenviar convite:', error);
+      toast.error(`Erro ao reenviar convite: ${error.message}`);
+    } finally {
+      setResendingInviteId(null);
     }
   };
 
@@ -339,30 +353,29 @@ export const AdminUsers = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { Nome: 'João da Silva', CPF: '12345678901' },
-      { Nome: 'Maria Oliveira', CPF: '09876543210' }
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Modelo Importação');
-    XLSX.writeFile(wb, 'modelo_usuarios_storepage.xlsx');
+  const handleDownloadTemplate = async () => {
+    await exportWorkbook(
+      [
+        {
+          name: 'Modelo Importação',
+          rows: [
+            { Nome: 'João da Silva', CPF: '12345678901' },
+            { Nome: 'Maria Oliveira', CPF: '09876543210' },
+          ],
+        },
+      ],
+      'modelo_usuarios_storepage.xlsx',
+    );
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: 'array' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    try {
+      const rows = await readFirstSheetRows(file);
 
-        const cpfSet = new Set<string>();
-        const allUsers = users;
+      const cpfSet = new Set<string>();
+      const allUsers = users;
 
         const processed = rows.map((rowItem: unknown, index: number) => {
           const row = rowItem as Record<string, unknown>;
@@ -415,12 +428,12 @@ export const AdminUsers = () => {
 
         setParsedData(processed);
         setImportStep('preview');
-      } catch (err) {
-        toast.error('Erro ao ler a planilha. Verifique o formato do arquivo.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = ''; 
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao ler a planilha. Verifique o formato do arquivo.';
+      toast.error(message);
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleConfirmImport = async () => {
@@ -526,6 +539,7 @@ export const AdminUsers = () => {
                   <th className="p-4">Convidado</th>
                   <th className="p-4">Identificação</th>
                   <th className="p-4">Permissão</th>
+                  <th className="p-4">Entrega</th>
                   <th className="p-4">Expira em</th>
                   <th className="p-4 text-right">Ações</th>
                 </tr>
@@ -575,24 +589,45 @@ export const AdminUsers = () => {
                         </div>
                       </td>
                       <td className="p-4">
+                        <span className={`inline-flex items-center border px-2 py-0.5 rounded-md text-[11px] font-bold ${inviteDeliveryBadgeClass(invite.activationDelivery)}`}>
+                          {inviteDeliveryLabel(invite.activationDelivery)}
+                        </span>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          {inviteDeliveryDetail(invite.activationDelivery)}
+                        </p>
+                      </td>
+                      <td className="p-4">
                         <div className="flex items-center gap-1.5 text-xs text-slate-500">
                           <Clock size={12} />
                           {new Date(invite.expiresAt).toLocaleDateString('pt-BR')}
                         </div>
                       </td>
                       <td className="p-4 text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setInviteToCancel(invite);
-                            setIsCancelInviteOpen(true);
-                          }}
-                          className="text-slate-400 hover:text-red-600"
-                          title="Cancelar convite"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void handleResendInvite(invite)}
+                            className="text-slate-400 hover:text-indigo-600"
+                            title="Reenviar convite"
+                            disabled={resendingInviteId === invite.id}
+                          >
+                            {resendingInviteId === invite.id ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setInviteToCancel(invite);
+                              setIsCancelInviteOpen(true);
+                            }}
+                            className="text-slate-400 hover:text-red-600"
+                            title="Cancelar convite"
+                            disabled={resendingInviteId === invite.id}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -638,7 +673,8 @@ export const AdminUsers = () => {
                             <div className="flex items-center gap-2">
                                <p className="font-semibold text-slate-900 text-base">{user.name}</p>
                                {user.id === currentUser?.id && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">Você</span>}
-                               {user.status === 'PENDING_SETUP' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Setup Pendente</span>}
+            {user.first_access && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Primeiro Acesso</span>}
+            {user.status === 'PENDING_SETUP' && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold uppercase">Setup Pendente</span>}
                             </div>
                             <p className="text-xs text-slate-500">{user.email || 'Sem e-mail'}</p>
                           </div>
@@ -781,9 +817,8 @@ export const AdminUsers = () => {
                      <div>
                         <p className="font-bold mb-1">Como funcionará o acesso?</p>
                         <p className="leading-relaxed">
-                          Os {validRows.length} usuários válidos serão provisionados como <strong>convites pendentes</strong>.
-                          Cada um receberá um <strong>link de ativação único</strong> para definir a própria
-                          senha antes do primeiro login. Nenhuma senha temporária é exposta pelo sistema.
+                          Os {validRows.length} usuários válidos serão criados com primeiro acesso obrigatório.
+                          Eles entram com a senha temporária definida pela empresa e precisam trocar a senha antes de acessar a plataforma.
                         </p>
                      </div>
                   </div>
@@ -919,7 +954,7 @@ export const AdminUsers = () => {
               <AlertCircle className="shrink-0" size={16} />
               <p>
                 O acesso é realizado via <strong>CPF (apenas números)</strong> ou E-mail.
-                {!editingId && ' Ao criar, um link de ativação será gerado para que o convidado defina a própria senha — nenhuma senha temporária é exposta.'}
+                {!editingId && ' Ao criar, o usuário entra pelo login normal e deve redefinir a senha no primeiro acesso.'}
               </p>
             </div>
 
@@ -1004,7 +1039,7 @@ export const AdminUsers = () => {
               Cancelar o convite enviado para <strong>{inviteToCancel?.name}</strong>?
             </p>
             <p className="text-slate-500 text-xs mt-2">
-              O token de ativação correspondente deixará de funcionar imediatamente.
+              O convite correspondente deixará de funcionar imediatamente.
             </p>
           </div>
           <div className="flex justify-end gap-3">
@@ -1039,36 +1074,27 @@ export const AdminUsers = () => {
           {activationDialog && (
             <div className="space-y-4 py-3">
               <p className="text-sm text-slate-600">
-                Compartilhe o link de ativação abaixo com{' '}
-                <strong>{activationDialog.invite.name}</strong>. Ele permite definir a própria
-                senha e concluir o cadastro de forma segura.
+                O convite de <strong>{activationDialog.invite.name}</strong> foi criado sem
+                expor token ou link de ativação no navegador.
               </p>
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
                 <Label className="text-[10px] uppercase tracking-wider text-slate-500">
-                  Link de ativação
+                  Status de entrega
                 </Label>
-                <div className="mt-1 flex items-center gap-2">
-                  <code className="flex-1 break-all text-xs font-mono bg-white border border-slate-200 rounded p-2">
-                    {activationDialog.activationLink}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => handleCopyActivationLink(activationDialog.activationLink)}
-                    title="Copiar link"
-                  >
-                    <Copy size={14} />
-                  </Button>
-                </div>
+                <p className="mt-1 text-sm font-semibold text-slate-800">
+                  {inviteDeliveryLabel(activationDialog.delivery)}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {inviteDeliveryDetail(activationDialog.delivery)}
+                </p>
                 <p className="text-[11px] text-slate-500 mt-2">
                   Expira em{' '}
                   {new Date(activationDialog.invite.expiresAt).toLocaleString('pt-BR')}.
                 </p>
               </div>
               <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-xs text-indigo-800">
-                Este link é exibido apenas neste momento. Caso o convidado não consiga ativar a
-                conta, cancele o convite e gere outro.
+                Se o convidado não conseguir ativar a conta, use reenviar convite ou cancele
+                e gere outro. O link de ativação não é exibido no painel admin.
               </div>
             </div>
           )}

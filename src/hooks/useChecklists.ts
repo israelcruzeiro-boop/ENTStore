@@ -50,6 +50,7 @@ type DetailedAnswer = ChecklistAnswer & {
     status: string;
     completed_at?: string | null;
     created_at?: string;
+    checklist?: { title: string } | Array<{ title: string }> | null;
   } | null;
 };
 
@@ -74,6 +75,22 @@ const isSubmissionDetail = (
 const mapSubmissionList = (items: ApiChecklistSubmission[] | undefined): ChecklistSubmission[] =>
   (items ?? []).map(mapApiChecklistSubmissionToFrontend);
 
+type ChecklistDashboardPayload = Awaited<ReturnType<typeof checklistsService.getDashboard>>;
+
+const dashboardSwrOptions = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  dedupingInterval: 60000,
+};
+
+function useChecklistDashboardApiData(companyId?: string) {
+  return useSWR<ChecklistDashboardPayload>(
+    companyId ? `checklist_dashboard_${companyId}` : null,
+    async () => checklistsService.getDashboard(),
+    dashboardSwrOptions,
+  );
+}
+
 const loadChecklistDetail = async (checklistId: string): Promise<ApiChecklistDetail> => {
   const detail = await checklistsService.getChecklist(checklistId);
   if (isChecklistDetail(detail)) return detail;
@@ -84,6 +101,7 @@ export function useChecklists(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Checklist[]>(
     companyId ? `checklists_${companyId}` : null,
     async () => (await checklistsService.listChecklists()).map(mapApiChecklistToFrontend),
+    dashboardSwrOptions,
   );
 
   return {
@@ -98,6 +116,20 @@ export function useChecklistFolders(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistFolder[]>(
     companyId ? `checklist_folders_${companyId}` : null,
     async () => (await checklistsService.listFolders()).map(mapApiChecklistFolderToFrontend),
+  );
+
+  return {
+    folders: data || [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
+export function useReadableChecklistFolders(companyId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<ChecklistFolder[]>(
+    companyId ? `readable_checklist_folders_${companyId}` : null,
+    async () => (await checklistsService.listReadableFolders()).map(mapApiChecklistFolderToFrontend),
   );
 
   return {
@@ -126,13 +158,10 @@ export function useChecklistQuestions(checklistId?: string) {
 }
 
 export function useAllCompanyQuestions(companyId?: string) {
-  const { data, error, isLoading } = useSWR<ChecklistQuestion[]>(
-    companyId ? `all_company_questions_${companyId}` : null,
-    async () => (await checklistsService.getDashboard()).questions.map(mapApiChecklistQuestionToFrontend),
-  );
+  const { data, error, isLoading } = useChecklistDashboardApiData(companyId);
 
   return {
-    questions: data || [],
+    questions: data?.questions.map(mapApiChecklistQuestionToFrontend) || [],
     isLoading,
     isError: error,
   };
@@ -198,10 +227,51 @@ export function useChecklistAnswers(submissionId?: string) {
   };
 }
 
+export function useAdminChecklistSubmissionDetail(submissionId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<ApiChecklistSubmissionDetail>(
+    submissionId ? `admin_submission_detail_${submissionId}` : null,
+    async () => {
+      const detail = await checklistsService.getAdminSubmission(submissionId as string);
+      if (isSubmissionDetail(detail)) return detail;
+      return { submission: detail, answers: [], sections: [], questions: [] };
+    },
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    },
+  );
+
+  return {
+    submission: data?.submission ? mapApiChecklistSubmissionToFrontend(data.submission) : undefined,
+    checklist: data?.checklist ? mapApiChecklistToFrontend(data.checklist) : undefined,
+    sections: data?.sections?.map(mapApiChecklistSectionToFrontend) ?? [],
+    questions: data?.questions?.map(mapApiChecklistQuestionToFrontend) ?? [],
+    answers: data?.answers.map(mapApiChecklistAnswerToFrontend) ?? [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
 export function useUserSubmissions(userId?: string, companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ChecklistSubmission[]>(
     userId && companyId ? `user_submissions_${userId}_${companyId}` : null,
     async () => mapSubmissionList(await checklistsService.listUserSubmissions({ status: 'IN_PROGRESS', userId, companyId })),
+  );
+
+  return {
+    submissions: data || [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
+export function useOwnChecklistSubmissions(userId?: string, companyId?: string) {
+  const { data, error, isLoading, mutate } = useSWR<ChecklistSubmission[]>(
+    userId && companyId ? `own_checklist_submissions_${userId}_${companyId}` : null,
+    async () => mapSubmissionList(await checklistsService.listUserSubmissions({ userId, companyId })),
+    { revalidateOnFocus: false },
   );
 
   return {
@@ -226,13 +296,10 @@ export function useAllSubmissions(companyId?: string) {
 }
 
 export function useAllAnswers(companyId?: string) {
-  const { data, error, isLoading } = useSWR<ChecklistAnswer[]>(
-    companyId ? `all_answers_${companyId}` : null,
-    async () => (await checklistsService.getDashboard()).answers.map(mapApiChecklistAnswerToFrontend),
-  );
+  const { data, error, isLoading } = useChecklistDashboardApiData(companyId);
 
   return {
-    answers: data || [],
+    answers: data?.answers.map(mapApiChecklistAnswerToFrontend) || [],
     isLoading,
     isError: error,
   };
@@ -397,14 +464,10 @@ export const checklistActions = {
 };
 
 export function useChecklistDetailedAnswers(companyId?: string) {
-  const { data, error, isLoading } = useSWR<DetailedAnswer[]>(
-    companyId ? `detailed_answers_${companyId}` : null,
-    async () =>
-      (await checklistsService.getDashboard()).detailedAnswers.map(mapApiChecklistAnswerToFrontend) as DetailedAnswer[],
-  );
+  const { data, error, isLoading } = useChecklistDashboardApiData(companyId);
 
   return {
-    detailedAnswers: data || [],
+    detailedAnswers: (data?.detailedAnswers.map(mapApiChecklistAnswerToFrontend) as DetailedAnswer[]) || [],
     isLoading,
     isError: error,
   };

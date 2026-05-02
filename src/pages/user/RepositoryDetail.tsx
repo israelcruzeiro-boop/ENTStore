@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useRepositoryMetrics } from '../../hooks/usePlatformData';
+import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useContentMetricSummaries } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
 import { MusicPlayer, VideoPlayer, extractYouTubeId, isYouTubeShorts } from '../../components/user/Viewer';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { HeaderLayout } from '../../components/user/HeaderLayout';
 import { downloadFile } from '../../utils/download';
 import { Logger } from '../../utils/logger';
+import { normalizeEnvironmentTemplate, normalizeTheme } from '../../lib/appearance';
 
 
 const getPremiumLinkConfig = (type: string) => {
@@ -48,12 +49,14 @@ export const RepositoryDetail = () => {
   const { contents, isLoading: loadingContents } = useContents({ repositoryId: id });
   const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ repositoryId: id });
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
-  const { contentViews, contentRatings, isLoading: loadingMetrics, mutate: mutateMetrics } = useRepositoryMetrics(id);
+  const { metricSummaries, isLoading: loadingMetrics, mutate: mutateMetrics } = useContentMetricSummaries({ repositoryId: id });
 
   const isLoading = loadingRepos || loadingCats || loadingContents || loadingLinks || loadingOrg || loadingMetrics;
 
   const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
   const isAuthorized = repo ? checkRepoAccess(repo, user, orgUnits, orgTopLevels) : false;
+  const theme = normalizeTheme(company?.theme);
+  const environmentTemplate = normalizeEnvironmentTemplate(company?.landing_page_layout);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -233,15 +236,17 @@ export const RepositoryDetail = () => {
     return iframeUrl;
   };
 
-  const activeLinkRatings = activeLink ? contentRatings.filter(r => r.content_id === activeLink.id) : [];
-  const activeLinkAvg = activeLinkRatings.length > 0 ? (activeLinkRatings.reduce((acc, curr) => acc + curr.rating, 0) / activeLinkRatings.length).toFixed(1) : '-';
-  const activeUserRating = activeLink ? contentRatings.find(r => r.content_id === activeLink.id && r.user_id === user?.id)?.rating : undefined;
+  const activeLinkSummary = activeLink ? metricSummaries.find(summary => summary.content_id === activeLink.id) : undefined;
+  const activeLinkAvg = activeLinkSummary?.average_rating !== null && activeLinkSummary?.average_rating !== undefined
+    ? activeLinkSummary.average_rating.toFixed(1)
+    : '-';
+  const activeUserRating = activeLinkSummary?.current_user_rating ?? undefined;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white pb-12 relative">
+    <div className="user-page-shell min-h-screen text-[var(--c-text)] pb-12 relative">
       <HeaderLayout
-        layout={company?.landing_page_layout || 'classic'}
-        theme={company?.theme || { primary: '#2563EB', secondary: '#1D4ED8', background: '#09090b', card: '#18181b', text: '#ffffff' }}
+        layout={environmentTemplate}
+        theme={theme}
         image={repo.banner_image || repo.cover_image || ''}
         title={repo.name}
         subtitle={repo.description}
@@ -261,39 +266,42 @@ export const RepositoryDetail = () => {
 
       <div className="px-0 md:px-12 max-w-7xl mx-auto relative z-20">
         <div className="pt-8 mb-4 flex items-center justify-between">
-            <Link to={`/${slug}/home`} className="tour-repo-nav flex items-center gap-2 text-zinc-500 hover:text-white transition-colors font-medium text-sm">
+            <Link to={`/${slug}/home`} className="tour-repo-nav flex items-center gap-2 theme-muted-text hover:text-[var(--c-text)] transition-colors font-medium text-sm">
                <ArrowLeft size={18} /> Voltar
             </Link>
         </div>
         
         {isSimple ? (
           <div className="space-y-6">
-             <div className="bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-4 flex flex-col gap-3 shadow-xl">
+             <div className="user-template-panel theme-surface border rounded-2xl p-4 flex flex-col gap-3 shadow-xl">
                 <div className="relative w-full">
-                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-                   <input type="text" placeholder="Pesquisar por título ou link..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-zinc-950/50 border border-zinc-800 text-white text-sm rounded-xl pl-10 p-3 focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all outline-none placeholder:text-zinc-500" />
+                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 theme-subtle-text" size={18} />
+                   <input type="text" placeholder="Pesquisar por título ou link..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="theme-control w-full border text-sm rounded-xl pl-10 p-3 focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent transition-all outline-none" />
                 </div>
                 <div className="grid grid-cols-2 sm:flex sm:flex-row gap-3 w-full">
-                   <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="col-span-1 w-full sm:w-48 bg-zinc-950/50 border border-zinc-800 text-white text-sm rounded-xl focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent block p-2.5 outline-none cursor-pointer"><option value="ALL">Todos os Tipos</option>{availableTypes.map(t => <option key={t} value={t}>{t}</option>)}</select>
-                   <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="col-span-1 w-full sm:w-40 bg-zinc-950/50 border border-zinc-800 text-zinc-300 text-sm rounded-xl focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent block p-2.5 outline-none cursor-pointer [color-scheme:dark]" />
-                   <button onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} className="col-span-2 sm:col-span-1 flex items-center justify-center gap-2 w-full sm:w-auto bg-zinc-950/50 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 px-4 py-2.5 rounded-xl text-sm transition-all outline-none font-medium"><ArrowDownUp size={16} />{sortOrder === 'desc' ? 'Mais Recentes' : 'Mais Antigos'}</button>
+                   <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="theme-control col-span-1 w-full sm:w-48 border text-sm rounded-xl focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent block p-2.5 outline-none cursor-pointer"><option value="ALL">Todos os Tipos</option>{availableTypes.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                   <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="theme-control col-span-1 w-full sm:w-40 border text-sm rounded-xl focus:ring-2 focus:ring-[var(--c-primary)] focus:border-transparent block p-2.5 outline-none cursor-pointer [color-scheme:dark]" />
+                   <button onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')} className="theme-control col-span-2 sm:col-span-1 flex items-center justify-center gap-2 w-full sm:w-auto border hover:border-[var(--c-primary)]/40 px-4 py-2.5 rounded-xl text-sm transition-all outline-none font-medium"><ArrowDownUp size={16} />{sortOrder === 'desc' ? 'Mais Recentes' : 'Mais Antigos'}</button>
                 </div>
              </div>
              <div className="grid gap-3">
                {filteredLinks.map((link, idx) => {
                  const conf = getPremiumLinkConfig(link.type || '');
                  const Icon = conf.icon;
-                 const viewsCount = contentViews.filter(v => v.content_id === link.id).length;
-                 const linkRatings = contentRatings.filter(r => r.content_id === link.id);
-                 const avgRating = linkRatings.length > 0 ? (linkRatings.reduce((acc, curr) => acc + curr.rating, 0) / linkRatings.length).toFixed(1) : '-';
+                 const linkSummary = metricSummaries.find(summary => summary.content_id === link.id);
+                 const viewsCount = linkSummary?.views_count ?? 0;
+                 const ratingsCount = linkSummary?.ratings_count ?? 0;
+                 const avgRating = linkSummary?.average_rating !== null && linkSummary?.average_rating !== undefined
+                   ? linkSummary.average_rating.toFixed(1)
+                   : '-';
                  return (
-                   <button key={link.id} onClick={() => handleLinkClick(link)} className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl bg-zinc-900/40 backdrop-blur-sm border border-zinc-800 hover:border-zinc-700/80 hover:bg-zinc-800/40 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl ${idx === 0 ? 'tour-repo-item' : ''}`}>
+                   <button key={link.id} onClick={() => handleLinkClick(link)} className={`user-card user-template-panel theme-surface-soft group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 rounded-2xl border hover:border-[var(--c-primary)]/35 transition-all duration-300 gap-4 text-left w-full overflow-hidden relative shadow-sm hover:shadow-xl ${idx === 0 ? 'tour-repo-item' : ''}`}>
                       <div className={`absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b ${conf.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
                       <div className="flex items-start sm:items-center gap-5 w-full sm:w-auto relative z-10 pl-1">
                          <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 group-hover:-translate-y-0.5 ${conf.glow}`}><div className={`absolute inset-0 bg-gradient-to-br ${conf.gradient} opacity-20 group-hover:opacity-30 transition-opacity rounded-2xl`}></div><div className="absolute inset-0 rounded-2xl border border-white/10"></div><Icon size={26} className="text-white drop-shadow-md relative z-10" strokeWidth={1.5} /></div>
-                         <div className="flex-1 min-w-0"><h3 className="text-white font-semibold text-lg sm:text-xl truncate mb-1 group-hover:text-white/90 transition-colors">{link.name}</h3><div className="flex flex-wrap items-center gap-3 text-xs font-medium"><span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${conf.bg} ${conf.text} border-transparent`}>{link.type}</span><span className="flex items-center gap-1 text-zinc-500"><Calendar size={13} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span><span className="text-zinc-700">•</span><span className="flex items-center gap-1 text-amber-400"><Star size={13} fill="currentColor" /> {avgRating} <span className="text-zinc-500 font-normal">({linkRatings.length} {linkRatings.length === 1 ? 'avaliação' : 'avaliações'})</span></span><span className="text-zinc-700">•</span><span className="flex items-center gap-1 text-zinc-500" title="Visualizações"><Eye size={13} /> {viewsCount}</span></div></div>
+                         <div className="flex-1 min-w-0"><h3 className="text-[var(--c-text)] font-semibold text-lg sm:text-xl truncate mb-1 group-hover:text-[var(--c-primary)] transition-colors">{link.name}</h3><div className="flex flex-wrap items-center gap-3 text-xs font-medium"><span className={`px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${conf.bg} ${conf.text} border-transparent`}>{link.type}</span><span className="flex items-center gap-1 theme-muted-text"><Calendar size={13} /> {new Date(link.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span><span className="theme-subtle-text">•</span><span className="flex items-center gap-1 text-amber-400"><Star size={13} fill="currentColor" /> {avgRating} <span className="theme-muted-text font-normal">({ratingsCount} {ratingsCount === 1 ? 'avaliação' : 'avaliações'})</span></span><span className="theme-subtle-text">•</span><span className="flex items-center gap-1 theme-muted-text" title="Visualizações"><Eye size={13} /> {viewsCount}</span></div></div>
                       </div>
-                      <div className="hidden sm:flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl text-zinc-300 bg-zinc-950 border border-zinc-800 group-hover:bg-[var(--c-primary)] group-hover:text-white group-hover:border-[var(--c-primary)] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-[0_0_15px_var(--c-primary)] group-hover:shadow-[var(--c-primary)]/30">Acessar <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></div>
+                         <div className="hidden sm:flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-xl theme-surface border group-hover:bg-[var(--c-primary)] group-hover:text-white group-hover:border-[var(--c-primary)] transition-all duration-300 shrink-0 shadow-sm group-hover:shadow-[0_0_15px_var(--c-primary)] group-hover:shadow-[var(--c-primary)]/30">Acessar <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" /></div>
                    </button>
                  );
                })}
@@ -316,10 +324,10 @@ export const RepositoryDetail = () => {
                 <div className="px-0 md:px-8 py-6 border-b border-white/5">
                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                         <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight uppercase leading-none">
+                      <h2 className="user-section-title text-xl md:text-2xl font-bold tracking-tight uppercase leading-none">
                             {isPlaylist ? 'PLAYLIST' : 'VÍDEOS'} <span className="text-[var(--c-primary)]">.</span>
                          </h2>
-                         <p className="text-zinc-500 font-medium uppercase tracking-widest text-[10px] mt-1.5 flex items-center gap-2">
+                         <p className="theme-muted-text font-medium uppercase tracking-widest text-[10px] mt-1.5 flex items-center gap-2">
                            {isPlaylist ? <PlayCircle size={12} /> : <PlaySquare size={12} />} {isPlaylist ? 'Audio Selection' : 'Video Selection'}
                          </p>
                       </div>
@@ -327,7 +335,7 @@ export const RepositoryDetail = () => {
                       <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
                         <button 
                           onClick={() => setActiveCategory(null)}
-                          className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${!activeCategory ? 'bg-white text-black' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'}`}
+                          className={`user-chip px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${!activeCategory ? 'bg-[var(--c-primary)] text-white border-[var(--c-primary)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
                         >
                           Tudo
                         </button>
@@ -335,7 +343,7 @@ export const RepositoryDetail = () => {
                             <button 
                               key={cat.id} 
                               onClick={() => setActiveCategory(cat.id)}
-                              className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${activeCategory === cat.id ? 'bg-white text-black' : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'}`}
+                              className={`user-chip px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${activeCategory === cat.id ? 'bg-[var(--c-primary)] text-white border-[var(--c-primary)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
                             >
                                 {cat.name}
                             </button>
@@ -382,21 +390,21 @@ export const RepositoryDetail = () => {
                             <div className="mt-8 group px-6 md:px-0">
                                <div className="flex items-center gap-2 mb-3">
                                   <div className="w-8 h-[1px] bg-[var(--c-primary)] rounded-full"></div>
-                                  <span className="text-zinc-500 font-bold uppercase tracking-widest text-[9px]">Informações {isPlaylist ? 'da Faixa' : 'do Vídeo'}</span>
+                                  <span className="theme-muted-text font-bold uppercase tracking-widest text-[9px]">Informações {isPlaylist ? 'da Faixa' : 'do Vídeo'}</span>
                                </div>
-                               <h3 className="text-white text-2xl font-bold mb-3 tracking-tight leading-tight group-hover:text-[var(--c-primary)] transition-colors">{currentItem.title}</h3>
-                               <p className="text-zinc-400 text-base leading-relaxed font-normal max-w-2xl">{currentItem.description || (isPlaylist ? 'Esta faixa faz parte da seleção exclusiva do repositório.' : 'Este vídeo faz parte da seleção exclusiva do repositório.')}</p>
+                               <h3 className="text-[var(--c-text)] text-2xl font-bold mb-3 tracking-tight leading-tight group-hover:text-[var(--c-primary)] transition-colors">{currentItem.title}</h3>
+                               <p className="theme-muted-text text-base leading-relaxed font-normal max-w-2xl">{currentItem.description || (isPlaylist ? 'Esta faixa faz parte da seleção exclusiva do repositório.' : 'Este vídeo faz parte da seleção exclusiva do repositório.')}</p>
                             </div>
                          </div>
                       ) : (
-                         <div className="w-full aspect-video bg-white/[0.03] rounded-2xl border border-white/10 flex flex-col items-center justify-center text-zinc-500 backdrop-blur-sm group hover:border-[var(--c-primary)]/30 transition-all duration-300">
+                         <div className="user-template-panel theme-surface-soft w-full aspect-video rounded-2xl border flex flex-col items-center justify-center theme-muted-text backdrop-blur-sm group hover:border-[var(--c-primary)]/30 transition-all duration-300">
                             <div className="relative mb-6">
                                <div className="absolute inset-0 bg-[var(--c-primary)] blur-3xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
                                <div className="w-20 h-20 bg-zinc-900/80 backdrop-blur-xl rounded-full flex items-center justify-center border border-white/10 relative z-10">
                                   {isPlaylist ? <Music size={32} className="text-[var(--c-primary)]" strokeWidth={1.5} /> : <PlaySquare size={32} className="text-[var(--c-primary)]" strokeWidth={1.5} />}
                                </div>
                             </div>
-                            <h3 className="text-xl font-bold text-white/90 uppercase tracking-tight">Inicie sua Imersão</h3>
+                            <h3 className="text-xl font-bold text-[var(--c-text)] uppercase tracking-tight">Inicie sua Imersão</h3>
                             <p className="text-[10px] mt-2 opacity-50 font-bold uppercase tracking-widest">{isPlaylist ? 'Selecione uma faixa para começar' : 'Selecione um vídeo para começar'}</p>
                          </div>
                       )}
@@ -483,7 +491,7 @@ export const RepositoryDetail = () => {
             <div className="flex gap-2 mb-8 overflow-x-auto hide-scrollbar pb-4 pt-2">
                 <button 
                   onClick={() => setActiveCategory(null)}
-                  className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${!activeCategory ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                  className={`user-chip px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${!activeCategory ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
                 >
                   Todos os Conteúdos
                 </button>
@@ -491,7 +499,7 @@ export const RepositoryDetail = () => {
                     <button 
                       key={cat.id} 
                       onClick={() => setActiveCategory(cat.id)}
-                      className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${activeCategory === cat.id ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+                      className={`user-chip px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all border ${activeCategory === cat.id ? 'bg-[var(--c-primary)] border-[var(--c-primary)] text-white shadow-[0_4px_20px_var(--c-primary)] shadow-[var(--c-primary)]/30' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
                     >
                         {cat.name}
                     </button>
@@ -502,15 +510,15 @@ export const RepositoryDetail = () => {
               {displayContents.map((content, idx) => (
                 <div 
                   key={content.id} 
-                  className={`bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-700 transition-all group ${idx === 0 ? 'tour-repo-item' : ''}`}
+                  className={`user-card user-template-panel theme-surface-soft border rounded-2xl overflow-hidden hover:border-[var(--c-primary)]/30 transition-all group ${idx === 0 ? 'tour-repo-item' : ''}`}
                 >
-                  <ContentCard content={content} fullWidth views={contentViews} ratings={contentRatings} />
+                  <ContentCard content={content} fullWidth metricSummaries={metricSummaries} />
                 </div>
               ))}
               {displayContents.length === 0 && (
-                  <div className="col-span-full py-20 text-center text-zinc-500">
+                  <div className="col-span-full py-20 text-center theme-muted-text">
                       <Folder size={48} className="opacity-20 mx-auto mb-4" />
-                      <p className="text-xl font-medium text-white mb-2">Nenhum conteúdo encontrado</p>
+                      <p className="text-xl font-medium text-[var(--c-text)] mb-2">Nenhum conteúdo encontrado</p>
                       <p>Ainda não há materiais liberados para a fase selecionada.</p>
                   </div>
               )}

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePublicTenant } from '../hooks/useApiData';
+import { isApiUnavailableError } from '../services/api/client';
 import type { Company } from '../types';
 import { Logger } from '../utils/logger';
 
@@ -17,7 +18,11 @@ export const Login = () => {
   const navigate = useNavigate();
   const { companySlug } = useParams();
 
-  const { company: tenantCompany, isLoading: tenantLoading } = usePublicTenant(companySlug);
+  const {
+    company: tenantCompany,
+    isLoading: tenantLoading,
+    isError: tenantError,
+  } = usePublicTenant(companySlug);
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -47,15 +52,39 @@ export const Login = () => {
     }
   }, [user, company, authLoading, navigate]);
 
+  const isTenantApiUnavailable = isApiUnavailableError(tenantError);
+
   if (companySlug && !tenantLoading && !tenantCompany) {
+    if (isTenantApiUnavailable) {
+      return (
+        <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-center">
+          <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
+            <AlertTriangle size={36} className="text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">{'N\u00e3o foi poss\u00edvel consultar a API'}</h2>
+          <p className="text-zinc-400 max-w-sm mb-8">
+            {'N\u00e3o foi poss\u00edvel carregar os dados da empresa agora. Verifique se o backend est\u00e1 rodando e tente novamente.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-2.5 rounded-xl bg-zinc-800 text-white font-medium hover:bg-zinc-700 transition-colors"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-center">
         <div className="w-20 h-20 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-6">
           <AlertTriangle size={36} className="text-zinc-500" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Empresa não encontrada</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">{'Empresa n\u00e3o encontrada'}</h2>
         <p className="text-zinc-400 max-w-sm mb-8">
-          O endereço <strong>{companySlug}</strong> não corresponde a nenhuma empresa ativa no momento.
+          {'O endere\u00e7o '}
+          <strong>{companySlug}</strong>
+          {' n\u00e3o corresponde a nenhuma empresa ativa no momento.'}
         </p>
         <button
           onClick={() => navigate('/login')}
@@ -79,7 +108,7 @@ export const Login = () => {
     setError('');
 
     if (!canSubmit) {
-      setError('Acesse o login pelo endereço da sua empresa para continuar.');
+      setError('Acesse o login pelo endere\u00e7o da sua empresa para continuar.');
       return;
     }
 
@@ -96,7 +125,11 @@ export const Login = () => {
       }
       navigate(defaultRedirectForCompany(result.user.role, result.company));
     } catch (err) {
-      setError('Ocorreu um erro ao tentar entrar. Tente novamente.');
+      if (isApiUnavailableError(err)) {
+        setError('N\u00e3o foi poss\u00edvel conectar \u00e0 API. Verifique se o backend est\u00e1 rodando e tente novamente.');
+      } else {
+        setError('Ocorreu um erro ao tentar entrar. Tente novamente.');
+      }
       Logger.warn('Login submit error', err);
     } finally {
       setIsLoggingIn(false);

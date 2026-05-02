@@ -68,6 +68,7 @@ export const companySchema = z.object({
   landing_page_active: z.boolean().optional().nullable(),
   landing_page_layout: z.string().nullable().optional(),
   checklists_enabled: z.boolean().optional().nullable(),
+  surveys_enabled: z.boolean().optional().nullable(),
   created_at: z.string().optional().nullable(),
   updated_at: z.string().optional().nullable(),
   deleted_at: z.string().optional().nullable(),
@@ -90,6 +91,7 @@ export const courseSchema = z.object({
   excluded_user_ids: z.array(z.string().uuid()).optional().nullable(),
   passing_score: z.number().min(0).max(100).default(70),
   diploma_template: z.string().default('azul'),
+  layout_template: z.enum(['focus', 'studio', 'journey']).default('focus'),
   created_at: z.string().optional().nullable(),
   deleted_at: z.string().datetime().nullable().optional(),
 });

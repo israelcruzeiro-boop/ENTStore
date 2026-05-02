@@ -1,5 +1,5 @@
 ﻿import useSWR from 'swr';
-import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseEnrollment, CourseAnswer } from '../types';
+import { Company, OrgTopLevel, OrgUnit, Repository, Content, SimpleLink, Category, User, ContentViewMetric, ContentRating, ContentMetricSummary, Quiz, QuizQuestion, QuizOption, QuizAttempt, Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseEnrollment, CourseAnswer } from '../types';
 import { 
   userSchema,
   companySchema,
@@ -24,12 +24,14 @@ import {
   mapApiCourseContentToFrontend,
   mapApiCourseEnrollmentToFrontend,
   mapApiCourseQuestionToFrontend,
+  mapApiContentMetricSummaryToFrontend,
   mapApiTopLevelToFrontend,
   mapApiRatingToFrontend,
   mapApiRepositoryToFrontend,
   mapApiSimpleLinkToFrontend,
   mapApiUnitToFrontend,
   mapApiUserToFrontend,
+  mapApiVisibleUserToFrontend,
   mapApiViewMetricToFrontend,
   coursesService,
   metricsService,
@@ -38,6 +40,7 @@ import {
   structureService,
   superAdminService,
   tenantService,
+  usersMeService,
 } from '../services/api';
 
 export const maskCPF = (cpf: string | null | undefined) => {
@@ -45,6 +48,12 @@ export const maskCPF = (cpf: string | null | undefined) => {
   const clean = cpf.replace(/\D/g, '');
   if (clean.length < 3) return clean;
   return `${clean.substring(0, 3)}.***.***-**`;
+};
+
+const stableCatalogSwrOptions = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  dedupingInterval: 60000,
 };
 
 export function useCompanies(includeDeleted = false, enabled = true) {
@@ -158,7 +167,8 @@ export function useOrgStructure(companyId?: string) {
 export function useRepositories(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Repository[]>(
     companyId ? `repositories_${companyId}` : null,
-    () => repositoriesService.list().then((repositories) => repositories.map((repository) => mapApiRepositoryToFrontend(repository, companyId)))
+    () => repositoriesService.list().then((repositories) => repositories.map((repository) => mapApiRepositoryToFrontend(repository, companyId))),
+    stableCatalogSwrOptions,
   );
 
   return {
@@ -278,6 +288,61 @@ export function useCompanyMetrics(companyId?: string) {
   };
 }
 
+export function useEmptyContentMetrics() {
+  const isLoading = false;
+  return {
+    contentViews: [],
+    contentRatings: [],
+    isLoading,
+    isError: undefined,
+    mutate: async () => undefined,
+  } as {
+    contentViews: ContentViewMetric[];
+    contentRatings: ContentRating[];
+    isLoading: boolean;
+    isError: undefined;
+    mutate: () => Promise<void>;
+  };
+}
+
+export function useContentMetricSummaries(params?: { companyId?: string; repositoryId?: string }) {
+  const key = params?.companyId || params?.repositoryId
+    ? `content_metric_summaries_${params?.companyId ?? 'current'}_${params?.repositoryId ?? 'all'}`
+    : null;
+
+  const { data, error, isLoading, mutate } = useSWR<ContentMetricSummary[]>(
+    key,
+    async () => (await metricsService.listContentSummaries({ repositoryId: params?.repositoryId }))
+      .map(mapApiContentMetricSummaryToFrontend),
+    { revalidateOnFocus: false }
+  );
+
+  return {
+    metricSummaries: data || [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
+export function useVisibleUsers(ids?: string[], enabled = true) {
+  const uniqueIds = ids?.length ? Array.from(new Set(ids.filter(Boolean))).sort() : [];
+  const key = enabled ? `visible_users_${uniqueIds.join(',') || 'assignable'}` : null;
+
+  const { data, error, isLoading, mutate } = useSWR<User[]>(
+    key,
+    async () => (await usersMeService.listVisibleUsers({ ids: uniqueIds })).map(mapApiVisibleUserToFrontend),
+    { revalidateOnFocus: false }
+  );
+
+  return {
+    users: data || [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
 export function useUserActivity(userId?: string) {
   const { data, error, isLoading, mutate } = useSWR<ContentViewMetric[]>(
     userId ? `user_activity_${userId}` : null,
@@ -333,8 +398,9 @@ export function usePublicCompanyBySlug(slug?: string) {
         hero_image: landing.branding.hero.imageUrl ?? undefined,
         hero_title: landing.branding.hero.title,
         hero_subtitle: landing.branding.hero.subtitle,
-        landing_page_active: true,
-        landing_page_enabled: true,
+        landing_page_active: landing.landingPageActive ?? true,
+        landing_page_enabled: landing.landingPageEnabled ?? true,
+        landing_page_layout: landing.landingPageLayout as Company['landing_page_layout'],
         created_at: '',
       }))
       : Promise.resolve(null)
@@ -411,7 +477,8 @@ export function usePublicRepositorySimpleLinks(repositoryId?: string) {
 export function useCourses(companyId?: string) {
   const { data, error, isLoading, mutate } = useSWR<Course[]>(
     companyId ? `courses_${companyId}` : null,
-    () => courseService.getCourses(companyId!)
+    () => courseService.getCourses(companyId!),
+    stableCatalogSwrOptions,
   );
 
   return {
@@ -467,11 +534,12 @@ export function useCourseContents(moduleId?: string) {
  * Retorna um Map<moduleId, CourseContent[]>. Elimina o N+1 em listas de navegaÃ§Ã£o.
  */
 export function useCourseContentsByCourse(moduleIds: string[]) {
-  const key = moduleIds.length > 0 ? `course_contents_by_modules_${moduleIds.sort().join(',')}` : null;
+  const sortedModuleIds = Array.from(new Set(moduleIds)).sort();
+  const key = sortedModuleIds.length > 0 ? `course_contents_by_modules_${sortedModuleIds.join(',')}` : null;
   const { data, error, isLoading, mutate } = useSWR<Map<string, CourseContent[]>>(
     key,
     async () => {
-      const contents = (await coursesService.listContentsByModules(moduleIds)).map(mapApiCourseContentToFrontend);
+      const contents = (await coursesService.listContentsByModules(sortedModuleIds)).map(mapApiCourseContentToFrontend);
       const map = new Map<string, CourseContent[]>();
       contents.forEach((c) => {
         const list = map.get(c.module_id) || [];
@@ -488,11 +556,12 @@ export function useCourseContentsByCourse(moduleIds: string[]) {
  * Hook agregado: busca TODAS as perguntas de TODOS os mÃ³dulos em uma Ãºnica query.
  */
 export function useCourseQuestionsByCourse(moduleIds: string[]) {
-  const key = moduleIds.length > 0 ? `course_questions_by_modules_${moduleIds.sort().join(',')}` : null;
+  const sortedModuleIds = Array.from(new Set(moduleIds)).sort();
+  const key = sortedModuleIds.length > 0 ? `course_questions_by_modules_${sortedModuleIds.join(',')}` : null;
   const { data, error, isLoading, mutate } = useSWR<Map<string, CoursePhaseQuestion[]>>(
     key,
     async () => {
-      const questions = (await coursesService.listQuestionsByModules(moduleIds)).map(mapApiCourseQuestionToFrontend);
+      const questions = (await coursesService.listQuestionsByModules(sortedModuleIds)).map(mapApiCourseQuestionToFrontend);
       const map = new Map<string, CoursePhaseQuestion[]>();
       questions.forEach((q) => {
         const list = map.get(q.module_id) || [];
@@ -621,14 +690,16 @@ export async function submitCourseAnswer(
   questionId: string,
   selectedOptionId: string | undefined,
   isCorrect: boolean,
-  complexAnswer?: any
+  complexAnswer?: any,
+  finalize = false
 ) {
   return courseService.submitAnswer({
     enrollment_id: enrollmentId,
     question_id: questionId,
     selected_option_id: selectedOptionId || null,
     complex_answer: complexAnswer || null,
-    is_correct: isCorrect
+    is_correct: isCorrect,
+    completed_answer_id: finalize ? 'final' : undefined
   });
 }
 
@@ -639,7 +710,7 @@ export async function completeEnrollment(
   enrollmentId: string,
   totalCorrect: number,
   totalQuestions: number,
-  startedAt: string
+  startedAt?: string
 ) {
   return courseService.completeEnrollment(enrollmentId, totalCorrect, totalQuestions, startedAt);
 }
@@ -739,6 +810,31 @@ export function useUserCourseHistory(userId?: string, companyId?: string) {
     history: data || [],
     isLoading,
     isError: error
+  };
+}
+
+export function useOwnCourseEnrollments(courseIds: string[], userId?: string, companyId?: string) {
+  const uniqueCourseIds = Array.from(new Set(courseIds)).sort();
+  const key = userId && companyId && uniqueCourseIds.length > 0
+    ? `own_course_enrollments_${userId}_${companyId}_${uniqueCourseIds.join(',')}`
+    : null;
+
+  const { data, error, isLoading, mutate } = useSWR<CourseEnrollment[]>(
+    key,
+    async () => {
+      const enrollments = await Promise.all(uniqueCourseIds.map((courseId) => coursesService.getEnrollment(courseId)));
+      return enrollments
+        .filter((enrollment): enrollment is NonNullable<typeof enrollment> => Boolean(enrollment))
+        .map(mapApiCourseEnrollmentToFrontend);
+    },
+    { revalidateOnFocus: false }
+  );
+
+  return {
+    enrollments: data || [],
+    isLoading,
+    isError: error,
+    mutate
   };
 }
 

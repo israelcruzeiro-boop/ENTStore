@@ -7,6 +7,7 @@ if (!API_BASE_URL) {
 }
 
 const LEGACY_ACCESS_TOKEN_KEY = 'sp_access_token';
+const REFRESH_SESSION_HINT_KEY = 'sp_has_refresh_session';
 let accessToken: string | null = null;
 
 try {
@@ -47,6 +48,14 @@ export class ApiException extends Error {
   }
 }
 
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
+export function isApiUnavailableError(err: unknown): boolean {
+  return err instanceof ApiException && (err.status === 0 || err.code === 'API_UNAVAILABLE');
+}
+
 type SessionExpiredHandler = () => void;
 let sessionExpiredHandler: SessionExpiredHandler | null = null;
 
@@ -63,17 +72,30 @@ export const tokenStorage = {
   },
   set(access: string): void {
     accessToken = access;
+    try {
+      localStorage.setItem(REFRESH_SESSION_HINT_KEY, '1');
+    } catch {
+      // Ignore storage failures; the in-memory token is enough for this tab.
+    }
   },
   clear(): void {
     accessToken = null;
     try {
       localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_SESSION_HINT_KEY);
     } catch {
       // Ignore storage failures; the in-memory token is already cleared.
     }
   },
   hasSession(): boolean {
     return Boolean(accessToken);
+  },
+  hasRefreshSessionHint(): boolean {
+    try {
+      return localStorage.getItem(REFRESH_SESSION_HINT_KEY) === '1';
+    } catch {
+      return false;
+    }
   },
 };
 
@@ -129,7 +151,11 @@ async function performRefresh(): Promise<boolean> {
     tokenStorage.set(envelope.data.accessToken);
     return true;
   } catch (err) {
-    Logger.error('Token refresh failed', err);
+    if (isNetworkError(err)) {
+      Logger.debug('Token refresh skipped because the API is unavailable');
+    } else {
+      Logger.warn('Token refresh failed', err);
+    }
     return false;
   }
 }
@@ -193,6 +219,15 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   try {
     return await doFetch<T>(path, options);
   } catch (err) {
+    if (isNetworkError(err)) {
+      throw new ApiException(
+        'API unavailable. Check whether StorePage_back is running and VITE_API_URL is correct.',
+        0,
+        'API_UNAVAILABLE',
+        err,
+      );
+    }
+
     if (!(err instanceof ApiException)) throw err;
 
     const canRefresh =

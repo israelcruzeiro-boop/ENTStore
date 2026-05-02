@@ -42,7 +42,7 @@ import {
   MousePointer2,
   Skull
 } from 'lucide-react';
-import { Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseQuestionType } from '../../types';
+import { Course, CourseModule, CourseContent, CoursePhaseQuestion, CourseQuestionType, CourseLayoutTemplate } from '../../types';
 import { 
   courseSchema, 
   courseModuleSchema, 
@@ -51,6 +51,7 @@ import {
   courseQuestionOptionSchema
 } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
+import { deriveOrgHierarchy, topLevelBelongsToLevel } from '../../utils/orgHierarchy';
 import { courseService } from '../../services/courseService';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,6 +72,36 @@ interface HotspotPoint {
   y: number;
   radius?: number;
 }
+
+const COURSE_LAYOUT_TEMPLATES: Array<{
+  id: CourseLayoutTemplate;
+  label: string;
+  description: string;
+  Icon: typeof BookOpen;
+  accentClass: string;
+}> = [
+  {
+    id: 'focus',
+    label: 'Foco',
+    description: 'Aula em destaque com navegação compacta.',
+    Icon: BookOpen,
+    accentClass: 'text-blue-500 bg-blue-50 border-blue-100',
+  },
+  {
+    id: 'studio',
+    label: 'Estúdio',
+    description: 'Conteúdo com painel lateral de fases.',
+    Icon: Layers,
+    accentClass: 'text-violet-500 bg-violet-50 border-violet-100',
+  },
+  {
+    id: 'journey',
+    label: 'Jornada',
+    description: 'Módulos em trilha com checkpoints.',
+    Icon: ListOrdered,
+    accentClass: 'text-amber-500 bg-amber-50 border-amber-100',
+  },
+];
 
 export const AdminCourseDetails = () => {
   const { companySlug, courseId } = useParams();
@@ -120,6 +151,7 @@ export const AdminCourseDetails = () => {
   const [excludedUserIds, setExcludedUserIds] = useState<string[]>(course?.excluded_user_ids || []);
   const [passingScore, setPassingScore] = useState<number>(course?.passing_score || 70);
   const [diplomaTemplate, setDiplomaTemplate] = useState<string>(course?.diploma_template || 'azul');
+  const [layoutTemplate, setLayoutTemplate] = useState<CourseLayoutTemplate>(course?.layout_template || 'focus');
   const [thumbnailUrl, setThumbnailUrl] = useState<string>(course?.thumbnail_url || '');
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -152,7 +184,11 @@ export const AdminCourseDetails = () => {
   const companyTopLevels = orgTopLevels.filter(o => o.active);
   const companyUnitsLocal = orgUnits.filter(u => u.active);
   const unitLabel = company?.org_unit_name || 'Unidade';
-  const org_levels = company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }];
+  const orgHierarchy = useMemo(
+    () => deriveOrgHierarchy(company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }]),
+    [company?.org_levels, company?.org_top_level_name],
+  );
+  const org_levels = orgHierarchy.levels;
 
   // Sincronizar estados quando o curso for carregado
   useEffect(() => {
@@ -166,6 +202,7 @@ export const AdminCourseDetails = () => {
       setExcludedUserIds(course.excluded_user_ids || []);
       setPassingScore(course.passing_score || 70);
       setDiplomaTemplate(course.diploma_template || 'azul');
+      setLayoutTemplate(course.layout_template || 'focus');
       setThumbnailUrl(course.thumbnail_url || '');
     }
   }, [course]);
@@ -221,6 +258,7 @@ export const AdminCourseDetails = () => {
         excluded_user_ids: excludedUserIds,
         passing_score: passingScore,
         diploma_template: diplomaTemplate,
+        layout_template: layoutTemplate,
         thumbnail_url: thumbnailUrl || null,
       });
 
@@ -487,6 +525,7 @@ export const AdminCourseDetails = () => {
                    setAllowedRegionIds(course?.allowed_region_ids || []);
                    setAllowedStoreIds(course?.allowed_store_ids || []);
                    setExcludedUserIds(course?.excluded_user_ids || []);
+                   setLayoutTemplate(course?.layout_template || 'focus');
                    setIsSettingsOpen(true);
                 }}
                 className="gap-2 border-slate-200 tour-settings-step"
@@ -759,6 +798,47 @@ export const AdminCourseDetails = () => {
                      />
                   </div>
 
+                  {/* Template do Player */}
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-4">
+                     <Label className="text-slate-900 font-bold flex items-center gap-2 mb-3">
+                        <Layers size={18} className="text-blue-500" /> Template do Player
+                     </Label>
+                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {COURSE_LAYOUT_TEMPLATES.map((template) => {
+                          const Icon = template.Icon;
+                          const isSelected = layoutTemplate === template.id;
+
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              aria-pressed={isSelected}
+                              onClick={() => setLayoutTemplate(template.id)}
+                              className={`relative text-left rounded-xl border-2 p-3 transition-all ${
+                                isSelected
+                                  ? 'border-blue-500 bg-white ring-2 ring-blue-200 scale-[1.02]'
+                                  : 'border-blue-100 bg-white/70 hover:border-blue-300 hover:bg-white'
+                              }`}
+                            >
+                              {isSelected && (
+                                <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                                  <CheckCircle2 size={12} />
+                                </div>
+                              )}
+                              <div className={`w-10 h-10 rounded-lg border flex items-center justify-center mb-3 ${template.accentClass}`}>
+                                <Icon size={18} />
+                              </div>
+                              <p className="text-sm font-black text-slate-800">{template.label}</p>
+                              <p className="text-[10px] text-slate-500 mt-1 leading-snug">{template.description}</p>
+                            </button>
+                          );
+                        })}
+                     </div>
+                     <p className="text-[10px] text-slate-500 mt-2 text-center">
+                       Selecionado: <strong>{COURSE_LAYOUT_TEMPLATES.find(t => t.id === layoutTemplate)?.label}</strong>
+                     </p>
+                  </div>
+
                   {/* Template de Diploma */}
                   <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 mb-4">
                      <Label className="text-slate-900 font-bold flex items-center gap-2 mb-3">
@@ -857,8 +937,8 @@ export const AdminCourseDetails = () => {
                         
                         <div className="grid grid-cols-1 gap-4">
                            {/* Regionais / Top Levels */}
-                           {org_levels.map((lvl, index) => {
-                              const groupsInThisLevel = companyTopLevels.filter(t => t.level_id === lvl.id || (!t.level_id && index === 0));
+                            {org_levels.map((lvl) => {
+                              const groupsInThisLevel = companyTopLevels.filter(t => topLevelBelongsToLevel(t, lvl));
                               if (groupsInThisLevel.length === 0) return null;
                               return (
                                  <div key={lvl.id} className="border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50">

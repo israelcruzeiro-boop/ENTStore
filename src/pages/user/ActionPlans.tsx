@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useActionPlansReceived, useActionPlansSent, checklistActions } from '@/hooks/useChecklists';
-import { useUsers } from '@/hooks/usePlatformData';
+import { useVisibleUsers } from '@/hooks/usePlatformData';
 import { AlertTriangle, CheckCircle2, Clock, Check, ChevronRight, Inbox, Send, User as UserIcon } from 'lucide-react';
 import { format, isPast, isToday, addDays, differenceInDays } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -23,17 +23,20 @@ interface ActionPlan extends ChecklistAnswer {
 }
 
 export const ActionPlans = () => {
-  const { user, company } = useAuth();
+  const { user } = useAuth();
   const { actionPlans: received, isLoading: loadR, mutate: mutateR } = useActionPlansReceived(user?.id);
   const { actionPlans: sent, isLoading: loadS, mutate: mutateS } = useActionPlansSent(user?.id);
-  const { users } = useUsers(company?.id);
+  const visibleUserIds = [...received, ...sent]
+    .flatMap(plan => [plan.action_plan_created_by, plan.assigned_user_id, plan.checklist_submissions?.user_id])
+    .filter((id): id is string => Boolean(id));
+  const { users: visibleUsers } = useVisibleUsers(visibleUserIds, Boolean(user?.id));
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PlanTab>('RECEIVED');
 
   const getUserName = (id?: string) => {
     if (!id) return 'Não informado';
-    const u = users.find(u => u.id === id);
-    return u?.name || 'Usuário';
+    if (id === user?.id) return user.name || 'Você';
+    return visibleUsers.find(visibleUser => visibleUser.id === id)?.name || 'Usuário';
   };
 
   const isLoading = loadR || loadS;

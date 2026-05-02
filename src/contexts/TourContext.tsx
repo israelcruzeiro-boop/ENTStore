@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Step } from 'react-joyride';
+import type { Step } from 'react-joyride';
 import { USER_TOURS, TourKey } from '../data/userTourSteps';
 
 interface TourContextType {

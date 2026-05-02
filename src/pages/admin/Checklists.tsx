@@ -56,11 +56,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrgStructure, useUsers } from '../../hooks/usePlatformData';
 import { Checklist, ChecklistFolder, ChecklistQuestion, ChecklistSection, ChecklistQuestionType } from '../../types';
-import * as XLSX from 'xlsx';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { CHECKLISTS_STEPS, CHECKLIST_CONFIG_STEPS } from '../../data/tourSteps';
 import { HelpCircle } from 'lucide-react';
+import { exportWorkbook, readFirstSheetRows } from '../../utils/spreadsheet';
 
 interface FolderWithChecklists {
   id: string;
@@ -223,7 +223,7 @@ export const AdminChecklists = () => {
 
   const [isImporting, setIsImporting] = useState(false);
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const templateData = [
       {
         'Nome do Checklist': 'Auditoria de PDV Semanal',
@@ -247,14 +247,13 @@ export const AdminChecklists = () => {
       { 'Código': 5, 'Tipo': 'Horário (HH:mm)' }
     ];
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wsLegend = XLSX.utils.json_to_sheet(legendData);
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Checklist');
-    XLSX.utils.book_append_sheet(wb, wsLegend, 'Legenda de Tipos');
-
-    XLSX.writeFile(wb, 'modelo_checklist_storepage.xlsx');
+    await exportWorkbook(
+      [
+        { name: 'Checklist', rows: templateData },
+        { name: 'Legenda de Tipos', rows: legendData },
+      ],
+      'modelo_checklist_storepage.xlsx',
+    );
     toast.info('Modelo baixado! Preencha e suba no Modo Rápido.');
   };
 
@@ -263,16 +262,10 @@ export const AdminChecklists = () => {
     if (!file) return;
 
     setIsImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json<Record<string, string | number>>(ws);
+    try {
+      const data = await readFirstSheetRows(file);
 
-        if (data.length === 0) throw new Error('Planilha vazia');
+      if (data.length === 0) throw new Error('Planilha vazia');
 
         // Pega o nome do checklist da primeira linha
         const checklistName = String(data[0]['Nome do Checklist'] || 'Importado via Planilha');
@@ -329,15 +322,14 @@ export const AdminChecklists = () => {
         mutate();
         navigate(`/admin/${companySlug}/checklists/${newChecklist.id}/builder`);
 
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          toast.error('Erro ao processar planilha: ' + err.message);
-        }
-      } finally {
-        setIsImporting(false);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error('Erro ao processar planilha: ' + err.message);
       }
-    };
-    reader.readAsBinaryString(file);
+    } finally {
+      setIsImporting(false);
+      e.target.value = '';
+    }
   };
 
   const handleCreateNew = async () => {

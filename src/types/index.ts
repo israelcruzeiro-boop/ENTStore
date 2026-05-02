@@ -1,5 +1,6 @@
-export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'USER';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'USER' | 'GUEST';
 export type ContentType = 'PDF' | 'VIDEO' | 'DOCUMENT' | 'LINK' | 'MUSIC' | 'IMAGE' | 'QUIZ';
+export type CourseLayoutTemplate = 'focus' | 'studio' | 'journey';
 
 export interface Theme {
   primary: string;
@@ -34,6 +35,7 @@ export interface Company {
   landing_page_layout?: 'classic' | 'gradient' | 'immersive' | 'solid' | 'glass' | 'split';
   primary_color?: string;
   checklists_enabled?: boolean;
+  surveys_enabled?: boolean;
   org_levels?: OrgLevelConfig[];
   org_top_level_name?: string;
   org_unit_name?: string;
@@ -129,6 +131,7 @@ export interface Course {
   target_audience?: string[];
   passing_score?: number;
   diploma_template?: string;
+  layout_template?: CourseLayoutTemplate;
   created_at: string;
   updated_at?: string;
 }
@@ -209,6 +212,7 @@ export interface CourseAnswer {
   enrollment_id: string;
   question_id: string;
   selected_option_id?: string;
+  completed_answer_id?: string;
   complex_answer?: any;
   is_correct: boolean;
   answered_at: string;
@@ -297,6 +301,15 @@ export interface ContentRating {
   org_top_level_id?: string;
   created_at: string;
   updated_at?: string;
+}
+
+export interface ContentMetricSummary {
+  content_id: string;
+  repository_id: string;
+  views_count: number;
+  ratings_count: number;
+  average_rating: number | null;
+  current_user_rating?: number | null;
 }
 
 export interface OrgTopLevel {

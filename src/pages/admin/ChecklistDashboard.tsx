@@ -30,10 +30,8 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { format, subDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import * as XLSX from 'xlsx';
 import { cn } from '../../lib/utils';
+import { exportWorkbook } from '../../utils/spreadsheet';
 
 const SURREAL_COLORS = [
   '#6366f1', // Indigo
@@ -50,6 +48,9 @@ const colorMap: any = {
   rose: 'from-rose-600 to-rose-400',
   amber: 'from-amber-600 to-amber-400'
 };
+
+const getEmbeddedChecklistTitle = (checklist: { title: string } | Array<{ title: string }> | null | undefined) =>
+  Array.isArray(checklist) ? checklist[0]?.title : checklist?.title;
 
 const RankingTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -233,11 +234,11 @@ export const AdminChecklistDashboard = () => {
        if (!directorateMap[dirId]) directorateMap[dirId] = { id: dirId, name: dName, score: 0, expectedFiles: 0, actualFiles: 0 };
        directorateMap[dirId].score += sRate;
 
-       // checklist map metric score
-       const cId = s.checklist_id;
-       const cl = checklists.find(c => c.id === cId);
-       if (!clMap[cId]) clMap[cId] = { id: cId, name: cl?.title || 'Checklist', score: 0, expectedFiles: 0, actualFiles: 0 };
-       clMap[cId].score += sRate;
+        // checklist map metric score
+        const cId = s.checklist_id;
+        const cl = checklists.find(c => c.id === cId);
+        if (!clMap[cId]) clMap[cId] = { id: cId, name: getEmbeddedChecklistTitle(s.checklist) || cl?.title || 'Checklist', score: 0, expectedFiles: 0, actualFiles: 0 };
+        clMap[cId].score += sRate;
     });
 
     // 2. Count ALL filterd subs to calculate Completion (Completed vs Total Started)
@@ -253,7 +254,7 @@ export const AdminChecklistDashboard = () => {
        if (regionalMap[rId]) regionalMap[rId].expectedFiles++;
        if (directorateMap[dirId]) directorateMap[dirId].expectedFiles++;
        
-       if (!clMap[cId]) clMap[cId] = { id: cId, name: checklists.find(c => c.id === cId)?.title || 'Checklist', score: 0, expectedFiles: 0, actualFiles: 0 };
+        if (!clMap[cId]) clMap[cId] = { id: cId, name: getEmbeddedChecklistTitle(s.checklist) || checklists.find(c => c.id === cId)?.title || 'Checklist', score: 0, expectedFiles: 0, actualFiles: 0 };
        clMap[cId].expectedFiles++;
        
        if (s.status === 'COMPLETED') {
@@ -357,11 +358,15 @@ export const AdminChecklistDashboard = () => {
   }, [submissions, answers, users, dateRange, selectedChecklist, allQuestions, orgUnits, orgTopLevels]);
 
   // Handle Export
-  const handleExportFull = () => {
+  const handleExportFull = async () => {
     const dashboardElement = document.getElementById('dashboard-content');
     if (!dashboardElement) return;
 
-    html2canvas(dashboardElement, { scale: 2, backgroundColor: '#0f172a' }).then(canvas => {
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
+    const canvas = await html2canvas(dashboardElement, { scale: 2, backgroundColor: '#0f172a' });
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
@@ -370,28 +375,53 @@ export const AdminChecklistDashboard = () => {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Relatorio_Checklist_${format(new Date(), 'dd_MM_yyyy')}.pdf`);
       toast.success('Relatório exportado com sucesso!');
-    });
   };
 
-  const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(detailedAnswers.map(ans => {
+  const handleExportExcel = async () => {
+    const rows = detailedAnswers.map(ans => {
       const cl = checklists.find(c => c.id === ans.checklist_submissions?.checklist_id);
       const user = users.find(u => u.id === ans.checklist_submissions?.user_id);
       const question = Array.isArray(ans.checklist_questions) ? ans.checklist_questions[0] : ans.checklist_questions;
       return {
         'ID Submissão': ans.submission_id,
         'Data': ans.created_at && !isNaN(new Date(ans.created_at).getTime()) ? format(new Date(ans.created_at), 'dd/MM/yyyy HH:mm') : 'N/A',
-        'Checklist': cl?.title || 'N/A',
+        'Checklist': getEmbeddedChecklistTitle(ans.checklist_submissions?.checklist) || cl?.title || 'N/A',
         'Usuário': user?.name || 'Anônimo',
         'Pergunta': question?.text || 'N/A',
         'Resposta': ans.value,
         'Observação': ans.note || '',
         'Status Plano Ação': ans.action_plan_status || 'N/A'
       };
-    }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Respostas');
-    XLSX.writeFile(wb, `Analitico_Respostas_${format(new Date(), 'dd_MM_yyyy')}.xlsx`);
+    });
+    await exportWorkbook(
+      [{ name: 'Respostas', rows }],
+      `Analitico_Respostas_${format(new Date(), 'dd_MM_yyyy')}.xlsx`,
+    );
+  };
+
+  const handleExportResponsePdf = async () => {
+    const el = document.getElementById('exportable-detail');
+    if (!el) return;
+
+    toast.loading('Gerando RelatÃ³rio PDF Profissional...', { id: 'pdf-gen' });
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
+    const canvas = await html2canvas(el, { 
+      scale: 1.5,
+      backgroundColor: '#0f172a',
+      useCORS: true,
+      logging: false,
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (canvas.height * pdfW) / canvas.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+    pdf.save(`Relatorio_Auditoria_${format(new Date(), 'dd_MM_yyyy')}.pdf`);
+    toast.success('RelatÃ³rio PDF Gerado com Sucesso!', { id: 'pdf-gen' });
   };
 
   if (isLoading) {
@@ -882,7 +912,7 @@ export const AdminChecklistDashboard = () => {
                            <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                               <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1">Unidade / Local</p>
                               <p className="font-bold text-white">{(orgUnits || []).find((u: any) => u.id === selectedResponse.org_unit_id)?.name || 'Geral'}</p>
-                              <p className="text-[11px] font-bold text-slate-500">{(checklists || []).find((c: any) => c.id === selectedResponse.checklist_id)?.title}</p>
+                              <p className="text-[11px] font-bold text-slate-500">{getEmbeddedChecklistTitle(selectedResponse.checklist) || (checklists || []).find((c: any) => c.id === selectedResponse.checklist_id)?.title}</p>
                            </div>
                         </div>
                      </div>
@@ -976,33 +1006,7 @@ export const AdminChecklistDashboard = () => {
              <Button 
                variant="default" 
                className="flex-1 bg-white hover:bg-slate-200 text-slate-900 font-black py-7 rounded-2xl shadow-xl transition-all hover:scale-[1.02] active:scale-95 group"
-               onClick={() => {
-                  const el = document.getElementById('exportable-detail');
-                  if (el) {
-                     toast.loading('Gerando Relatório PDF Profissional...', { id: 'pdf-gen' });
-                     
-                     // Ajuste temporário para o print (fundo claro p/ PDF)
-                     const originalBg = el.style.backgroundColor;
-                     const elementsToTheme = el.querySelectorAll('.text-white, .text-slate-300, .bg-white\\/[0\\.03], .bg-white\\/5');
-                     
-                     // O html2canvas capturará o que está visível, mas podemos usar scale para alta definição
-                     html2canvas(el, { 
-                        scale: 1.5, // 1.5x p/ balanço entre qualidade e tamanho de arquivo
-                        backgroundColor: '#0f172a',
-                        useCORS: true,
-                        logging: false
-                     }).then(canvas => {
-                        const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF('p', 'mm', 'a4');
-                        const pdfW = pdf.internal.pageSize.getWidth();
-                        const pdfH = (canvas.height * pdfW) / canvas.width;
-                        
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-                        pdf.save(`Relatorio_Auditoria_${format(new Date(), 'dd_MM_yyyy')}.pdf`);
-                        toast.success('Relatório PDF Gerado com Sucesso!', { id: 'pdf-gen' });
-                     });
-                  }
-               }}
+               onClick={() => { void handleExportResponsePdf(); }}
              >
                 <Download size={20} className="mr-3 group-hover:bounce" /> Exportar Relatório PDF
              </Button>

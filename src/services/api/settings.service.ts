@@ -17,6 +17,8 @@ export interface UpdateAppearancePayload {
     ctaLabel?: string | null;
     imageUrl?: string | null;
   };
+  landingPageActive?: boolean;
+  landingPageLayout?: string | null;
 }
 
 export interface UpdateFeaturesPayload {

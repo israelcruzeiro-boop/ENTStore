@@ -13,6 +13,7 @@ import { surveyService } from '../../services/surveys.service';
 import { SurveyQuestionType, buildDefaultQuestionConfig, SURVEY_QUESTION_TYPE_LABELS, SurveyQuestion, SURVEY_STATUS_LABELS, SurveyStatus } from '../../types/surveys';
 import { Logger } from '../../utils/logger';
 import { uploadFile } from '../../lib/storage';
+import { deriveOrgHierarchy, topLevelBelongsToLevel } from '../../utils/orgHierarchy';
 
 export const SurveyBuilder = () => {
   const { companySlug, surveyId } = useParams();
@@ -42,7 +43,11 @@ export const SurveyBuilder = () => {
   const companyTopLevels = useMemo(() => orgTopLevels.filter(o => o.active), [orgTopLevels]);
   const companyUnitsLocal = useMemo(() => orgUnits.filter(u => u.active), [orgUnits]);
   const unitLabel = company?.org_unit_name || 'Unidade';
-  const org_levels = useMemo(() => company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }], [company]);
+  const orgHierarchy = useMemo(
+    () => deriveOrgHierarchy(company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: company?.org_top_level_name || 'Regional' }]),
+    [company?.org_levels, company?.org_top_level_name],
+  );
+  const org_levels = orgHierarchy.levels;
 
   const [accessType, setAccessType] = useState<'ALL' | 'RESTRICTED'>('ALL');
   const [allowedUserIds, setAllowedUserIds] = useState<string[]>([]);
@@ -317,8 +322,8 @@ export const SurveyBuilder = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      {/* Regionais / Top Levels */}
                      <div className="space-y-4">
-                       {org_levels.map((lvl, index) => {
-                          const groupsInThisLevel = companyTopLevels.filter(t => t.level_id === lvl.id || (!t.level_id && index === 0));
+                       {org_levels.map((lvl) => {
+                          const groupsInThisLevel = companyTopLevels.filter(t => topLevelBelongsToLevel(t, lvl));
                           if (groupsInThisLevel.length === 0) return null;
                           return (
                              <div key={lvl.id} className="border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto bg-slate-50">

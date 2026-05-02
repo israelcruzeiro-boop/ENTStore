@@ -13,6 +13,7 @@ import type {
   ApiAdminUsersList,
   ApiCompanyAuthenticatedView,
   ApiCompanyFeatureFlags,
+  ApiInviteActivationDelivery,
   ApiInviteView,
   ApiStructure,
   ApiTenantBranding,
@@ -46,6 +47,7 @@ export interface PendingInvite {
   status: ApiInviteView['status'];
   expiresAt: string;
   createdAt: string;
+  activationDelivery?: ApiInviteActivationDelivery;
 }
 
 function mapApiInviteToPending(invite: ApiInviteView): PendingInvite {
@@ -59,6 +61,7 @@ function mapApiInviteToPending(invite: ApiInviteView): PendingInvite {
     status: invite.status,
     expiresAt: invite.expiresAt,
     createdAt: invite.createdAt,
+    activationDelivery: invite.activationDelivery,
   };
 }
 

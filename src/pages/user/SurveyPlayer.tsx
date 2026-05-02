@@ -279,7 +279,7 @@ const QuestionRenderer = ({
       case 'RATING':
          const rateVal = (value as any)?.value || 0;
          const rateCfg = question.configuration as any;
-         const maxStars = rateCfg.max_stars || 5;
+         const maxStars = rateCfg.max || rateCfg.max_stars || 5;
          return (
             <div className="flex gap-2">
                {Array.from({ length: maxStars }).map((_, i) => (

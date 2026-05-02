@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRepositories, useContents, useOrgStructure, useRepositoryMetrics, addContentView, rateContent } from '../../hooks/usePlatformData';
+import { useRepositories, useContents, useOrgStructure, useContentMetricSummaries, addContentView, rateContent } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
@@ -23,16 +23,18 @@ export const ContentDetail = () => {
   const repo = content ? repositories.find(r => r.id === content.repository_id) : null;
 
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
-  const { contentViews, contentRatings, isLoading: loadingMetrics, mutate: mutateMetrics } = useRepositoryMetrics(repo?.id);
+  const { metricSummaries, isLoading: loadingMetrics, mutate: mutateMetrics } = useContentMetricSummaries({ repositoryId: repo?.id });
 
   const isLoading = loadingContents || loadingRepos || loadingOrg || loadingMetrics;
 
   // Métricas específicas do conteúdo
-  const contentViewsList = contentViews.filter(v => v.content_id === content?.id);
-  const viewsCount = contentViewsList.length;
-  const ratings = contentRatings.filter(r => r.content_id === content?.id);
-  const avgRating = ratings.length > 0 ? (ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length).toFixed(1) : '-';
-  const userRating = contentRatings.find(r => r.content_id === content?.id && r.user_id === user?.id)?.rating;
+  const metricSummary = metricSummaries.find(summary => summary.content_id === content?.id);
+  const viewsCount = metricSummary?.views_count ?? 0;
+  const ratingsCount = metricSummary?.ratings_count ?? 0;
+  const avgRating = metricSummary?.average_rating !== null && metricSummary?.average_rating !== undefined
+    ? metricSummary.average_rating.toFixed(1)
+    : '-';
+  const userRating = metricSummary?.current_user_rating ?? undefined;
 
   // Regra de Acesso Recursiva e Completa
   const isAuthorized = repo ? checkRepoAccess(repo, user, orgUnits, orgTopLevels) : false;
@@ -118,8 +120,8 @@ export const ContentDetail = () => {
   }
 
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 min-h-screen">
-       <Link to={`/${slug}/repo/${repo.id}`} className="inline-flex items-center gap-2 text-zinc-400 hover:text-white mb-6 transition-colors">
+    <div className="user-page-shell pt-24 pb-12 px-4 md:px-12 min-h-screen">
+       <Link to={`/${slug}/repo/${repo.id}`} className="inline-flex items-center gap-2 theme-muted-text hover:text-[var(--c-text)] mb-6 transition-colors">
           <ArrowLeft size={20} /> Voltar para {repo.name}
        </Link>
 
@@ -131,23 +133,23 @@ export const ContentDetail = () => {
                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-zinc-800 text-[var(--c-primary)]">
                  {content.type}
                </span>
-               <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">{content.title}</h1>
+               <h1 className="user-section-title text-3xl md:text-5xl font-black tracking-tight drop-shadow-md">{content.title}</h1>
             </div>
             
             <div className="flex items-center gap-4 mb-2">
               <span className="flex items-center gap-1.5 text-sm text-amber-400 font-medium">
-                <Star size={16} fill="currentColor" /> {avgRating} <span className="text-zinc-500 font-normal">({ratings.length} {ratings.length === 1 ? 'avaliação' : 'avaliações'})</span>
+                <Star size={16} fill="currentColor" /> {avgRating} <span className="text-zinc-500 font-normal">({ratingsCount} {ratingsCount === 1 ? 'avaliação' : 'avaliações'})</span>
               </span>
-              <span className="text-zinc-600">•</span>
-              <span className="flex items-center gap-1.5 text-sm text-zinc-400">
+              <span className="theme-subtle-text">•</span>
+              <span className="flex items-center gap-1.5 text-sm theme-muted-text">
                 <Eye size={16} /> {viewsCount} {viewsCount === 1 ? 'visualização' : 'visualizações'}
               </span>
             </div>
 
-            <p className="text-zinc-300 text-base md:text-lg mt-4 max-w-4xl leading-relaxed">{content.description}</p>
+            <p className="theme-muted-text text-base md:text-lg mt-4 max-w-4xl leading-relaxed">{content.description}</p>
             
-            <div className="mt-8 p-4 bg-zinc-900/40 rounded-xl border border-zinc-800/80 w-fit backdrop-blur-sm">
-              <p className="text-sm text-zinc-400 mb-3 font-medium">Avalie este conteúdo (0 a 10)</p>
+            <div className="user-template-panel theme-surface-soft mt-8 p-4 rounded-xl border w-fit backdrop-blur-sm">
+              <p className="text-sm theme-muted-text mb-3 font-medium">Avalie este conteúdo (0 a 10)</p>
               <div className="flex flex-wrap gap-2">
                 {[0,1,2,3,4,5,6,7,8,9,10].map(val => (
                    <button 

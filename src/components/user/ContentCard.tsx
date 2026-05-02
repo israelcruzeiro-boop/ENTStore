@@ -1,5 +1,5 @@
 import { Play, Eye, Star, Image as ImageIcon, Download } from 'lucide-react';
-import { Content, ContentViewMetric, ContentRating } from '../../types';
+import { Content, ContentViewMetric, ContentRating, ContentMetricSummary } from '../../types';
 import { Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { downloadFile } from '../../utils/download';
@@ -9,15 +9,20 @@ interface ContentCardProps {
   fullWidth?: boolean;
   views?: ContentViewMetric[];
   ratings?: ContentRating[];
+  metricSummaries?: ContentMetricSummary[];
 }
 
-export const ContentCard = ({ content, fullWidth = false, views: viewsProp, ratings: ratingsProp }: ContentCardProps) => {
+export const ContentCard = ({ content, fullWidth = false, views: viewsProp, ratings: ratingsProp, metricSummaries }: ContentCardProps) => {
   const { slug } = useTenant();
+  const metricSummary = metricSummaries?.find(summary => summary.content_id === content.id);
   
-  const viewCount = viewsProp ? viewsProp.filter(v => v.content_id === content.id).length : 0;
+  const viewCount = metricSummary?.views_count ?? (viewsProp ? viewsProp.filter(v => v.content_id === content.id).length : 0);
   
   const contentRatings = ratingsProp ? ratingsProp.filter(r => r.content_id === content.id) : [];
-  const avgRating = contentRatings.length > 0 ? (contentRatings.reduce((acc, curr) => acc + curr.rating, 0) / contentRatings.length).toFixed(1) : '-';
+  const ratingCount = metricSummary?.ratings_count ?? contentRatings.length;
+  const avgRating = metricSummary
+    ? (metricSummary.average_rating !== null ? metricSummary.average_rating.toFixed(1) : '-')
+    : (contentRatings.length > 0 ? (contentRatings.reduce((acc, curr) => acc + curr.rating, 0) / contentRatings.length).toFixed(1) : '-');
 
   const getDisplayThumbnail = () => {
     if (content.thumbnail_url) return content.thumbnail_url;
@@ -36,8 +41,8 @@ export const ContentCard = ({ content, fullWidth = false, views: viewsProp, rati
   const displayThumbnail = getDisplayThumbnail();
 
   return (
-    <Link to={`/${slug}/content/${content.id}`} className={`group relative block flex-shrink-0 snap-start outline-none transition-all duration-300 hover:z-10 focus-visible:z-10 ${fullWidth ? 'w-full' : 'w-56 md:w-[280px]'}`}>
-      <div className="aspect-video w-full overflow-hidden rounded-xl bg-zinc-900 relative flex items-center justify-center group-hover:ring-2 group-hover:ring-[var(--c-primary)]/50 group-focus-visible:ring-2 group-focus-visible:ring-white transition-all transform-gpu">
+    <Link to={`/${slug}/content/${content.id}`} className={`group user-card relative block flex-shrink-0 snap-start outline-none transition-all duration-300 hover:z-10 focus-visible:z-10 ${fullWidth ? 'w-full' : 'w-56 md:w-[280px]'}`}>
+      <div className="user-template-panel aspect-video w-full overflow-hidden rounded-xl bg-[var(--c-card)] relative flex items-center justify-center group-hover:ring-2 group-hover:ring-[var(--c-primary)]/50 group-focus-visible:ring-2 group-focus-visible:ring-[var(--c-primary)] transition-all transform-gpu">
         {displayThumbnail ? (
           <img 
             src={displayThumbnail} 
@@ -45,7 +50,7 @@ export const ContentCard = ({ content, fullWidth = false, views: viewsProp, rati
             className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105 group-hover:opacity-60"
           />
         ) : (
-          <ImageIcon size={24} className="text-zinc-700 opacity-40" />
+          <ImageIcon size={24} className="theme-subtle-text opacity-40" />
         )}
         
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity flex items-end p-3">
@@ -72,19 +77,19 @@ export const ContentCard = ({ content, fullWidth = false, views: viewsProp, rati
       </div>
       
       <div className="mt-2.5 flex flex-col gap-1.5 px-0.5">
-        <div className="flex items-center justify-between text-[10px] text-zinc-500">
-          <span className="px-1.5 py-0.5 rounded-md border border-zinc-800 bg-zinc-900/50 font-bold tracking-wider uppercase">
+        <div className="flex items-center justify-between text-[10px] theme-subtle-text">
+          <span className="px-1.5 py-0.5 rounded-md border border-[rgb(var(--c-text-rgb)/0.08)] bg-[rgb(var(--c-card-rgb)/0.42)] font-bold tracking-wider uppercase">
             {content.type}
           </span>
-          <span className="flex items-center gap-1 font-medium text-zinc-600">
+          <span className="flex items-center gap-1 font-medium theme-subtle-text">
             <Eye size={10} /> {viewCount}
           </span>
         </div>
         
         <div className="flex items-center gap-1 font-bold text-amber-500/80 text-[10px] uppercase tracking-tighter">
           <Star size={10} fill="currentColor" /> {avgRating} 
-          <span className="text-zinc-600 font-medium ml-0.5">
-            ({contentRatings.length})
+          <span className="theme-subtle-text font-medium ml-0.5">
+            ({ratingCount})
           </span>
         </div>
       </div>

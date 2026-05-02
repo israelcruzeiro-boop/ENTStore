@@ -6,8 +6,8 @@ import { ApiException } from '../../services/api/client';
 // NOTE: org structure for the regular user view stays on the legacy database
 // hook (Phase 2 territory). The /admin/structure endpoint is admin-only and
 // must NOT be hit from a USER role page — it would 403 every load.
-import { useCourses, useUserCourseHistory, useOrgStructure } from '../../hooks/usePlatformData';
-import { useChecklists, useAllSubmissions } from '../../hooks/useChecklists';
+import { useCourses, useOwnCourseEnrollments, useOrgStructure } from '../../hooks/usePlatformData';
+import { useChecklists, useOwnChecklistSubmissions } from '../../hooks/useChecklists';
 import { UserCircle, LogOut, Shield, Save, Camera, Building2, Store, BookOpen, CheckSquare, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -24,12 +24,12 @@ export const UserProfile = () => {
   
   // Hooks de Cursos e Checklists
   const { courses } = useCourses(company?.id);
-  const { history: courseEnrollments } = useUserCourseHistory(user?.id, company?.id);
   const { checklists } = useChecklists(company?.id);
-  const { submissions: allSubmissions } = useAllSubmissions(company?.id);
 
   // Métricas de Cursos
   const accessibleCourses = courses.filter(c => c.status === 'ACTIVE' && checkCourseAccess(c, user, orgUnits, orgTopLevels));
+  const { enrollments: courseEnrollments } = useOwnCourseEnrollments(accessibleCourses.map(c => c.id), user?.id, company?.id);
+  const { submissions: userSubmissions } = useOwnChecklistSubmissions(user?.id, company?.id);
   const coursesCompleted = courseEnrollments.filter(e => e.status === 'COMPLETED').length;
   const coursesInProgress = courseEnrollments.filter(e => e.status === 'IN_PROGRESS').length;
   const coursesNotStarted = Math.max(0, accessibleCourses.length - coursesCompleted - coursesInProgress);
@@ -37,7 +37,6 @@ export const UserProfile = () => {
   const courseAvgScore = coursesCompleted > 0 ? Math.round(courseEnrollments.filter(e => e.status === 'COMPLETED').reduce((a, b) => a + (b.score_percent || 0), 0) / coursesCompleted) : 0;
 
   // Métricas de Checklists
-  const userSubmissions = allSubmissions.filter(s => s.user_id === user?.id);
   const checklistsCompleted = userSubmissions.filter(s => s.status === 'COMPLETED').length;
   const checklistsInProgress = userSubmissions.filter(s => s.status === 'IN_PROGRESS').length;
   const activeChecklists = checklists.filter(c => c.status === 'ACTIVE').length;
@@ -150,8 +149,8 @@ export const UserProfile = () => {
   const currentUnit = activeUnits.find(u => u.id === formData.org_unit_id);
 
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 max-w-4xl mx-auto min-h-screen">
-       <div className="bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/5 rounded-[2rem] p-6 md:p-12 shadow-2xl relative overflow-hidden">
+    <div className="user-page-shell pt-24 pb-12 px-4 md:px-12 max-w-4xl mx-auto min-h-screen">
+       <div className="user-template-panel theme-surface border rounded-[2rem] p-6 md:p-12 shadow-2xl relative overflow-hidden">
           
           <div className="absolute inset-0 bg-gradient-to-br from-[var(--c-primary)]/10 via-transparent to-transparent pointer-events-none"></div>
 
@@ -166,7 +165,7 @@ export const UserProfile = () => {
               {formData.avatar_url ? (
                  <img src={formData.avatar_url} alt="avatar" className="w-32 h-32 md:w-40 md:h-40 rounded-full border-[6px] shadow-2xl object-cover transition-transform group-hover:scale-105" style={{ borderColor: company?.theme?.background || '#050505' }} />
               ) : (
-                 <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-[#111] text-zinc-600 flex items-center justify-center border-[6px] border-[#050505] shadow-2xl transition-transform group-hover:scale-105">
+                 <div className="w-32 h-32 md:w-40 md:h-40 rounded-full theme-surface-soft theme-subtle-text flex items-center justify-center border-[6px] shadow-2xl transition-transform group-hover:scale-105" style={{ borderColor: company?.theme?.background || '#050505' }}>
                    <UserCircle size={64} />
                  </div>
               )}
@@ -184,11 +183,11 @@ export const UserProfile = () => {
             </div>
 
             <div className="text-center mb-10">
-               <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight flex items-center justify-center gap-2 drop-shadow-lg">
+               <h1 className="user-section-title text-4xl md:text-5xl font-black tracking-tight flex items-center justify-center gap-2 drop-shadow-lg">
                  {user?.name}
                </h1>
                <div className="flex items-center justify-center gap-2 mt-2">
-                 <span className="text-xs text-zinc-500 uppercase tracking-widest font-bold bg-zinc-950 px-3 py-1 rounded-full border border-zinc-800">
+                 <span className="theme-muted-text text-xs uppercase tracking-widest font-bold theme-surface-soft px-3 py-1 rounded-full border">
                     {company?.name}
                  </span>
                  {user?.role === 'ADMIN' && (
@@ -203,12 +202,12 @@ export const UserProfile = () => {
             {/* Desempenho Acadêmico - Inline no Header */}
             <div className="w-full grid grid-cols-2 gap-3 mt-2 mb-10 animate-in fade-in slide-in-from-bottom-3 duration-500">
                {/* Cursos Card */}
-               <div className="bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 border border-white/5 hover:border-blue-500/20 transition-colors">
+               <div className="user-template-panel theme-surface-soft rounded-2xl p-5 border hover:border-blue-500/20 transition-colors">
                  <div className="flex items-center gap-2 mb-3">
                    <BookOpen size={14} className="text-blue-400" />
-                   <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Cursos</span>
+                   <span className="text-[10px] font-black text-[var(--c-text)] uppercase tracking-widest">Cursos</span>
                  </div>
-                 <div className="text-3xl font-black text-white tabular-nums mb-1">{courseCompletionRate}<span className="text-lg text-white/30">%</span></div>
+                 <div className="text-3xl font-black text-[var(--c-text)] tabular-nums mb-1">{courseCompletionRate}<span className="text-lg theme-subtle-text">%</span></div>
                  <div className="flex items-center gap-3 text-[10px] mt-2">
                    <span className="flex items-center gap-1 text-emerald-400 font-bold"><CheckCircle2 size={10}/>{coursesCompleted}</span>
                    <span className="flex items-center gap-1 text-blue-400 font-bold"><Clock size={10}/>{coursesInProgress}</span>
@@ -225,12 +224,12 @@ export const UserProfile = () => {
                </div>
 
                {/* Checklists Card */}
-               <div className="bg-white/[0.03] backdrop-blur-md rounded-2xl p-5 border border-white/5 hover:border-emerald-500/20 transition-colors">
+               <div className="user-template-panel theme-surface-soft rounded-2xl p-5 border hover:border-emerald-500/20 transition-colors">
                  <div className="flex items-center gap-2 mb-3">
                    <CheckSquare size={14} className="text-emerald-400" />
-                   <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Checklists</span>
+                   <span className="text-[10px] font-black text-[var(--c-text)] uppercase tracking-widest">Checklists</span>
                  </div>
-                 <div className="text-3xl font-black text-white tabular-nums mb-1">{checklistCompletionRate}<span className="text-lg text-white/30">%</span></div>
+                 <div className="text-3xl font-black text-[var(--c-text)] tabular-nums mb-1">{checklistCompletionRate}<span className="text-lg theme-subtle-text">%</span></div>
                  <div className="flex items-center gap-3 text-[10px] mt-2">
                    <span className="flex items-center gap-1 text-emerald-400 font-bold"><CheckCircle2 size={10}/>{checklistsCompleted}</span>
                    <span className="flex items-center gap-1 text-blue-400 font-bold"><Clock size={10}/>{checklistsInProgress}</span>
@@ -240,56 +239,56 @@ export const UserProfile = () => {
             </div>
 
             {/* 2. Dados Pessoais */}
-            <div className="w-full bg-white/5 backdrop-blur-md rounded-2xl p-6 md:p-8 mb-6 border border-white/5 shadow-inner">
-               <h3 className="text-sm font-bold text-white mb-6 uppercase tracking-widest flex items-center gap-2 opacity-80">
+            <div className="w-full user-template-panel theme-surface-soft rounded-2xl p-6 md:p-8 mb-6 border shadow-inner">
+               <h3 className="text-sm font-bold text-[var(--c-text)] mb-6 uppercase tracking-widest flex items-center gap-2 opacity-80">
                   Dados Pessoais
                </h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-5">
                    <div className="space-y-2 text-left">
-                     <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase">Nome Completo</label>
+                     <label className="text-xs theme-muted-text font-semibold tracking-wide uppercase">Nome Completo</label>
                      <input 
                        type="text" 
                        value={formData.name} 
                        onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                       className="w-full bg-[#050505]/50 border border-white/10 rounded-xl p-3.5 text-white text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-white/30 focus:border-white/30 transition-all hover:border-white/20"
+                       className="theme-control w-full border rounded-xl p-3.5 text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-[var(--c-primary)]/40 transition-all"
                        placeholder="Seu nome"
                      />
                   </div>
                   <div className="space-y-2 text-left">
-                     <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase">E-mail</label>
+                     <label className="text-xs theme-muted-text font-semibold tracking-wide uppercase">E-mail</label>
                      <input 
                        type="email" 
                        value={formData.email} 
                        onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                       className="w-full bg-[#050505]/50 border border-white/10 rounded-xl p-3.5 text-white text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-white/30 focus:border-white/30 transition-all hover:border-white/20"
+                       className="theme-control w-full border rounded-xl p-3.5 text-sm md:text-base focus:outline-none focus:ring-1 focus:ring-[var(--c-primary)]/40 transition-all"
                        placeholder="seu@email.com"
                      />
                   </div>
                </div>
                <div className="space-y-2 text-left">
-                  <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase flex justify-between items-center">
+                  <label className="text-xs theme-muted-text font-semibold tracking-wide uppercase flex justify-between items-center">
                     CPF
-                    <span className="text-[10px] text-zinc-500/80 font-normal normal-case">Não editável</span>
+                    <span className="text-[10px] theme-subtle-text font-normal normal-case">Não editável</span>
                   </label>
                   <input 
                     type="text" 
                     value={formData.cpf ? formData.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4") : ''} 
                     readOnly
-                    className="w-full bg-black/30 border border-transparent rounded-xl p-3.5 text-zinc-500 text-sm md:text-base cursor-not-allowed focus:outline-none"
+                    className="w-full bg-[rgb(var(--c-text-rgb)/0.035)] border border-transparent rounded-xl p-3.5 theme-subtle-text text-sm md:text-base cursor-not-allowed focus:outline-none"
                     placeholder="Não cadastrado"
                   />
                </div>
             </div>
 
             {/* 3. Vínculo Organizacional */}
-            <div className="w-full bg-white/5 backdrop-blur-md rounded-2xl p-6 md:p-8 mb-8 border border-white/5 shadow-inner">
+            <div className="w-full user-template-panel theme-surface-soft rounded-2xl p-6 md:p-8 mb-8 border shadow-inner">
                <div className="flex justify-between items-center mb-6">
-                 <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2 opacity-80">
+                 <h3 className="text-sm font-bold text-[var(--c-text)] uppercase tracking-widest flex items-center gap-2 opacity-80">
                     Vínculo Organizacional
                  </h3>
                </div>
 
-               <div className="mb-6 bg-[#050505]/40 border border-transparent rounded-xl p-5 flex flex-col gap-5">
+               <div className="mb-6 bg-[rgb(var(--c-text-rgb)/0.035)] border border-transparent rounded-xl p-5 flex flex-col gap-5">
                   {hierarchyPath.length > 0 ? (
                     hierarchyPath.map((pathItem, idx) => {
                       const isLast = idx === hierarchyPath.length - 1;
@@ -301,34 +300,34 @@ export const UserProfile = () => {
                               {isLast ? <Store size={20} /> : <Building2 size={20} />}
                            </div>
                            <div>
-                              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">{pathItem.label}</p>
-                              <p className="text-sm md:text-base font-bold text-white">{pathItem.name}</p>
+                              <p className="text-[10px] theme-subtle-text font-bold uppercase tracking-widest mb-0.5">{pathItem.label}</p>
+                              <p className="text-sm md:text-base font-bold text-[var(--c-text)]">{pathItem.name}</p>
                            </div>
                         </div>
                       )
                     })
                   ) : (
-                    <div className="text-zinc-500 text-sm text-center py-4 font-medium">Nenhum vínculo organizacional definido.</div>
+                    <div className="theme-muted-text text-sm text-center py-4 font-medium">Nenhum vínculo organizacional definido.</div>
                   )}
                </div>
                
-               <div className="space-y-2 text-left border-t border-white/5 pt-6">
-                  <label className="text-xs text-zinc-400 font-semibold tracking-wide uppercase flex justify-between items-center">
+               <div className="space-y-2 text-left border-t border-[rgb(var(--c-text-rgb)/0.08)] pt-6">
+                  <label className="text-xs theme-muted-text font-semibold tracking-wide uppercase flex justify-between items-center">
                     {unitLabel} Atual
-                    <span className="text-[10px] text-zinc-500/80 font-normal normal-case">Apenas admin pode alterar</span>
+                    <span className="text-[10px] theme-subtle-text font-normal normal-case">Apenas admin pode alterar</span>
                   </label>
                   <input 
                     type="text" 
                     value={currentUnit ? currentUnit.name : ''} 
                     readOnly
-                    className="w-full bg-black/20 border border-transparent rounded-xl p-3.5 text-zinc-500 text-sm md:text-base cursor-not-allowed focus:outline-none"
+                    className="w-full bg-[rgb(var(--c-text-rgb)/0.035)] border border-transparent rounded-xl p-3.5 theme-subtle-text text-sm md:text-base cursor-not-allowed focus:outline-none"
                     placeholder={`Nenhuma ${unitLabel.toLowerCase()} vinculada`}
                   />
                </div>
             </div>
 
 
-            <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-white/10">
+            <div className="w-full flex flex-col sm:flex-row justify-between items-center gap-4 pt-8 border-t border-[rgb(var(--c-text-rgb)/0.10)]">
                <button 
                  type="button"
                  onClick={handleLogout}

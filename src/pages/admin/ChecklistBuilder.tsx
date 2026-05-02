@@ -14,7 +14,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +67,7 @@ export const ChecklistBuilder = () => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'content' | 'settings'>('content');
+  const [savingQuestionTypeIds, setSavingQuestionTypeIds] = useState<Set<string>>(() => new Set());
 
   // Drag and Drop State
   const [draggedItem, setDraggedItem] = useState<Record<string, unknown> | null>(null);
@@ -133,12 +135,24 @@ export const ChecklistBuilder = () => {
   };
 
   const updateQuestionType = async (id: string, type: ChecklistQuestion['type']) => {
+    const previousQuestions = questions;
+    const nextQuestions = questions.map(q => q.id === id ? { ...q, type } : q);
+    setSavingQuestionTypeIds(prev => new Set(prev).add(id));
+    mutateQuestions(nextQuestions, false);
     try {
       await checklistActions.updateQuestion(id, { type });
-      mutateQuestions();
+      await mutateQuestions();
       toast.success('Tipo atualizado');
     } catch (err) {
        Logger.error("Erro ao atualizar tipo", err);
+       mutateQuestions(previousQuestions, false);
+       toast.error('Erro ao atualizar tipo da pergunta. A alteração foi desfeita.');
+    } finally {
+       setSavingQuestionTypeIds(prev => {
+         const next = new Set(prev);
+         next.delete(id);
+         return next;
+       });
     }
   };
 
@@ -301,6 +315,7 @@ export const ChecklistBuilder = () => {
                   onUpdateText={updateQuestionText}
                   onUpdateType={updateQuestionType}
                   onUpdateConfig={updateQuestionConfig}
+                  isTypeSaving={savingQuestionTypeIds.has(q.id)}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDrop={onDrop}
@@ -346,6 +361,7 @@ export const ChecklistBuilder = () => {
                     onUpdateText={updateQuestionText}
                     onUpdateType={updateQuestionType}
                     onUpdateConfig={updateQuestionConfig}
+                    isTypeSaving={savingQuestionTypeIds.has(q.id)}
                     onDragStart={onDragStart}
                     onDragOver={onDragOver}
                     onDrop={onDrop}
@@ -438,12 +454,13 @@ const DebouncedInput = ({ value: externalValue, onSave, className }: {
 };
 
 // Componente Interno para o Item da Pergunta
-const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdateConfig, onDragStart, onDragOver, onDrop }: {
+const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdateConfig, isTypeSaving, onDragStart, onDragOver, onDrop }: {
   question: ChecklistQuestion;
   onDelete: (id: string) => void;
   onUpdateText: (id: string, text: string) => void;
   onUpdateType: (id: string, value: ChecklistQuestion['type']) => void;
   onUpdateConfig: (id: string, config: any) => void;
+  isTypeSaving?: boolean;
   onDragStart: (e: React.DragEvent, item: Record<string, unknown>, type: 'section' | 'question') => void;
   onDragOver: (e: React.DragEvent, sectionId?: string, questionId?: string) => void;
   onDrop: (e: React.DragEvent, targetSectionId?: string, targetQuestionId?: string) => void;
@@ -477,7 +494,9 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
            <select 
              value={question.type} 
              onChange={(e) => onUpdateType(question.id, e.target.value as ChecklistQuestion['type'])}
-             className="text-[10px] uppercase font-black tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded outline-none border-none cursor-pointer"
+             disabled={isTypeSaving}
+             aria-busy={isTypeSaving}
+             className="text-[10px] uppercase font-black tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded outline-none border-none cursor-pointer disabled:cursor-wait disabled:opacity-60"
            >
               <option value="COMPLIANCE">Conformidade</option>
               <option value="RATING">Pontuação (0-10)</option>
@@ -487,6 +506,7 @@ const QuestionItem = ({ question, onDelete, onUpdateText, onUpdateType, onUpdate
               <option value="TIME">Horário</option>
               <option value="CHECK">Check</option>
            </select>
+           {isTypeSaving && <Loader2 size={12} className="animate-spin text-blue-500" />}
            {question.required && <span className="text-[10px] font-bold text-red-400 uppercase">* Obrigatória</span>}
         </div>
       </div>

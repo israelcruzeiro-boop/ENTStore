@@ -43,7 +43,7 @@ export const ContentRow = ({ title, children }: ContentRowProps) => {
 
   return (
     <div className="mb-8 md:mb-10 group/row relative">
-      <h2 className="text-lg md:text-xl font-bold text-white mb-3 flex items-center group cursor-pointer w-fit tracking-wide">
+      <h2 className="home-section-title text-lg md:text-xl font-bold text-[var(--c-text)] mb-3 flex items-center group cursor-pointer w-fit tracking-wide">
         {title}
         <ChevronRight className="opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-[var(--c-primary)]" />
       </h2>
@@ -53,7 +53,7 @@ export const ContentRow = ({ title, children }: ContentRowProps) => {
         {showLeftArrow && (
           <button 
             onClick={() => scroll('left')}
-            className="hidden md:flex absolute -left-2 top-[calc(50%-1rem)] -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white hover:bg-white hover:text-black transition-all duration-300 shadow-xl group/btn"
+            className="hidden md:flex absolute -left-2 top-[calc(50%-1rem)] -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-xl theme-surface border backdrop-blur-md hover:bg-[var(--c-primary)] hover:text-white transition-all duration-300 shadow-xl group/btn"
             aria-label="Anterior"
           >
             <ChevronLeft size={20} className="group-hover/btn:-translate-x-0.5 transition-transform" />
@@ -71,7 +71,7 @@ export const ContentRow = ({ title, children }: ContentRowProps) => {
         {showRightArrow && (
           <button 
             onClick={() => scroll('right')}
-            className="hidden md:flex absolute -right-2 top-[calc(50%-1rem)] -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white hover:bg-white hover:text-black transition-all duration-300 shadow-xl group/btn"
+            className="hidden md:flex absolute -right-2 top-[calc(50%-1rem)] -translate-y-1/2 z-20 w-10 h-10 items-center justify-center rounded-xl theme-surface border backdrop-blur-md hover:bg-[var(--c-primary)] hover:text-white transition-all duration-300 shadow-xl group/btn"
             aria-label="Próximo"
           >
             <ChevronRight size={20} className="group-hover/btn:translate-x-0.5 transition-transform" />

@@ -3,13 +3,26 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useOrgStructure, useRepositories } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { RepoCard } from '../../components/user/RepoCard';
-import { MonitorPlay, LayoutGrid, Music, PlaySquare, Folder } from 'lucide-react';
+import { MonitorPlay, LayoutGrid, Music, PlaySquare, Folder, Library } from 'lucide-react';
+import { UserPageShell } from '../../components/user/UserPageShell';
+import { UserPageHeader } from '../../components/user/UserPageHeader';
+import { UserSegmentedTabs, type UserTab } from '../../components/user/UserSegmentedTabs';
+import { UserEmptyState } from '../../components/user/UserEmptyState';
+
+type HubTab = 'ALL' | 'FULL' | 'SIMPLE' | 'PLAYLIST' | 'VIDEO_PLAYLIST';
+
+const hubTabs: UserTab<HubTab>[] = [
+  { value: 'ALL', label: 'Todos', icon: LayoutGrid },
+  { value: 'FULL', label: 'Trilhas & Cursos', icon: Folder },
+  { value: 'SIMPLE', label: 'Biblioteca', icon: Library },
+  { value: 'VIDEO_PLAYLIST', label: 'Vídeos', icon: PlaySquare },
+  { value: 'PLAYLIST', label: 'Áudios', icon: Music },
+];
 
 export const UserHub = () => {
   const { company, user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'ALL' | 'FULL' | 'PLAYLIST' | 'VIDEO_PLAYLIST'>('ALL');
+  const [activeTab, setActiveTab] = useState<HubTab>('ALL');
 
-  // SWR Hooks para dados da API
   const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
 
@@ -17,81 +30,42 @@ export const UserHub = () => {
 
   const allHubRepos = repositories.filter(r => {
     if (r.company_id !== company?.id || r.status !== 'ACTIVE') return false;
-    if (r.type !== 'FULL' && r.type !== 'PLAYLIST' && r.type !== 'VIDEO_PLAYLIST' && r.type !== undefined) return false;
-
+    if (r.type !== 'FULL' && r.type !== 'SIMPLE' && r.type !== 'PLAYLIST' && r.type !== 'VIDEO_PLAYLIST' && r.type !== undefined) return false;
     return checkRepoAccess(r, user, orgUnits, orgTopLevels);
   });
 
   const filteredRepos = allHubRepos.filter(r => {
     if (activeTab === 'ALL') return true;
     if (activeTab === 'FULL') return r.type === 'FULL' || r.type === undefined;
+    if (activeTab === 'SIMPLE') return r.type === 'SIMPLE';
     if (activeTab === 'PLAYLIST') return r.type === 'PLAYLIST';
     if (activeTab === 'VIDEO_PLAYLIST') return r.type === 'VIDEO_PLAYLIST';
     return true;
   });
 
-  if (isLoading) {
-    return (
-      <div
-        className="flex items-center justify-center min-h-screen"
-        style={{ backgroundColor: company?.theme?.background || '#050505' }}
-      >
-        <div className="w-12 h-12 border-4 border-[var(--c-primary)] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 max-w-[1600px] mx-auto min-h-screen">
-      <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
-        <MonitorPlay size={32} className="text-[var(--c-primary)] drop-shadow-md" />
-        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Hubs de Conteúdo</h1>
-      </div>
-      <p className="text-zinc-300 mb-8 max-w-3xl text-lg md:text-xl font-medium leading-relaxed drop-shadow-sm">Trilhas de aprendizado, cursos e conteúdos estruturados que vão impulsionar seus conhecimentos.</p>
+    <UserPageShell loading={isLoading}>
+      <UserPageHeader
+        icon={MonitorPlay}
+        title="Hub de Repositórios"
+        subtitle="Acesse trilhas, bibliotecas, vídeos e playlists disponibilizados pela sua empresa em um só lugar."
+      />
 
-      {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2 mb-10 border-b border-white/5 pb-6">
-        <button
-          onClick={() => setActiveTab('ALL')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === 'ALL' ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgba(var(--c-primary-rgb),0.3)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-        >
-          <LayoutGrid size={16} /> Todos
-        </button>
-        <button
-          onClick={() => setActiveTab('FULL')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === 'FULL' ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgba(var(--c-primary-rgb),0.3)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-        >
-          <Folder size={16} /> Trilhas & Cursos
-        </button>
-        <button
-          onClick={() => setActiveTab('VIDEO_PLAYLIST')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === 'VIDEO_PLAYLIST' ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgba(var(--c-primary-rgb),0.3)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-        >
-          <PlaySquare size={16} /> Vídeos
-        </button>
-        <button
-          onClick={() => setActiveTab('PLAYLIST')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-300 ${activeTab === 'PLAYLIST' ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgba(var(--c-primary-rgb),0.3)]' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white'}`}
-        >
-          <Music size={16} /> Áudios
-        </button>
-      </div>
+      <UserSegmentedTabs tabs={hubTabs} active={activeTab} onChange={(v) => setActiveTab(v as HubTab)} />
 
       {filteredRepos.length > 0 ? (
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {filteredRepos.map(repo => (
-            <div key={repo.id} className="w-full">
-              <RepoCard repo={repo} fullWidth />
-            </div>
+            <RepoCard key={repo.id} repo={repo} fullWidth />
           ))}
         </div>
       ) : (
-        <div className="py-20 flex items-center justify-center flex-col text-zinc-500">
-          <MonitorPlay size={48} className="mb-4 opacity-30" />
-          <h2 className="text-xl font-bold text-white mb-2">Sem hubs</h2>
-          <p>Sua empresa ainda não disponibilizou conteúdos estruturados aqui.</p>
-        </div>
+        <UserEmptyState
+          icon={MonitorPlay}
+          title="Sem repositórios"
+          message="Sua empresa ainda não disponibilizou repositórios para o seu acesso."
+        />
       )}
-    </div>
+    </UserPageShell>
   );
 };

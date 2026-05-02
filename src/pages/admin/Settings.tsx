@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { settingsService } from '../../services/api';
+import type { UpdateAppearancePayload, UpdateGeneralPayload } from '../../services/api/settings.service';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,89 @@ import { CoverPreview } from '../../components/admin/CoverPreview';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { SETTINGS_STEPS } from '../../data/tourSteps';
+import type { Company } from '../../types';
+
+type SettingsFormData = {
+  name: string;
+  link_name: string;
+  logo_url: string;
+  hero_image: string;
+  hero_title: string;
+  hero_subtitle: string;
+  active: boolean;
+  hero_position: number;
+  hero_brightness: number;
+};
+
+const trimmed = (value?: string | null) => (value ?? '').trim();
+
+const validateOptionalUrl = (value: string, label: string) => {
+  if (!value) return null;
+
+  try {
+    new URL(value);
+    return null;
+  } catch {
+    return `${label} deve ser uma URL valida.`;
+  }
+};
+
+const buildGeneralPayload = (formData: SettingsFormData): UpdateGeneralPayload | string => {
+  const name = trimmed(formData.name);
+
+  if (name.length < 2) return 'Nome da empresa deve ter pelo menos 2 caracteres.';
+  if (name.length > 160) return 'Nome da empresa deve ter no maximo 160 caracteres.';
+
+  return {
+    name,
+    active: formData.active,
+  };
+};
+
+const buildAppearancePayload = (
+  formData: SettingsFormData,
+  company: Company,
+): UpdateAppearancePayload | null | string => {
+  const nextLogoUrl = trimmed(formData.logo_url);
+  const currentLogoUrl = trimmed(company.logo_url);
+  const nextHeroImage = trimmed(formData.hero_image);
+  const currentHeroImage = trimmed(company.hero_image);
+  const nextHeroTitle = trimmed(formData.hero_title);
+  const currentHeroTitle = trimmed(company.hero_title);
+  const nextHeroSubtitle = trimmed(formData.hero_subtitle);
+  const currentHeroSubtitle = trimmed(company.hero_subtitle);
+
+  const logoUrlError = validateOptionalUrl(nextLogoUrl, 'URL da logo');
+  if (logoUrlError) return logoUrlError;
+
+  const heroImageError = validateOptionalUrl(nextHeroImage, 'URL da imagem de capa');
+  if (heroImageError) return heroImageError;
+
+  if (nextHeroTitle.length > 160) return 'Titulo da capa deve ter no maximo 160 caracteres.';
+  if (nextHeroSubtitle.length > 320) return 'Subtitulo da capa deve ter no maximo 320 caracteres.';
+
+  const payload: UpdateAppearancePayload = {};
+
+  if (nextLogoUrl !== currentLogoUrl) {
+    payload.logoUrl = nextLogoUrl || null;
+  }
+
+  const hero: NonNullable<UpdateAppearancePayload['hero']> = {};
+  if (nextHeroImage !== currentHeroImage) {
+    hero.imageUrl = nextHeroImage || null;
+  }
+  if (nextHeroTitle && nextHeroTitle !== currentHeroTitle) {
+    hero.title = nextHeroTitle;
+  }
+  if (nextHeroSubtitle && nextHeroSubtitle !== currentHeroSubtitle) {
+    hero.subtitle = nextHeroSubtitle;
+  }
+  if (Object.keys(hero).length > 0) {
+    payload.hero = hero;
+  }
+
+  return Object.keys(payload).length > 0 ? payload : null;
+};
 
 export const AdminSettings = () => {
   const { company, refreshUser } = useAuth();
@@ -22,7 +106,7 @@ export const AdminSettings = () => {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<SettingsFormData>({
     name: '',
     link_name: '',
     logo_url: '',
@@ -95,34 +179,37 @@ export const AdminSettings = () => {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const name = (formData.name || '').trim();
-
-    if (!name) {
-      return toast.error('Nome da empresa é obrigatório.');
+    const generalPayload = buildGeneralPayload(formData);
+    if (typeof generalPayload === 'string') {
+      return toast.error(generalPayload);
     }
+
+    const appearancePayload = buildAppearancePayload(formData, company);
+    if (typeof appearancePayload === 'string') {
+      return toast.error(appearancePayload);
+    }
+
+    let generalSaved = false;
 
     try {
       setIsSubmitting(true);
 
-      await settingsService.updateGeneral({
-        name,
-        active: formData.active,
-      });
+      await settingsService.updateGeneral(generalPayload);
+      generalSaved = true;
 
-      await settingsService.updateAppearance({
-        logoUrl: formData.logo_url || null,
-        hero: {
-          title: formData.hero_title,
-          subtitle: formData.hero_subtitle,
-          imageUrl: formData.hero_image || null,
-        },
-      });
+      if (appearancePayload) {
+        await settingsService.updateAppearance(appearancePayload);
+      }
 
       toast.success('Configurações atualizadas com sucesso!');
       await refreshUser();
     } catch (err) {
       const error = err as Error;
-      toast.error(`Erro ao salvar configurações: ${error.message}`);
+      const prefix = generalSaved
+        ? 'Erro ao salvar aparencia. Dados gerais podem ter sido salvos'
+        : 'Erro ao salvar configuracoes';
+      toast.error(`${prefix}: ${error.message}`);
+      await refreshUser().catch(() => undefined);
     } finally {
       setIsSubmitting(false);
     }

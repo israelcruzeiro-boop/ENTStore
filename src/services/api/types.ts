@@ -1,4 +1,4 @@
-import type { UserRole } from '@/types';
+import type { CourseLayoutTemplate, UserRole } from '@/types';
 
 export interface ApiCompanyTheme {
   primary: string;
@@ -34,6 +34,9 @@ export interface ApiCompanyPublicView {
   linkName: string;
   branding: ApiCompanyBranding;
   general: ApiCompanyGeneral;
+  landingPageActive?: boolean;
+  landingPageEnabled?: boolean;
+  landingPageLayout?: string | null;
 }
 
 export interface ApiCompanyFeatureFlags {
@@ -98,6 +101,27 @@ export interface ApiInviteView {
   expiresAt: string;
   createdAt: string;
   activatedAt: string | null;
+  activationDelivery?: ApiInviteActivationDelivery;
+}
+
+export interface ApiInviteDeliveryAttempt {
+  id: string;
+  inviteId: string;
+  channel: 'manual' | 'email';
+  provider: 'noop' | 'smtp';
+  status: 'manual_delivery_pending' | 'sent' | 'failed';
+  errorCode: string | null;
+  requestedByUserId: string;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiInviteActivationDelivery {
+  status: 'manual_delivery_pending' | 'sent' | 'failed';
+  channel: 'manual' | 'email';
+  provider: 'noop' | 'smtp';
+  sent: boolean;
+  lastAttempt: ApiInviteDeliveryAttempt | null;
 }
 
 export interface ApiSessionView {
@@ -278,6 +302,22 @@ export interface ApiRepositoryMetrics {
   }>;
 }
 
+export interface ApiContentMetricSummary {
+  contentId: string;
+  repositoryId: string;
+  viewsCount: number;
+  ratingsCount: number;
+  averageRating: number | null;
+  currentUserRating?: number | null;
+}
+
+export interface ApiVisibleUser {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  orgUnitId: string | null;
+}
+
 // ─── Phase 2: Landing (Public) ───────────────────────────────────────────────
 
 export interface ApiLandingData {
@@ -285,6 +325,9 @@ export interface ApiLandingData {
   name: string;
   slug: string;
   branding: ApiCompanyBranding;
+  landingPageActive?: boolean;
+  landingPageEnabled?: boolean;
+  landingPageLayout?: string | null;
 }
 
 export interface ApiPublicRepository {
@@ -341,6 +384,7 @@ export interface ApiCourse {
   targetAudience: string[];
   passingScore: number;
   diplomaTemplate: string;
+  layoutTemplate?: CourseLayoutTemplate;
   moduleCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -611,6 +655,9 @@ export interface ApiChecklistDetail {
 
 export interface ApiChecklistSubmissionDetail {
   submission: ApiChecklistSubmission;
+  checklist?: ApiChecklist;
+  sections?: ApiChecklistSection[];
+  questions?: ApiChecklistQuestion[];
   answers: ApiChecklistAnswer[];
 }
 

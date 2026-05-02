@@ -8,7 +8,7 @@ import {
   useChecklistSections,
   checklistActions 
 } from '../../hooks/useChecklists';
-import { useUsers } from '../../hooks/usePlatformData';
+import { useVisibleUsers } from '../../hooks/usePlatformData';
 import { useAuth } from '../../contexts/AuthContext';
 import { uploadFile } from '../../lib/storage';
 import { 
@@ -411,7 +411,8 @@ export const ChecklistPlayer = () => {
   const { questions, isLoading: qLoading } = useChecklistQuestions(submission?.checklist_id);
   
   const { answers } = useChecklistAnswers(submissionId);
-  const { users } = useUsers(submission?.company_id);
+  const { users: visibleUsers } = useVisibleUsers(undefined, Boolean(currentUser?.id));
+  const users = visibleUsers.length > 0 ? visibleUsers : (currentUser ? [currentUser] : []);
 
   const [localAnswers, setLocalAnswers] = useState<Record<string, LocalAnswer>>({});
   const [isFinishing, setIsFinishing] = useState(false);

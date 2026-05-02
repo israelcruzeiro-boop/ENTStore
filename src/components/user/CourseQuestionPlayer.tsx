@@ -9,15 +9,24 @@ import { OrderingQuestion } from './OrderingQuestion';
 import { HotspotQuestion } from './HotspotQuestion';
 import { HangmanQuestion } from './HangmanQuestion';
 
+type QuestionAnswerSnapshot = {
+  optionId?: string;
+  complexAnswer?: any;
+  isCorrect: boolean;
+  finalized?: boolean;
+};
+
 interface CourseQuestionPlayerProps {
   questions: CoursePhaseQuestion[];
   phaseTitle: string;
   courseThumbnail?: string | null;
   primaryColor?: string | null;
-  onComplete: (correct: number, total: number, answers: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>) => void;
-  initialAnswers?: Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>;
+  onComplete: (correct: number, total: number, answers: Record<string, QuestionAnswerSnapshot>) => void;
+  initialAnswers?: Record<string, QuestionAnswerSnapshot>;
   reviewMode?: boolean;
-  onAutosave?: (questionId: string, payload: { optionId?: string; complexAnswer?: any; isCorrect: boolean }) => void;
+  onAutosave?: (questionId: string, payload: QuestionAnswerSnapshot) => void;
+  onReviewComplete?: () => void;
+  reviewCompleteLabel?: string;
 }
 
 function computeIsCorrect(question: CoursePhaseQuestion, selectedOptionId: string | null, complexAnswer: any): boolean {
@@ -62,12 +71,14 @@ export function CourseQuestionPlayer({
   onComplete,
   initialAnswers = {},
   reviewMode = false,
-  onAutosave
+  onAutosave,
+  onReviewComplete,
+  reviewCompleteLabel = 'Voltar ao Resultado'
 }: CourseQuestionPlayerProps) {
-  // Encontra a primeira pergunta não respondida para iniciar
-  const getFirstUnansweredIndex = () => {
+  // Encontra a primeira pergunta nao respondida para iniciar.
+  const getFirstUnansweredIndex = (sourceAnswers = initialAnswers) => {
     if (reviewMode) return 0;
-    const idx = questions.findIndex(q => !initialAnswers[q.id]);
+    const idx = questions.findIndex(q => !sourceAnswers[q.id]?.finalized);
     return idx >= 0 ? idx : 0;
   };
 
@@ -77,23 +88,52 @@ export function CourseQuestionPlayer({
   const preAnswered = initialAnswers[currentQuestion?.id];
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(preAnswered?.optionId || null);
   const [complexAnswer, setComplexAnswer] = useState<any>(preAnswered?.complexAnswer || null);
-  const [isAnswered, setIsAnswered] = useState(!!preAnswered || reviewMode);
-  const [answersMap, setAnswersMap] = useState<Record<string, { optionId?: string; complexAnswer?: any; isCorrect: boolean }>>(initialAnswers);
+  const [isAnswered, setIsAnswered] = useState(Boolean(preAnswered?.finalized) || reviewMode);
+  const [answersMap, setAnswersMap] = useState<Record<string, QuestionAnswerSnapshot>>(initialAnswers);
 
-  const handleCurrentQuestionChange = (newIndex: number) => {
+  const handleCurrentQuestionChange = (
+    newIndex: number,
+    sourceAnswers: Record<string, QuestionAnswerSnapshot> = answersMap
+  ) => {
     setCurrentIndex(newIndex);
     const qId = questions[newIndex].id;
-    const existing = answersMap[qId];
+    const existing = sourceAnswers[qId];
     if (existing || reviewMode) {
       setSelectedOptionId(existing?.optionId || null);
       setComplexAnswer(existing?.complexAnswer || null);
-      setIsAnswered(true);
+      setIsAnswered(Boolean(existing?.finalized) || reviewMode);
     } else {
       setSelectedOptionId(null);
       setComplexAnswer(null);
       setIsAnswered(false);
     }
   };
+
+  const hasHydratedInitialAnswers = useRef(Object.keys(initialAnswers).length > 0);
+
+  useEffect(() => {
+    const incomingCount = Object.keys(initialAnswers).length;
+    if (incomingCount === 0) return;
+
+    const previousAnswers = answersMap;
+    setAnswersMap(prev => ({ ...prev, ...initialAnswers }));
+
+    if (
+      !reviewMode &&
+      !hasHydratedInitialAnswers.current &&
+      Object.keys(previousAnswers).length === 0 &&
+      !isAnswered
+    ) {
+      const nextIndex = getFirstUnansweredIndex(initialAnswers);
+      handleCurrentQuestionChange(nextIndex, initialAnswers);
+    } else if (currentQuestion && initialAnswers[currentQuestion.id] && !previousAnswers[currentQuestion.id] && !isAnswered) {
+      handleCurrentQuestionChange(currentIndex, initialAnswers);
+    }
+
+    hasHydratedInitialAnswers.current = true;
+    // This effect intentionally runs only when the server-provided answer snapshot changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAnswers, questions, reviewMode]);
 
   const handleConfirmAnswer = () => {
     if (isAnswered) return;
@@ -108,7 +148,8 @@ export function CourseQuestionPlayer({
     const result = {
       optionId: selectedOptionId || undefined,
       complexAnswer: complexAnswer || undefined,
-      isCorrect
+      isCorrect,
+      finalized: true
     };
 
     setAnswersMap(prev => ({
@@ -121,8 +162,8 @@ export function CourseQuestionPlayer({
     }
   };
 
-  // Autosave incremental: grava respostas parciais (ex.: palavra encontrada no caça-palavras)
-  // com is_correct=false até a confirmação final. Debounce 600ms.
+  // Autosave incremental: grava respostas parciais com is_correct=false
+  // ate a confirmacao final. Debounce 600ms.
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!onAutosave || reviewMode || isAnswered || !currentQuestion) return;
@@ -134,7 +175,8 @@ export function CourseQuestionPlayer({
       onAutosave(currentQuestion.id, {
         optionId: selectedOptionId || undefined,
         complexAnswer: complexAnswer || undefined,
-        isCorrect: computeIsCorrect(currentQuestion, selectedOptionId, complexAnswer)
+        isCorrect: computeIsCorrect(currentQuestion, selectedOptionId, complexAnswer),
+        finalized: false
       });
     }, 600);
 
@@ -153,12 +195,14 @@ export function CourseQuestionPlayer({
       // Em review mode, navega sequencialmente
       if (currentIndex < questions.length - 1) {
         handleCurrentQuestionChange(currentIndex + 1);
+      } else {
+        onReviewComplete?.();
       }
     } else {
-      // Modo normal: pula para a próxima pergunta NÃO respondida
+      // Modo normal: pula para a proxima pergunta nao respondida.
       let nextIdx = -1;
       for (let i = currentIndex + 1; i < questions.length; i++) {
-        if (!answersMap[questions[i].id]) {
+        if (!answersMap[questions[i].id]?.finalized) {
           nextIdx = i;
           break;
         }
@@ -167,8 +211,8 @@ export function CourseQuestionPlayer({
       if (nextIdx >= 0) {
         handleCurrentQuestionChange(nextIdx);
       } else {
-        // Não há mais perguntas pendentes — concluir fase
-        const finalCorrect = Object.values(answersMap).filter(a => a.isCorrect).length;
+        // Nao ha mais perguntas pendentes; concluir fase.
+        const finalCorrect = Object.values(answersMap).filter(a => a.finalized && a.isCorrect).length;
         onComplete(finalCorrect, questions.length, answersMap);
       }
     }
@@ -273,7 +317,7 @@ export function CourseQuestionPlayer({
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-bold text-white/70">Toque para selecionar uma imagem</p>
-                  <p className="text-[10px] text-white/30 mt-1">JPG, PNG, WEBP • Máx 10MB</p>
+                  <p className="text-[10px] text-white/30 mt-1">JPG, PNG, WEBP â€¢ MÃ¡x 10MB</p>
                 </div>
               </label>
             )}
@@ -366,7 +410,7 @@ export function CourseQuestionPlayer({
           <div className="mt-6 p-4 rounded-xl border flex gap-3 animate-in fade-in slide-in-from-top-2 duration-300" style={{ backgroundColor: `${primaryColor || '#3b82f6'}1a`, borderColor: `${primaryColor || '#3b82f6'}33` }}>
             <AlertCircle className="w-5 h-5 shrink-0" style={{ color: primaryColor || '#3b82f6' }} />
             <div>
-              <p className="text-sm font-bold mb-1" style={{ color: primaryColor || '#3b82f6' }}>Explicação</p>
+              <p className="text-sm font-bold mb-1" style={{ color: primaryColor || '#3b82f6' }}>ExplicaÃ§Ã£o</p>
               <p className="text-sm text-white/70 leading-relaxed">{currentQuestion.explanation}</p>
             </div>
           </div>
@@ -386,13 +430,14 @@ export function CourseQuestionPlayer({
             </Button>
             {currentIndex < questions.length - 1 ? (
               <Button className="flex-1 bg-white text-black hover:bg-white/90 h-12 font-bold group rounded-xl" onClick={handleNext}>
-                Próxima Questão
+                Proxima Questao
                 <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
               </Button>
             ) : (
-              <div className="flex-1 flex items-center justify-center h-12 bg-white/5 rounded-xl border border-white/10 text-white/40 text-sm font-bold">
-                Última Questão
-              </div>
+              <Button className="flex-1 bg-white text-black hover:bg-white/90 h-12 font-bold group rounded-xl" onClick={handleNext}>
+                {reviewCompleteLabel}
+                <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
+              </Button>
             )}
           </div>
         ) : !isAnswered ? (
@@ -406,7 +451,7 @@ export function CourseQuestionPlayer({
           </Button>
         ) : (
           <Button className="w-full bg-white text-black hover:bg-white/90 h-12 text-lg font-bold group" onClick={handleNext}>
-            {currentIndex < questions.length - 1 ? 'Próxima Questão' : 'Concluir Fase'}
+            {currentIndex < questions.length - 1 ? 'Proxima Questao' : 'Concluir Fase'}
             <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
           </Button>
         )}

@@ -6,6 +6,7 @@ import { RepoCard } from '../../components/user/RepoCard';
 import { PublicRepoModal } from '../../components/user/PublicRepoModal';
 import { Repository } from '../../types';
 import { HeaderLayout } from '../../components/user/HeaderLayout';
+import { buildThemeStyle, normalizeEnvironmentTemplate, normalizeTheme } from '../../lib/appearance';
 
 export const CompanyLandingPage = () => {
   const { companySlug } = useParams();
@@ -52,7 +53,8 @@ export const CompanyLandingPage = () => {
     );
   }
 
-  const theme = company?.theme || { primary: '#2563EB', secondary: '#1e40af', background: '#09090b', text: '#ffffff', card: '#18181b' };
+  const theme = normalizeTheme(company?.theme);
+  const environmentTemplate = normalizeEnvironmentTemplate(company.landing_page_layout);
   const heroImage = company.hero_image || 'https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80';
 
   // Lógica de Filtro e Busca
@@ -83,10 +85,10 @@ export const CompanyLandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen font-sans antialiased selection:bg-white/20" style={{ backgroundColor: theme.background, color: theme.text }}>
+    <div className={`min-h-screen font-sans antialiased selection:bg-white/20 user-template-${environmentTemplate}`} style={{ ...buildThemeStyle(theme), backgroundColor: theme.background, color: theme.text }}>
       
       <HeaderLayout
-        layout={company.landing_page_layout || 'classic'}
+        layout={environmentTemplate}
         theme={theme}
         image={heroImage}
         title={company.hero_title || company.name}

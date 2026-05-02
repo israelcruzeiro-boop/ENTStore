@@ -17,9 +17,9 @@ export const CourseCard = ({ course, fullWidth = false, status = 'NOT_STARTED' }
   return (
     <Link 
       to={`/${companySlug}/cursos/${course.id}`}
-      className={`group bg-white/5 backdrop-blur-sm rounded-[2rem] border border-white/10 overflow-hidden hover:bg-white/10 hover:border-blue-500/30 transition-all duration-500 flex flex-col h-full ${fullWidth ? 'w-full' : 'w-72 md:w-80 shrink-0'}`}
+      className={`group user-card home-card user-template-panel theme-surface-soft backdrop-blur-sm rounded-[2rem] border overflow-hidden hover:border-[var(--c-primary)]/40 transition-all duration-500 flex flex-col h-full ${fullWidth ? 'w-full' : 'w-72 md:w-80 shrink-0'}`}
     >
-      <div className="aspect-video relative overflow-hidden bg-slate-900">
+      <div className="aspect-video relative overflow-hidden bg-[var(--c-card)]">
         {course.thumbnail_url || course.cover_image ? (
           <img 
             src={course.thumbnail_url || course.cover_image} 
@@ -28,7 +28,7 @@ export const CourseCard = ({ course, fullWidth = false, status = 'NOT_STARTED' }
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-blue-600/20 to-indigo-700/20 flex items-center justify-center">
-            <BookOpen size={48} className="text-white/10" />
+            <BookOpen size={48} className="text-[var(--c-text)] opacity-20" />
           </div>
         )}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950 to-transparent"></div>
@@ -39,22 +39,22 @@ export const CourseCard = ({ course, fullWidth = false, status = 'NOT_STARTED' }
       </div>
 
       <div className="p-6 flex flex-col flex-1 space-y-4">
-        <h2 className="text-lg font-bold text-white leading-tight group-hover:text-blue-400 transition-colors line-clamp-2">{course.title}</h2>
+        <h2 className="text-lg font-bold text-[var(--c-text)] leading-tight group-hover:text-[var(--c-primary)] transition-colors line-clamp-2">{course.title}</h2>
 
-        <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed flex-1">{course.description || "Inicie sua jornada de aprendizado agora mesmo e domine novos conhecimentos."}</p>
+        <p className="theme-muted-text text-xs line-clamp-2 leading-relaxed flex-1">{course.description || "Inicie sua jornada de aprendizado agora mesmo e domine novos conhecimentos."}</p>
 
-        <div className="pt-4 mt-auto border-t border-white/5 flex items-center justify-between">
+        <div className="pt-4 mt-auto border-t border-[rgb(var(--c-text-rgb)/0.08)] flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-slate-500">
-               <Layers size={14} className="text-blue-500/50" />
+            <div className="flex items-center gap-1.5 theme-subtle-text">
+               <Layers size={14} className="text-[var(--c-primary)] opacity-60" />
                <span className="text-[10px] font-bold uppercase tracking-tighter">{moduleStats.totalModules} Fases</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-500">
-               <PlayCircle size={14} className="text-blue-500/50" />
+            <div className="flex items-center gap-1.5 theme-subtle-text">
+               <PlayCircle size={14} className="text-[var(--c-primary)] opacity-60" />
                <span className="text-[10px] font-bold uppercase tracking-tighter">{moduleStats.totalContents} Aulas</span>
             </div>
           </div>
-          <div className="bg-white/5 p-2 rounded-full group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+          <div className="theme-surface-soft p-2 rounded-full group-hover:bg-[var(--c-primary)] group-hover:text-white transition-all duration-300">
             <ChevronRight size={16} />
           </div>
         </div>

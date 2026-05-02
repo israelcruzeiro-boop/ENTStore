@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCompanies, useUsers } from '../../hooks/usePlatformData';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +16,12 @@ import { superAdminService } from '../../services/api';
 import { ApiException } from '../../services/api/client';
 
 const RESERVED_SLUGS = ['admin', 'super-admin', 'login', 'api', 'assets', 'system', 'home', 'perfil', 'busca', 'hub', 'biblioteca'];
+const TENANT_ADMIN_ROLES = new Set(['ADMIN', 'MANAGER']);
+
+type AdminListItem = User & { is_invite?: boolean };
+
+const isPendingInvite = (user: AdminListItem) => user.is_invite === true || user.status === 'PENDING_SETUP';
+const isTenantAdminRole = (role: string | undefined) => TENANT_ADMIN_ROLES.has((role || '').toUpperCase());
 
 export const SuperAdminDashboard = () => {
   const { companies, mutate: mutateCompanies, isLoading: loadingCompanies } = useCompanies(true);
@@ -28,7 +34,7 @@ export const SuperAdminDashboard = () => {
   
   const [formData, setFormData] = useState({ 
     name: '', link_name: '', logo_url: '', active: true, 
-    landing_page_enabled: true, checklists_enabled: false,
+    landing_page_enabled: true, checklists_enabled: false, surveys_enabled: false,
     adminName: '', adminEmail: ''
   });
 
@@ -40,6 +46,7 @@ export const SuperAdminDashboard = () => {
   const [adminFormView, setAdminFormView] = useState(false);
   const [editingAdminId, setEditingAdminId] = useState<string | null>(null);
   const [adminFormData, setAdminFormData] = useState({ name: '', email: '', active: true });
+  const [adminError, setAdminError] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -59,9 +66,10 @@ export const SuperAdminDashboard = () => {
       setActiveCompany(null);
       setAdminFormView(false);
       setEditingAdminId(null);
+      setAdminError('');
       setFormData({ 
         name: '', link_name: '', logo_url: '', active: true, 
-        landing_page_enabled: true, checklists_enabled: false,
+        landing_page_enabled: true, checklists_enabled: false, surveys_enabled: false,
         adminName: '', adminEmail: ''
       });
       setActiveTab('details');
@@ -94,12 +102,9 @@ export const SuperAdminDashboard = () => {
     // Suporte a nomes de colunas do banco (maiúsculo/minúsculo e enabled/active)
     const lpEnabled = (company as any).landing_page_enabled ?? (company as any).Landing_page_enabled ?? (company as any).landing_page_active;
     const ckEnabled = (company as any).checklists_enabled ?? (company as any).Checklists_enabled;
+    const surveysEnabled = (company as any).surveys_enabled ?? (company as any).Surveys_enabled;
 
-    // Busca o administrador oficial para preencher o form
-    const companyAdmin = users.find(u => 
-      u.company_id === company.id && 
-      ((u.role || '').toUpperCase() === 'ADMIN' || (u.email || '').toLowerCase().includes('admin'))
-    );
+    const companyAdmin = users.find(u => u.company_id === company.id && isTenantAdminRole(u.role));
 
     setFormData({ 
       name: company.name, 
@@ -108,9 +113,11 @@ export const SuperAdminDashboard = () => {
       active: company.active !== false, 
       landing_page_enabled: lpEnabled === true, 
       checklists_enabled: ckEnabled === true,
+      surveys_enabled: surveysEnabled === true,
       adminName: companyAdmin?.name || '',
       adminEmail: companyAdmin?.email || '',
     });
+    setAdminError('');
     setActiveTab('details');
     setIsFormOpen(true);
   };
@@ -123,11 +130,12 @@ export const SuperAdminDashboard = () => {
     const normalizedLink = formData.link_name?.toLowerCase().trim();
 
     try {
+      setAdminError('');
       if (!formData.name || !formData.link_name) {
         throw new Error('O nome e o link da empresa são obrigatórios.');
       }
 
-      if (!formData.adminEmail || !formData.adminName) {
+      if (isNew && (!formData.adminEmail || !formData.adminName)) {
         throw new Error('O nome e o e-mail do administrador são obrigatórios.');
       }
 
@@ -137,6 +145,7 @@ export const SuperAdminDashboard = () => {
 
       const isReactivating = isNew && existingCompany && !!existingCompany.deleted_at;
       let companyIdForSave = editingId || (isReactivating ? existingCompany.id : null);
+      let savedCompanyForRecovery: Company | null = null;
 
       if (isNew && existingCompany && !existingCompany.deleted_at) {
         setIsSubmitting(false);
@@ -153,12 +162,30 @@ export const SuperAdminDashboard = () => {
           landingPageEnabled: Boolean(formData.landing_page_enabled),
           landingPageActive: Boolean(formData.landing_page_enabled),
           checklistsEnabled: Boolean(formData.checklists_enabled),
+          surveysEnabled: Boolean(formData.surveys_enabled),
         };
 
         const savedCompany = companyIdForSave
           ? await superAdminService.updateCompany(companyIdForSave, payload)
           : await superAdminService.createCompany(payload);
         companyIdForSave = savedCompany.id;
+        savedCompanyForRecovery = {
+          id: savedCompany.id,
+          name: savedCompany.name,
+          slug: savedCompany.slug,
+          link_name: savedCompany.linkName,
+          active: savedCompany.active,
+          deleted_at: savedCompany.deletedAt,
+          theme: mockThemes[0],
+          logo_url: savedCompany.branding?.logoUrl ?? undefined,
+          landing_page_enabled: savedCompany.landingPageEnabled,
+          landing_page_active: savedCompany.landingPageActive,
+          landing_page_layout: savedCompany.landingPageLayout as Company['landing_page_layout'],
+          checklists_enabled: savedCompany.features?.checklists,
+          surveys_enabled: savedCompany.features?.surveys,
+          created_at: savedCompany.createdAt,
+          updated_at: savedCompany.updatedAt,
+        };
         toast.success(isReactivating ? 'Empresa reativada com sucesso!' : 'Empresa criada!');
       } else {
         await superAdminService.updateCompany(companyIdForSave!, {
@@ -168,6 +195,7 @@ export const SuperAdminDashboard = () => {
           landingPageEnabled: Boolean(formData.landing_page_enabled),
           landingPageActive: Boolean(formData.landing_page_enabled),
           checklistsEnabled: Boolean(formData.checklists_enabled),
+          surveysEnabled: Boolean(formData.surveys_enabled),
         });
         toast.success('Configuracoes salvas!');
       }
@@ -181,11 +209,20 @@ export const SuperAdminDashboard = () => {
             email: cleanEmail,
             role: 'ADMIN',
           });
-          toast.success(`Admin ${cleanEmail} ${result.status === 'updated_existing' ? 'atualizado' : 'convidado'}!`);
+          toast.success(`Admin ${cleanEmail} ${result.status === 'updated_existing' ? 'atualizado' : 'criado'}!`);
         } catch (err) {
           const message = err instanceof ApiException ? err.message : (err as Error).message;
           Logger.error('Erro ao provisionar admin:', err);
-          toast.warning(`Empresa salva, mas houve erro ao configurar o admin: ${message}`);
+          setEditingId(companyIdForSave);
+          setActiveCompany(savedCompanyForRecovery);
+          setActiveTab('admins');
+          setAdminFormView(true);
+          setAdminFormData({ name: formData.adminName, email: cleanEmail, active: true });
+          setAdminError(`Empresa salva, mas houve erro ao configurar o admin: ${message}`);
+          await mutateCompanies();
+          await mutateUsers();
+          toast.warning('Empresa salva, mas o administrador ainda precisa ser configurado.');
+          return;
         }
       }
 
@@ -227,6 +264,7 @@ export const SuperAdminDashboard = () => {
     e.preventDefault();
     if (!activeCompany) return;
     setIsSubmitting(true);
+    setAdminError('');
     
     try {
       const cleanEmail = adminFormData.email.toLowerCase().trim();
@@ -262,6 +300,8 @@ export const SuperAdminDashboard = () => {
       setAdminFormData({ name: '', email: '', active: true });
     } catch (error: any) {
       Logger.error('Erro ao salvar admin:', error);
+      setAdminError(error.message || 'Falha ao salvar administrador.');
+      await mutateUsers();
       toast.error(error.message || 'Falha ao salvar administrador.');
     } finally {
       setIsSubmitting(false);
@@ -278,43 +318,9 @@ export const SuperAdminDashboard = () => {
      }
   };
 
-  const activeAdmins = users.filter(u => {
-    if (u.company_id !== activeCompany?.id) return false;
-    
-    const roleStr = (u.role || '').toUpperCase();
-    const emailStr = (u.email || '').toLowerCase();
-    
-    // Filtro Flexível: ADMIN, SUPER_ADMIN, MAESTRO ou e-mail que contenha "admin"
-    const isMatch = roleStr === 'ADMIN' || 
-           roleStr === 'SUPER_ADMIN' || 
-           roleStr === 'MAESTRO' ||
-           emailStr.includes('admin');
-    
-    Logger.info(`Debug Admin Filter [${u.email}]:`, { role: u.role, isMatch });
-    return isMatch;
-  });
-
-  // LOG DE DIAGNÓSTICO AVANÇADO
-  useEffect(() => {
-    if (activeCompany && activeTab === 'admins') {
-      const members = users.filter(u => u.company_id === activeCompany.id);
-      Logger.info(`Membros da ${activeCompany.name}:`, members.map(m => ({
-        id: m.id,
-        email: m.email,
-        role: m.role,
-        company_id: m.company_id,
-        passes_filter: (m.role || '').toUpperCase() === 'ADMIN' || (m.email || '').toLowerCase().includes('admin')
-      })));
-    }
-  }, [activeCompany, activeTab, users]);
-
-  // LOG DE DIAGNÓSTICO (Aparecerá no console do seu navegador)
-  useEffect(() => {
-    if (activeCompany) {
-      const allCompanyMembers = users.filter(u => u.company_id === activeCompany.id);
-      Logger.info(`Membros encontrados para ${activeCompany.name}:`, allCompanyMembers);
-    }
-  }, [activeCompany, users]);
+  const activeAdmins = (users as AdminListItem[]).filter(u =>
+    u.company_id === activeCompany?.id && isTenantAdminRole(u.role)
+  );
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -345,7 +351,7 @@ export const SuperAdminDashboard = () => {
               setEditingId(null);
               setFormData({
                 name: '', link_name: '', logo_url: '', active: true, 
-                landing_page_enabled: true, checklists_enabled: true,
+                landing_page_enabled: true, checklists_enabled: true, surveys_enabled: false,
                 adminName: '', adminEmail: ''
               });
               setIsFormOpen(true);
@@ -442,6 +448,9 @@ export const SuperAdminDashboard = () => {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
           <DialogHeader>
              <DialogTitle>{editingId ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
+             <DialogDescription className="sr-only">
+               Gerencie dados da empresa e administradores vinculados.
+             </DialogDescription>
           </DialogHeader>
           
           <div className="flex border-b border-slate-200 mt-2 mb-4">
@@ -487,7 +496,7 @@ export const SuperAdminDashboard = () => {
                         className="bg-white border-blue-200"
                         />
                         <p className="text-[10px] text-blue-600 font-medium italic">Acesso indicado: admin@{formData.link_name || "empresa"}.com</p>
-                        <p className="text-[10px] text-blue-600 italic">O administrador define a senha ao ativar o convite.</p>
+                        <p className="text-[10px] text-blue-600 italic">O administrador troca a senha obrigatoriamente no primeiro acesso.</p>
                     </div>
                   </div>
                 )}
@@ -522,27 +531,42 @@ export const SuperAdminDashboard = () => {
                      onCheckedChange={(checked) => setFormData({...formData, checklists_enabled: checked})} 
                   />
                 </div>
+
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="space-y-0.5"><Label>Habilitar Pesquisas</Label><p className="text-xs text-slate-500">Modulo de pesquisas e NPS para usuarios finais.</p></div>
+                  <Switch
+                     key={`survey-key-${formData.surveys_enabled}`}
+                     checked={formData.surveys_enabled}
+                     onCheckedChange={(checked) => setFormData({...formData, surveys_enabled: checked})}
+                  />
+                </div>
               </form>
             ) : (
               <div className="px-1 space-y-4">
                 <div className="flex justify-between items-center">
                    <p className="text-sm text-slate-500">Administradores vinculados:</p>
                    {!adminFormView ? (
-                     <Button type="button" size="sm" onClick={() => { setAdminFormData({ name: '', email: '', active: true }); setEditingAdminId(null); setAdminFormView(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs h-8">
+                     <Button type="button" size="sm" onClick={() => { setAdminError(''); setAdminFormData({ name: '', email: '', active: true }); setEditingAdminId(null); setAdminFormView(true); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs h-8">
                        <Plus size={14} className="mr-1" /> Novo Administrador
                      </Button>
                    ) : (
-                     <Button type="button" size="sm" variant="outline" onClick={() => { setAdminFormView(false); setEditingAdminId(null); }} className="h-8 text-xs">
+                     <Button type="button" size="sm" variant="outline" onClick={() => { setAdminError(''); setAdminFormView(false); setEditingAdminId(null); }} className="h-8 text-xs">
                         Voltar para Lista
                      </Button>
                    )}
                 </div>
-                
+
+                {adminError && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    {adminError}
+                  </div>
+                )}
+
                 {adminFormView ? (
                    <form id="admin-form" onSubmit={handleSaveAdmin} className="p-4 border border-slate-200 rounded-lg space-y-4 bg-slate-50">
                       <div className="space-y-2"><Label>Nome Completo *</Label><Input value={adminFormData.name} onChange={e => setAdminFormData({...adminFormData, name: e.target.value})} placeholder="Ex: João Silva" required /></div>
                       <div className="space-y-2"><Label>E-mail *</Label><Input type="email" value={adminFormData.email} onChange={e => setAdminFormData({...adminFormData, email: e.target.value})} placeholder="admin@empresa.com" required /></div>
-                      {!editingAdminId && <p className="text-xs text-slate-500">O administrador define a senha ao ativar o convite.</p>}
+                      {!editingAdminId && <p className="text-xs text-slate-500">O administrador troca a senha obrigatoriamente no primeiro acesso.</p>}
                       <div className="flex justify-end pt-2">
                         <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSubmitting}>
                           {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : 'Salvar Administrador'}
@@ -551,23 +575,39 @@ export const SuperAdminDashboard = () => {
                    </form>
                 ) : (
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
-                     {activeAdmins.map(admin => (
+                     {activeAdmins.map(admin => {
+                       const pendingInvite = isPendingInvite(admin);
+
+                       return (
                         <div key={admin.id} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors">
                            <div className="flex-1">
                               <div className="flex items-center gap-2">
                                  <p className="font-semibold text-slate-900">{admin.name}</p>
                                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded uppercase">{admin.role}</span>
+                                 {admin.first_access && (
+                                   <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Primeiro acesso</span>
+                                 )}
+                                 {pendingInvite && (
+                                   <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded uppercase">Convite pendente</span>
+                                 )}
                               </div>
                               <p className="text-sm text-slate-500">{admin.email}</p>
                            </div>
                            <div className="flex items-center gap-3">
-                             <Button type="button" variant="ghost" size="icon" onClick={() => { setEditingAdminId(admin.id); setAdminFormData({ name: admin.name || '', email: admin.email || '', active: admin.active !== false }); setAdminFormView(true); }} className="text-slate-400 hover:text-blue-600 h-8 w-8">
-                                <Edit2 size={14} />
-                             </Button>
-                             <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} />
+                             {pendingInvite ? (
+                               <span className="text-xs text-slate-500">Aguardando ativação</span>
+                             ) : (
+                               <>
+                                 <Button type="button" variant="ghost" size="icon" onClick={() => { setAdminError(''); setEditingAdminId(admin.id); setAdminFormData({ name: admin.name || '', email: admin.email || '', active: admin.active !== false }); setAdminFormView(true); }} className="text-slate-400 hover:text-blue-600 h-8 w-8">
+                                    <Edit2 size={14} />
+                                 </Button>
+                                 <Switch checked={admin.active !== false} onCheckedChange={() => toggleUserStatus(admin.id, admin.active !== false)} />
+                               </>
+                             )}
                            </div>
                         </div>
-                     ))}
+                       );
+                     })}
                       {activeAdmins.length === 0 && (
                         <div className="p-12 text-center">
                           <Users className="mx-auto text-slate-300 mb-3" size={32} />

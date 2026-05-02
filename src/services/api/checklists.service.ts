@@ -48,9 +48,9 @@ const toSectionPayload = (data: SnakeChecklistPayload) => compact({
 const toQuestionPayload = (data: SnakeChecklistPayload) => compact({
   questionText: data.text ?? data.questionText,
   questionType: data.type ?? data.questionType,
-  required: data.required ?? false,
+  required: data.required,
   orderIndex: data.order_index,
-  configuration: data.config ?? data.configuration ?? null,
+  configuration: data.config ?? data.configuration,
 });
 
 export interface SaveChecklistAnswerPayload {
@@ -84,6 +84,7 @@ const toAnswerPayload = (payload: SaveChecklistAnswerPayload) => compact({
 
 export const checklistsService = {
   listChecklists: () => api.get<ApiChecklist[]>('/checklists'),
+  listReadableFolders: () => api.get<ApiChecklistFolder[]>('/checklist-folders'),
   getChecklist: (id: string) => api.get<ApiChecklistDetail | ApiChecklist>(`/checklists/${id}`),
 
   startSubmission: (checklistId: string, payload?: { orgUnitId?: string | null }) =>

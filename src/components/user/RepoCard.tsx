@@ -18,9 +18,9 @@ export const RepoCard = ({ repo, fullWidth = false, onCardClick }: { repo: Repos
           onCardClick(e, repo.id);
         }
       }}
-      className={`group block flex-shrink-0 snap-start outline-none ${fullWidth ? 'w-full' : 'w-32 md:w-40'}`}
+      className={`group user-card block flex-shrink-0 snap-start outline-none ${fullWidth ? 'w-full' : 'w-32 md:w-40'}`}
     >
-      <div className="aspect-[2/3] w-full overflow-hidden rounded-xl shadow-lg relative bg-[#111] transition-all duration-300 transform-gpu group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] group-hover:ring-1 group-hover:ring-white/30 group-focus-visible:scale-105 group-focus-visible:ring-2 group-focus-visible:ring-white">
+      <div className="aspect-[2/3] user-template-panel w-full overflow-hidden rounded-xl shadow-lg relative bg-[var(--c-card)] transition-all duration-300 transform-gpu group-hover:scale-105 group-hover:shadow-[0_0_30px_rgb(var(--c-primary-rgb)/0.18)] group-hover:ring-1 group-hover:ring-[var(--c-primary)]/35 group-focus-visible:scale-105 group-focus-visible:ring-2 group-focus-visible:ring-[var(--c-primary)]">
         {repo.cover_image ? (
           <img 
             src={repo.cover_image} 
@@ -28,7 +28,7 @@ export const RepoCard = ({ repo, fullWidth = false, onCardClick }: { repo: Repos
             className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-zinc-800/80">
+          <div className="w-full h-full flex items-center justify-center theme-surface-soft">
             {isSimple ? <Folder className="text-zinc-600" size={28} /> : isPlaylist ? <Music className="text-zinc-600" size={32} /> : isVideoPlaylist ? <PlaySquare className="text-zinc-600" size={32} /> : <MonitorPlay className="text-zinc-600" size={32} />}
           </div>
         )}

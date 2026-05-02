@@ -1,10 +1,7 @@
 import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  useChecklistSubmission, 
-  useChecklistAnswers, 
-  useChecklistQuestions,
-  useChecklistSections 
+  useAdminChecklistSubmissionDetail,
 } from '../../hooks/useChecklists';
 import { useOrgStructure, useUsers } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
@@ -29,24 +26,25 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 export function ChecklistSubmissionDetail() {
   const { submissionId } = useParams();
   const navigate = useNavigate();
   
-  const { submission, isLoading: loadingSubmission } = useChecklistSubmission(submissionId);
-  const { answers, isLoading: loadingAnswers } = useChecklistAnswers(submissionId);
-  const { questions, isLoading: loadingQuestions } = useChecklistQuestions(submission?.checklist_id);
-  const { sections, isLoading: loadingSections } = useChecklistSections(submission?.checklist_id);
+  const {
+    submission,
+    checklist,
+    answers,
+    questions,
+    sections,
+    isLoading,
+  } = useAdminChecklistSubmissionDetail(submissionId);
   const { orgUnits } = useOrgStructure(submission?.company_id);
   const { users } = useUsers(submission?.company_id);
 
-  const isLoading = loadingSubmission || loadingAnswers || loadingQuestions || loadingSections;
   const checklistTitle = Array.isArray(submission?.checklist)
     ? submission.checklist[0]?.title
-    : submission?.checklist?.title;
+    : submission?.checklist?.title ?? checklist?.title;
 
   const submissionUser = useMemo(() => 
     users.find(u => u.id === submission?.user_id), 
@@ -125,6 +123,11 @@ export function ChecklistSubmissionDetail() {
     // Remove background do body para o print se quiser muito limpo
     const originalBg = document.body.style.backgroundColor;
     document.body.style.backgroundColor = '#ffffff';
+
+    const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
 
     const canvas = await html2canvas(element, {
       scale: 2,

@@ -24,11 +24,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format, subDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { CourseUserFile } from '../../components/admin/CourseUserFile';
 import { CourseStatusTag } from '../../components/admin/CourseStatusTag';
 import { checkCourseAccess } from '../../lib/permissions';
+import { exportWorkbook } from '../../utils/spreadsheet';
 
 export const AdminCourseDashboard = () => {
   const { companySlug } = useParams();
@@ -254,9 +254,8 @@ export const AdminCourseDashboard = () => {
   }, [enrollments, answers, questions, courses, users, orgUnits, orgTopLevels, selectedCourseId, selectedUnitId, dateRange, now, startDate, questionSort]);
 
   // -- EXPORTS -- //
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!analytics) return;
-    const wb = XLSX.utils.book_new();
     
     const granularData = enrollments.map(e => {
       const user = users.find(u => u.id === e.user_id);
@@ -279,9 +278,10 @@ export const AdminCourseDashboard = () => {
                  : '-'
       };
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(granularData), 'Relatório Granular');
-
-    XLSX.writeFile(wb, `relatorio-cursos-${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    await exportWorkbook(
+      [{ name: 'Relatório Granular', rows: granularData }],
+      `relatorio-cursos-${format(new Date(), 'dd-MM-yyyy')}.xlsx`,
+    );
     toast.success('Relatório Excel exportado!');
   };
 

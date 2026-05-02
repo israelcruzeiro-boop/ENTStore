@@ -8,6 +8,7 @@ import type {
   ChecklistSubmission,
   Company,
   Content,
+  ContentMetricSummary,
   ContentRating,
   ContentViewMetric,
   Course,
@@ -51,6 +52,7 @@ import type {
   ApiSimpleLink,
   ApiContentViewMetric,
   ApiContentRating,
+  ApiContentMetricSummary,
   ApiChecklist,
   ApiChecklistAnswer,
   ApiChecklistFolder,
@@ -60,6 +62,7 @@ import type {
   ApiPublicRepository,
   ApiPublicContent,
   ApiPublicSimpleLink,
+  ApiVisibleUser,
 } from './types';
 
 function mapChecklistQuestionType(type: ApiChecklistQuestion['type']): ChecklistQuestion['type'] {
@@ -103,12 +106,17 @@ export function mapApiCompanyToFrontend(
     hero_image: branding.hero.imageUrl ?? undefined,
     hero_title: branding.hero.title,
     hero_subtitle: branding.hero.subtitle,
-    landing_page_enabled: isAuthenticated ? (company as ApiCompanyAuthenticatedView).landingPageEnabled : undefined,
-    landing_page_active: isAuthenticated ? (company as ApiCompanyAuthenticatedView).landingPageActive : undefined,
+    landing_page_enabled: isAuthenticated
+      ? (company as ApiCompanyAuthenticatedView).landingPageEnabled
+      : company.landingPageEnabled,
+    landing_page_active: isAuthenticated
+      ? (company as ApiCompanyAuthenticatedView).landingPageActive
+      : company.landingPageActive,
     landing_page_layout: isAuthenticated
       ? ((company as ApiCompanyAuthenticatedView).landingPageLayout as Company['landing_page_layout'])
-      : undefined,
+      : (company.landingPageLayout as Company['landing_page_layout']),
     checklists_enabled: isAuthenticated ? (company as ApiCompanyAuthenticatedView).features.checklists : undefined,
+    surveys_enabled: isAuthenticated ? (company as ApiCompanyAuthenticatedView).features.surveys : undefined,
     org_levels: company.general.orgLevels.map((name, index) => ({
       id: String(index + 1),
       name,
@@ -297,6 +305,29 @@ export function mapApiRatingToFrontend(r: ApiContentRating): ContentRating {
   };
 }
 
+export function mapApiContentMetricSummaryToFrontend(summary: ApiContentMetricSummary): ContentMetricSummary {
+  return {
+    content_id: summary.contentId,
+    repository_id: summary.repositoryId,
+    views_count: summary.viewsCount,
+    ratings_count: summary.ratingsCount,
+    average_rating: summary.averageRating,
+    current_user_rating: summary.currentUserRating,
+  };
+}
+
+export function mapApiVisibleUserToFrontend(user: ApiVisibleUser): User {
+  return {
+    id: user.id,
+    name: user.name,
+    role: 'USER',
+    org_unit_id: user.orgUnitId ?? undefined,
+    avatar_url: user.avatarUrl ?? undefined,
+    active: true,
+    status: 'ACTIVE',
+  };
+}
+
 export function mapApiCourseToFrontend(course: ApiCourse): Course & { module_count?: number } {
   return {
     id: course.id,
@@ -315,6 +346,7 @@ export function mapApiCourseToFrontend(course: ApiCourse): Course & { module_cou
     target_audience: course.targetAudience,
     passing_score: course.passingScore,
     diploma_template: course.diplomaTemplate,
+    layout_template: course.layoutTemplate ?? 'focus',
     module_count: course.moduleCount ?? 0,
     created_at: course.createdAt,
     updated_at: course.updatedAt,
@@ -413,6 +445,7 @@ export function mapApiCourseAnswerToFrontend(answer: ApiCourseAnswer): CourseAns
     enrollment_id: answer.enrollmentId,
     question_id: answer.questionId,
     selected_option_id: answer.selectedOptionId ?? undefined,
+    completed_answer_id: answer.completedAnswerId ?? undefined,
     complex_answer: answer.complexAnswer,
     is_correct: answer.isCorrect,
     answered_at: answer.answeredAt,

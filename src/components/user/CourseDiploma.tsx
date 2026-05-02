@@ -1,7 +1,5 @@
 import { useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 import { CourseEnrollment } from '../../types';
 import { Logger } from '../../utils/logger';
@@ -203,6 +201,11 @@ export function printDiploma(
       
       const el = container.firstElementChild as HTMLElement;
       if (!el) throw new Error('Elemento do certificado não encontrado');
+
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
 
       const canvas = await html2canvas(el, {
         scale: 2, // Alta qualidade

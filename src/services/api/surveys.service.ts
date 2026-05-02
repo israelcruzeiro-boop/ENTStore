@@ -31,11 +31,11 @@ const toSurveyPayload = (payload: SurveyPayload) => compact({
   coverImage: payload.cover_image ?? payload.coverImage ?? null,
 });
 
-const toQuestionPayload = (payload: SurveyPayload) => compact({
-  id: payload.id,
+const toQuestionPayload = (payload: SurveyPayload, options?: { includeIdentity?: boolean }) => compact({
+  id: options?.includeIdentity ? payload.id : undefined,
   surveyId: payload.survey_id ?? payload.surveyId,
   questionText: payload.question_text ?? payload.questionText,
-  description: payload.description ?? null,
+  description: payload.description,
   questionType: payload.question_type ?? payload.questionType,
   configuration: payload.configuration,
   required: payload.required,
@@ -61,7 +61,7 @@ export const surveysApiService = {
     api.delete<{ deleted: boolean; id: string }>(`/admin/surveys/${encodeURIComponent(id)}`),
 
   createQuestion: (surveyId: string, payload: SurveyPayload) =>
-    api.post<ApiSurveyQuestion>(`/admin/surveys/${encodeURIComponent(surveyId)}/questions`, toQuestionPayload(payload)),
+    api.post<ApiSurveyQuestion>(`/admin/surveys/${encodeURIComponent(surveyId)}/questions`, toQuestionPayload(payload, { includeIdentity: true })),
   updateQuestion: (id: string, payload: SurveyPayload) =>
     api.put<ApiSurveyQuestion>(`/admin/survey-questions/${encodeURIComponent(id)}`, toQuestionPayload(payload)),
   deleteQuestion: (id: string) =>

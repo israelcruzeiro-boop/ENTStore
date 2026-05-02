@@ -1,17 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAdminStructure } from '../../hooks/useApiData';
 import { adminStructureService, settingsService } from '../../services/api';
+import { ApiException } from '../../services/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Network, Save, Building2, Store, Edit2, Trash2, Plus, Loader2, FolderOpen, ChevronRight, Layers, HelpCircle } from 'lucide-react';
+import { Network, Save, Building2, Store, Edit2, Trash2, Plus, Loader2, FolderOpen, ChevronRight, Layers, HelpCircle, AlertTriangle } from 'lucide-react';
 import { OrgTopLevel, OrgUnit } from '../../types';
 import { orgTopLevelSchema, orgUnitSchema } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
+import {
+  deriveOrgHierarchy,
+  getParentOptionsForLevel,
+  getParentOptionsForUnit,
+  getTopLevelsForLevel,
+} from '../../utils/orgHierarchy';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { STRUCTURE_STEPS } from '../../data/tourSteps';
@@ -43,6 +50,8 @@ export const AdminStructure = () => {
 
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: string, name: string, type: 'TOP_LEVEL' | 'UNIT'} | null>(null);
+  const [isParentTransitionOpen, setIsParentTransitionOpen] = useState(false);
+  const [parentLevelName, setParentLevelName] = useState('Diretoria');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedParentFilter, setSelectedParentFilter] = useState<string>('all');
@@ -65,14 +74,6 @@ export const AdminStructure = () => {
     }
   }, [company]);
 
-  if (!company) {
-    return (
-      <div className="flex justify-center items-center h-48 text-slate-400">
-         <Loader2 className="animate-spin" />
-      </div>
-    );
-  }
-
   const handleCloseTopLevelForm = () => {
     setIsTopLevelFormOpen(false);
     setTimeout(() => {
@@ -94,15 +95,58 @@ export const AdminStructure = () => {
     setTimeout(() => setItemToDelete(null), 300);
   };
 
+  const savedLevelInputs = useMemo(() => {
+    const levels = company?.org_levels || [];
+    if (levels.length >= 2) {
+      return [
+        { id: '1', name: levels[0].name, visualPosition: 1 },
+        { id: '2', name: levels[1].name, visualPosition: 2 },
+      ];
+    }
+
+    if (levels.length === 1) {
+      return [{ id: '2', name: levels[0].name, visualPosition: 2 }];
+    }
+
+    return [];
+  }, [company?.org_levels]);
+
+  const savedHierarchy = useMemo(() => deriveOrgHierarchy(savedLevelInputs), [savedLevelInputs]);
+  const savedLeafTopLevels = useMemo(
+    () => getTopLevelsForLevel(allTopLevels, savedHierarchy.lastLevel),
+    [allTopLevels, savedHierarchy.lastLevel],
+  );
+
+  const getDraftLevelNames = () => {
+    const levelNames: string[] = [];
+    if (l1.active) levelNames.push(l1.name.trim());
+    if (l2.active) levelNames.push(l2.name.trim());
+    return levelNames;
+  };
+
+  const requiresParentLevelTransition = (levelNames = getDraftLevelNames()) => {
+    const savedLevels = company?.org_levels || [];
+    return (
+      savedLevels.length === 1 &&
+      levelNames.length === 2 &&
+      levelNames[1] === savedLevels[0]?.name &&
+      savedLeafTopLevels.length > 0
+    );
+  };
+
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!l3Name.trim()) return toast.error("O nome do Nível 3 não pode ser vazio.");
     if (l1.active && !l1.name.trim()) return toast.error("Preencha o nome do Nível 1.");
     if (l2.active && !l2.name.trim()) return toast.error("Preencha o nome do Nível 2.");
     
-    const newLevelNames: string[] = [];
-    if (l1.active) newLevelNames.push(l1.name.trim());
-    if (l2.active) newLevelNames.push(l2.name.trim());
+    const newLevelNames = getDraftLevelNames();
+
+    if (requiresParentLevelTransition(newLevelNames)) {
+      setParentLevelName(l1.name.trim());
+      setIsParentTransitionOpen(true);
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -114,41 +158,93 @@ export const AdminStructure = () => {
       await refreshUser();
     } catch (err) {
       const error = err as Error;
+      if (err instanceof ApiException && err.code === 'RESOURCE_IN_USE' && requiresParentLevelTransition(newLevelNames)) {
+        setParentLevelName(l1.name.trim());
+        setIsParentTransitionOpen(true);
+        return;
+      }
       toast.error(`Erro ao salvar nomenclaturas: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Mapeamento dos Níveis Ativos para o Passo 2
-  const activeLevelsConfig = [];
-  if (l1.active) activeLevelsConfig.push({ id: l1.id, name: l1.name, type: 'L1' });
-  if (l2.active) activeLevelsConfig.push({ id: l2.id, name: l2.name, type: 'L2' });
+  const handleInsertParentLevel = async () => {
+    const parentName = parentLevelName.trim();
+    const newLevelNames = getDraftLevelNames();
+    if (!parentName) return toast.error('Informe o nome da nova Diretoria.');
+    if (!requiresParentLevelTransition(newLevelNames)) {
+      return toast.error('A estrutura atual nao exige esta transicao.');
+    }
 
-  const lowestLevelConfig = activeLevelsConfig.length > 0 ? activeLevelsConfig[activeLevelsConfig.length - 1] : null;
+    try {
+      setIsSubmitting(true);
+      await adminStructureService.insertParentLevelTransition({
+        orgLevels: newLevelNames,
+        orgUnitName: l3Name.trim(),
+        parentName,
+        childTopLevelIds: savedLeafTopLevels.map((topLevel) => topLevel.id),
+      });
+      toast.success('Nivel pai inserido e regionais preservadas com sucesso!');
+      setIsParentTransitionOpen(false);
+      await Promise.all([refreshUser(), mutateStructure()]);
+    } catch (err) {
+      if (err instanceof ApiException && err.code === 'DATABASE_SCHEMA_OUT_OF_DATE') {
+        toast.error(
+          'A transicao esta pronta, mas a funcao do banco ainda nao foi instalada. Aplique a migration 20260502_insert_parent_level_transition.sql e tente novamente.',
+        );
+        return;
+      }
 
-  if (activeTabIndex >= activeLevelsConfig.length && activeLevelsConfig.length > 0) {
-     setActiveTabIndex(Math.max(0, activeLevelsConfig.length - 1));
+      const error = err as Error;
+      toast.error(`Erro ao reorganizar hierarquia: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const configuredLevelInputs = useMemo(() => {
+    const levels = [];
+    if (l1.active) levels.push({ id: l1.id, name: l1.name, visualPosition: 1 });
+    if (l2.active) levels.push({ id: l2.id, name: l2.name, visualPosition: 2 });
+    return levels;
+  }, [l1.active, l1.id, l1.name, l2.active, l2.id, l2.name]);
+
+  const orgHierarchy = useMemo(() => deriveOrgHierarchy(configuredLevelInputs), [configuredLevelInputs]);
+  const isParentLevelTransitionPending = requiresParentLevelTransition();
+  const displayHierarchy = isParentLevelTransitionPending ? savedHierarchy : orgHierarchy;
+  const activeLevelsConfig = displayHierarchy.levels;
+  const lowestLevelConfig = displayHierarchy.lastLevel;
+
+  useEffect(() => {
+    if (activeLevelsConfig.length === 0) {
+      if (activeTabIndex !== 0) setActiveTabIndex(0);
+      return;
+    }
+
+    if (activeTabIndex >= activeLevelsConfig.length) {
+      setActiveTabIndex(Math.max(0, activeLevelsConfig.length - 1));
+    }
+  }, [activeLevelsConfig.length, activeTabIndex]);
+
+  if (!company) {
+    return (
+      <div className="flex justify-center items-center h-48 text-slate-400">
+         <Loader2 className="animate-spin" />
+      </div>
+    );
   }
 
   const currentActiveLevel = activeLevelsConfig[activeTabIndex];
-  const activePreviousLevelConfig = activeTabIndex > 0 ? activeLevelsConfig[activeTabIndex - 1] : null;
+  const activePreviousLevelConfig = currentActiveLevel?.previousLevel ?? null;
 
-  const companyTopLevels = allTopLevels.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  const companyUnits = allUnits.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const companyTopLevels = allTopLevels.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const companyUnits = allUnits.slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-  const currentGroups = currentActiveLevel 
-    ? companyTopLevels.filter(t => t.level_id === currentActiveLevel.id || (!t.level_id && activeTabIndex === 0))
-    : [];
+  const currentGroups = getTopLevelsForLevel(companyTopLevels, currentActiveLevel);
 
-  const parentOptionsForL2 = companyTopLevels.filter(t => t.level_id === l1.id || !t.level_id || t.id === topLevelFormData.parent_id);
-  const parentOptionsForUnit = lowestLevelConfig
-    ? companyTopLevels.filter(t => 
-        t.level_id === lowestLevelConfig.id || 
-        (!t.level_id && activeLevelsConfig[0]?.id === lowestLevelConfig.id) || 
-        t.id === unitFormData.parent_id
-      )
-    : [];
+  const parentOptionsForL2 = getParentOptionsForLevel(companyTopLevels, currentActiveLevel, topLevelFormData.parent_id);
+  const parentOptionsForUnit = getParentOptionsForUnit(companyTopLevels, lowestLevelConfig, unitFormData.parent_id);
 
   // ==== HANDLERS PARA TOP LEVELS (L1 e L2) ====
   const openCreateTopLevel = () => {
@@ -175,10 +271,9 @@ export const AdminStructure = () => {
 
       const payload = {
         company_id: company.id,
-        level_id: currentActiveLevel?.id || null,
+        level_id: currentActiveLevel ? String(currentActiveLevel.levelIndex) : null,
         name,
         parent_id: topLevelFormData.parent_id || null,
-        active: topLevelFormData.active
       };
 
       const validation = editingTopLevelId
@@ -189,7 +284,7 @@ export const AdminStructure = () => {
         return toast.error("Dados inválidos: " + validation.error.issues.map(i => i.message).join(', '));
       }
 
-      const levelIndex = currentActiveLevel?.id ? parseInt(currentActiveLevel.id, 10) : 1;
+      const levelIndex = currentActiveLevel?.levelIndex ?? 1;
 
       if (editingTopLevelId) {
         await adminStructureService.updateTopLevel(editingTopLevelId, {
@@ -215,10 +310,6 @@ export const AdminStructure = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const toggleOrgTopLevelStatus = async (_id: string, _active: boolean) => {
-    toast.info('Ativar/desativar agrupamentos ainda não é suportado nesta versão.');
   };
 
   // ==== HANDLERS PARA UNIDADES (L3) ====
@@ -431,6 +522,21 @@ export const AdminStructure = () => {
         </div>
       </form>
 
+      {isParentLevelTransitionPending && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle size={17} className="text-amber-600" />
+            Reorganizacao pendente
+          </div>
+          <p className="flex-1 text-xs sm:text-sm">
+            As {savedLeafTopLevels.length} {l2.name.toLowerCase()}{savedLeafTopLevels.length !== 1 ? 's' : ''} existentes continuam sendo exibidas no nivel salvo ate a transicao ser concluida.
+          </p>
+          <Button type="button" size="sm" onClick={() => setIsParentTransitionOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+            Concluir transicao
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Passo 2: Níveis Intermediários */}
@@ -442,7 +548,7 @@ export const AdminStructure = () => {
              {activeLevelsConfig.length > 0 ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
                    {activeLevelsConfig.map((lvl, index) => {
-                      const isL1 = lvl.type === 'L1';
+                      const isL1 = lvl.visualPosition === 1;
                       const colorClasses = activeTabIndex === index
                         ? (isL1 ? 'bg-blue-600 text-white shadow-sm' : 'bg-amber-500 text-white shadow-sm')
                         : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50';
@@ -474,11 +580,11 @@ export const AdminStructure = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {/* Se estiver na tab L2 e L1 estiver ativo, agrupa por Diretoria */}
-                {currentActiveLevel.type === 'L2' && l1.active ? (
+                {/* Se houver nivel anterior, agrupa pelo pai configurado */}
+                {currentActiveLevel.previousLevel ? (
                   <div className="space-y-3">
                     {(() => {
-                      const l1Parents = companyTopLevels.filter(t => t.level_id === l1.id || (!t.level_id && activeLevelsConfig[0]?.id === l1.id));
+                      const l1Parents = getTopLevelsForLevel(companyTopLevels, currentActiveLevel.previousLevel);
                       const l2WithParent = l1Parents.filter(p => currentGroups.some(g => g.parent_id === p.id));
                       const l2Unlinked = currentGroups.filter(g => !g.parent_id || !l1Parents.find(p => p.id === g.parent_id));
                       
@@ -511,12 +617,11 @@ export const AdminStructure = () => {
                                               {childCount} {l3Name.toLowerCase()}{childCount !== 1 ? 's' : ''}
                                             </span>
                                           )}
-                                        </div>
-                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
-                                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
-                                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
-                                        </div>
+                                         </div>
+                                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
+                                           <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
+                                         </div>
                                       </div>
                                     );
                                   })}
@@ -550,12 +655,11 @@ export const AdminStructure = () => {
                                             {childCount} {l3Name.toLowerCase()}{childCount !== 1 ? 's' : ''}
                                           </span>
                                         )}
-                                      </div>
-                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
-                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
-                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
-                                      </div>
+                                       </div>
+                                       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                         <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={12} /></Button>
+                                         <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={12} /></Button>
+                                       </div>
                                     </div>
                                   );
                                 })}
@@ -578,10 +682,10 @@ export const AdminStructure = () => {
                   /* Lista flat para L1 ou quando não há nível anterior */
                   <>
                     {currentGroups.map(item => {
-                       const isL1 = currentActiveLevel.type === 'L1';
-                       const childCount = isL1 
-                         ? companyTopLevels.filter(t => t.parent_id === item.id).length
-                         : companyUnits.filter(u => u.parent_id === item.id).length;
+                       const isL1 = currentActiveLevel.visualPosition === 1;
+                       const childCount = currentActiveLevel.isLast
+                         ? companyUnits.filter(u => u.parent_id === item.id).length
+                         : companyTopLevels.filter(t => t.parent_id === item.id).length;
                        return (
                          <div key={item.id} className={`group flex items-center gap-3 p-3 rounded-lg border transition-all hover:shadow-sm ${item.active ? 'border-slate-200 bg-white hover:border-slate-300' : 'border-slate-100 bg-slate-50/50 opacity-60'}`}>
                             <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${isL1 ? (item.active ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400') : (item.active ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400')}`}>
@@ -594,12 +698,11 @@ export const AdminStructure = () => {
                                   {childCount} {childCount === 1 ? 'item' : 'itens'}
                                 </span>
                               )}
-                            </div>
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Switch checked={item.active} onCheckedChange={() => toggleOrgTopLevelStatus(item.id, item.active)} />
-                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={13} /></Button>
-                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={13} /></Button>
-                            </div>
+                             </div>
+                             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEditTopLevel(item)}><Edit2 size={13} /></Button>
+                               <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-red-500" onClick={() => confirmDelete(item.id, item.name, 'TOP_LEVEL')}><Trash2 size={13} /></Button>
+                             </div>
                          </div>
                        );
                     })}
@@ -655,7 +758,7 @@ export const AdminStructure = () => {
                     <>
                       {parentGroups.map(parentItem => {
                         const children = companyUnits.filter(u => u.parent_id === parentItem.id);
-                        const isL1Parent = activeLevelsConfig.length === 2;
+                        const isL1Parent = lowestLevelConfig.visualPosition === 2;
                         return (
                           <div key={parentItem.id} className="rounded-lg border border-slate-200 overflow-hidden">
                             {/* Header do grupo */}
@@ -760,10 +863,10 @@ export const AdminStructure = () => {
           <DialogHeader><DialogTitle>{editingTopLevelId ? `Editar ${currentActiveLevel?.name}` : `Novo(a) ${currentActiveLevel?.name}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSaveTopLevel} className="space-y-4 mt-4">
             
-            {/* Se for L2 e o L1 estiver ativo, pede o pai */}
-            {currentActiveLevel?.type === 'L2' && l1.active && (
+            {/* Se houver nivel anterior, pede o pai */}
+            {currentActiveLevel?.previousLevel && (
                <div className="space-y-2">
-                 <Label>Pertence a qual {l1.name}? *</Label>
+                 <Label>Pertence a qual {currentActiveLevel.previousLevel.name}? *</Label>
                  <select 
                    value={topLevelFormData.parent_id} 
                    onChange={(e) => setTopLevelFormData({...topLevelFormData, parent_id: e.target.value})}
@@ -771,7 +874,7 @@ export const AdminStructure = () => {
                    disabled={parentOptionsForL2.length === 0 || isSubmitting}
                  >
                     {parentOptionsForL2.length === 0 ? (
-                      <option value="" disabled>Nenhum(a) {l1.name} cadastrado(a). Cadastre primeiro.</option>
+                      <option value="" disabled>Nenhum(a) {currentActiveLevel.previousLevel.name} cadastrado(a). Cadastre primeiro.</option>
                     ) : (
                       <option value="" disabled>Selecione...</option>
                     )}
@@ -785,10 +888,6 @@ export const AdminStructure = () => {
             <div className="space-y-2">
               <Label>Nome do(a) {currentActiveLevel?.name} *</Label>
               <Input placeholder={`Ex: Sudeste / Operação Alpha`} value={topLevelFormData.name} onChange={(e) => setTopLevelFormData({...topLevelFormData, name: e.target.value})} autoFocus disabled={isSubmitting} />
-            </div>
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-2">
-              <div className="space-y-0.5"><Label>Status</Label><p className="text-xs text-slate-500">Ativo no sistema</p></div>
-              <Switch checked={topLevelFormData.active} onCheckedChange={(checked) => setTopLevelFormData({...topLevelFormData, active: checked})} disabled={isSubmitting} />
             </div>
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
               <Button type="button" variant="outline" onClick={handleCloseTopLevelForm} disabled={isSubmitting}>Cancelar</Button>
@@ -843,6 +942,55 @@ export const AdminStructure = () => {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isParentTransitionOpen} onOpenChange={(open) => { if (!isSubmitting) setIsParentTransitionOpen(open); }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Concluir reorganizacao da hierarquia</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="font-semibold mb-1">As regionais existentes nao serao movidas para Diretoria.</p>
+              <p className="text-xs leading-relaxed">
+                O sistema criara a nova Diretoria abaixo e mantera {savedLeafTopLevels.length} {l2.name.toLowerCase()}{savedLeafTopLevels.length !== 1 ? 's' : ''} como nivel operacional intermediario, preservando os vinculos das {l3Name.toLowerCase()}s.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nome da nova {l1.name || 'Diretoria'} *</Label>
+              <Input
+                value={parentLevelName}
+                onChange={(event) => setParentLevelName(event.target.value)}
+                placeholder="Ex: Diretoria Nacional"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="rounded-lg border border-slate-200 overflow-hidden">
+              <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
+                {l2.name || 'Regional'}s que serao preservadas
+              </div>
+              <div className="max-h-40 overflow-y-auto divide-y divide-slate-100">
+                {savedLeafTopLevels.map((topLevel) => (
+                  <div key={topLevel.id} className="px-3 py-2 text-sm text-slate-700 flex items-center gap-2">
+                    <FolderOpen size={14} className="text-amber-500" />
+                    {topLevel.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+              <Button type="button" variant="outline" onClick={() => setIsParentTransitionOpen(false)} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleInsertParentLevel} className="bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Confirmar transicao'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

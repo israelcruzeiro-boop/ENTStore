@@ -2,6 +2,7 @@ import type { UserRole } from '@/types';
 import { api } from './client';
 import type {
   ApiAdminUsersList,
+  ApiInviteActivationDelivery,
   ApiInviteView,
   ApiUserStatus,
   ApiUserView,
@@ -43,7 +44,7 @@ export const adminUsersService = {
     ),
 
   createInvite: (payload: CreateInvitePayload) =>
-    api.post<{ invite: ApiInviteView; activationToken: string }>(
+    api.post<{ user: ApiUserView }>(
       '/admin/users/invite',
       payload,
     ),
@@ -56,4 +57,9 @@ export const adminUsersService = {
 
   cancelInvite: (inviteId: string) =>
     api.delete<{ deleted: boolean; id: string }>(`/admin/users/invites/${inviteId}`),
+
+  resendInvite: (inviteId: string) =>
+    api.post<{ invite: ApiInviteView; activationDelivery: ApiInviteActivationDelivery }>(
+      `/admin/users/invites/${inviteId}/resend`,
+    ),
 };

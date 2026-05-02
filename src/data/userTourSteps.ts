@@ -1,4 +1,4 @@
-import { Step } from 'react-joyride';
+import type { Step } from 'react-joyride';
 
 export const GENERAL_USER_TOUR: Step[] = [
   {
@@ -22,13 +22,8 @@ export const GENERAL_USER_TOUR: Step[] = [
     placement: 'bottom',
   },
   {
-    target: '.tour-nav-biblioteca',
-    content: 'A Biblioteca contém documentos e arquivos de consulta rápida compartilhados pela empresa.',
-    placement: 'bottom',
-  },
-  {
     target: '.tour-nav-hub',
-    content: 'No Hub, você encontra conteúdos dinâmicos, vídeos e playlists exclusivas.',
+    content: 'No Hub, você encontra repositórios, bibliotecas, vídeos e playlists liberados para o seu acesso.',
     placement: 'bottom',
   },
   {

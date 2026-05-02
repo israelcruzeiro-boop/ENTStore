@@ -1,7 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { authService } from '@/services/api/auth.service';
-import { ApiException, onSessionExpired, refreshAccessToken, tokenStorage } from '@/services/api/client';
+import {
+  ApiException,
+  isApiUnavailableError,
+  onSessionExpired,
+  refreshAccessToken,
+  tokenStorage,
+} from '@/services/api/client';
 import { mapApiCompanyToFrontend, mapApiUserToFrontend } from '@/services/api/mappers';
 import type { Company, User } from '@/types';
 import { Logger } from '@/utils/logger';
@@ -16,6 +22,7 @@ interface AuthContextType {
     companySlug?: string,
   ) => Promise<{ user: User; company: Company } | null>;
   logout: () => Promise<void>;
+  clearLocalSession: () => void;
   refreshUser: () => Promise<void>;
 }
 
@@ -62,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const bootstrap = async () => {
       try {
         if (!tokenStorage.hasSession()) {
+          if (!tokenStorage.hasRefreshSessionHint()) return;
           const refreshed = await refreshAccessToken();
           if (!refreshed) return;
         }
@@ -107,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       tokenStorage.clear();
       clearSession();
+      if (isApiUnavailableError(err)) throw err;
       return null;
     } finally {
       if (mountedRef.current) setLoading(false);
@@ -126,9 +135,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearLocalSession = () => {
+    tokenStorage.clear();
+    clearSession();
+  };
+
   const refreshUser = async () => {
     try {
       if (!tokenStorage.hasSession()) {
+        if (!tokenStorage.hasRefreshSessionHint()) return;
         const refreshed = await refreshAccessToken();
         if (!refreshed) return;
       }
@@ -139,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, company, loading, login, logout, clearLocalSession, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

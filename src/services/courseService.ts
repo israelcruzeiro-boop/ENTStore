@@ -39,6 +39,7 @@ function toCoursePayload(course: Partial<Course>): Partial<CoursePayload> {
     targetAudience: course.target_audience,
     passingScore: course.passing_score,
     diplomaTemplate: course.diploma_template,
+    layoutTemplate: course.layout_template,
   };
 }
 
@@ -120,10 +121,11 @@ export const courseService = {
   },
 
   async completeEnrollment(enrollmentId: string, correct: number, total: number, startedAt?: string) {
+    const parsedStartedAt = startedAt ? new Date(startedAt) : null;
     const enrollment = await coursesService.completeEnrollment(enrollmentId, {
       totalCorrect: correct,
       totalQuestions: total,
-      startedAt,
+      ...(parsedStartedAt && !Number.isNaN(parsedStartedAt.getTime()) ? { startedAt: parsedStartedAt.toISOString() } : {}),
     });
     return mapApiCourseEnrollmentToFrontend(enrollment);
   },
@@ -151,6 +153,7 @@ export const courseService = {
       selectedOptionId: answer.selected_option_id ?? null,
       complexAnswer: answer.complex_answer ?? null,
       isCorrect: answer.is_correct ?? false,
+      finalize: Boolean(answer.completed_answer_id),
     });
   },
 

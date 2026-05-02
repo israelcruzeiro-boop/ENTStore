@@ -1,45 +1,275 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useChecklists, checklistActions, useUserSubmissions, useChecklistFolders } from '../../hooks/useChecklists';
-import { 
-  ClipboardCheck, 
-  Play, 
-  Clock, 
-  CheckCircle2, 
-  Search, 
-  LayoutGrid, 
-  ChevronRight, 
-  ChevronLeft,
+import { useOrgStructure } from '../../hooks/usePlatformData';
+import { useChecklists, checklistActions, useUserSubmissions, useReadableChecklistFolders } from '../../hooks/useChecklists';
+import { checkChecklistAccess } from '../../lib/permissions';
+import type { Checklist, ChecklistFolder, ChecklistSubmission } from '../../types';
+import {
   AlertCircle,
-  Pencil,
-  Folder,
-  FolderOpen
+  ArrowRight,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  FolderOpen,
+  Gauge,
+  Layers3,
+  ListChecks,
+  RotateCcw,
+  Search,
+  ShieldCheck,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { ActionPlans } from './ActionPlans';
+import { UserPageShell } from '../../components/user/UserPageShell';
+import { UserPageHeader } from '../../components/user/UserPageHeader';
+import { UserSearchField } from '../../components/user/UserSearchField';
+import { UserSegmentedTabs, type UserTab } from '../../components/user/UserSegmentedTabs';
+import { UserEmptyState } from '../../components/user/UserEmptyState';
+
+type ChecklistTab = 'CHECKLISTS' | 'ACTION_PLANS';
+type StatusFilter = 'ALL' | 'PENDING' | 'IN_PROGRESS';
+type FolderView = ChecklistFolder & { checklists: Checklist[] };
+
+const checklistTabs: UserTab<ChecklistTab>[] = [
+  { value: 'CHECKLISTS', label: 'Meus Checklists', icon: ClipboardCheck },
+  { value: 'ACTION_PLANS', label: 'Planos de Ação', icon: AlertCircle },
+];
+
+const statusFilters: Array<{ id: StatusFilter; label: string; icon: typeof ListChecks }> = [
+  { id: 'ALL', label: 'Todos', icon: ListChecks },
+  { id: 'PENDING', label: 'Pendentes', icon: Clock3 },
+  { id: 'IN_PROGRESS', label: 'Em andamento', icon: RotateCcw },
+];
+
+const normalizeText = (value?: string | null) => (value || '').toLowerCase().trim();
+
+const getLatestSubmission = (submissions: ChecklistSubmission[], checklistId: string) => (
+  submissions
+    .filter(submission => submission.checklist_id === checklistId)
+    .sort((a, b) => new Date(b.updated_at || b.created_at || b.started_at).getTime() - new Date(a.updated_at || a.created_at || a.started_at).getTime())[0]
+);
+
+const formatDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(date);
+};
+
+interface ChecklistCardProps {
+  checklist: Checklist;
+  folder?: ChecklistFolder;
+  submission?: ChecklistSubmission;
+  onOpen: (checklist: Checklist) => void;
+}
+
+const ChecklistCard = ({ checklist, folder, submission, onOpen }: ChecklistCardProps) => {
+  const isInProgress = submission?.status === 'IN_PROGRESS';
+  const lastActivity = formatDate(submission?.updated_at || submission?.created_at || submission?.started_at);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(checklist)}
+      className="audit-file-card user-card user-template-panel group relative min-h-[238px] overflow-hidden rounded-2xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[var(--c-primary)]/45 focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)]/50"
+    >
+      <div className="relative z-10 flex h-full flex-col justify-between gap-5">
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="audit-file-icon flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[var(--c-primary)] transition-transform duration-300 group-hover:scale-105">
+                <ClipboardCheck size={24} />
+              </div>
+              <div className="min-w-0">
+                <p className="theme-subtle-text text-[10px] font-black uppercase tracking-[0.18em]">
+                  {folder?.name || 'Sem pasta'}
+                </p>
+                <h3 className="mt-1 line-clamp-2 text-lg font-black leading-tight text-[var(--c-text)] transition-colors group-hover:text-[var(--c-primary)]">
+                  {checklist.title}
+                </h3>
+              </div>
+            </div>
+
+            <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+              isInProgress
+                ? 'bg-amber-500/12 text-amber-400'
+                : 'bg-[rgb(var(--c-text-rgb)/0.06)] theme-muted-text'
+            }`}>
+              {isInProgress ? 'Em andamento' : 'Pendente'}
+            </span>
+          </div>
+
+          <p className="line-clamp-3 text-sm leading-relaxed theme-muted-text">
+            {checklist.description || 'Checklist disponível para execução. Abra para iniciar a verificação.'}
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="user-chip theme-surface-soft inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold">
+              <ShieldCheck size={13} className="text-[var(--c-primary)]" />
+              Acesso liberado
+            </span>
+            {lastActivity && (
+              <span className="user-chip theme-surface-soft inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold">
+                <Clock3 size={13} className="text-amber-400" />
+                {lastActivity}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[rgb(var(--c-text-rgb)/0.08)] pt-4">
+            <span className="text-xs font-black uppercase tracking-wider text-[var(--c-primary)]">
+              {isInProgress ? 'Continuar' : 'Iniciar'}
+            </span>
+            <ArrowRight size={18} className="text-[var(--c-primary)] transition-transform group-hover:translate-x-1" />
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+};
+
+interface FolderChipProps {
+  folder: FolderView;
+  active: boolean;
+  onClick: () => void;
+  inProgressCount: number;
+}
+
+const FolderChip = ({ folder, active, onClick, inProgressCount }: FolderChipProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={`audit-folder-button flex min-h-[128px] min-w-[232px] flex-col justify-end text-left transition-all duration-300 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)]/50 ${
+      active ? 'is-active' : ''
+    }`}
+  >
+    <div className="audit-folder-content flex min-w-0 items-end justify-between gap-4">
+      <div className="min-w-0">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.15] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.22)]">
+          <FolderOpen size={23} />
+        </div>
+        <p className="truncate text-base font-black text-white">{folder.name}</p>
+        <p className="mt-1 text-xs font-bold text-white/75">
+          {folder.checklists.length} checklist{folder.checklists.length === 1 ? '' : 's'}
+        </p>
+      </div>
+      {inProgressCount > 0 && (
+        <span className="rounded-full bg-white/[0.15] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+          {inProgressCount}
+        </span>
+      )}
+    </div>
+  </button>
+);
 
 export const UserChecklists = () => {
   const { company, user } = useAuth();
   const { companySlug } = useParams();
   const navigate = useNavigate();
   const { checklists, isLoading } = useChecklists(company?.id);
-  const { folders, isLoading: foldersLoading } = useChecklistFolders(company?.id);
-  const { submissions: userSubmissions } = useUserSubmissions(user?.id, company?.id);
+  const { folders, isLoading: foldersLoading } = useReadableChecklistFolders(company?.id);
+  const { submissions: userSubmissions, isLoading: submissionsLoading } = useUserSubmissions(user?.id, company?.id);
+  const { orgUnits, orgTopLevels, isLoading: orgLoading } = useOrgStructure(company?.id);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'CHECKLISTS' | 'ACTION_PLANS'>('CHECKLISTS');
+  const [activeFolderId, setActiveFolderId] = useState<string | null>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [activeTab, setActiveTab] = useState<ChecklistTab>('CHECKLISTS');
 
-  const handleStart = async (checklistId: string) => {
+  const submissionByChecklistId = useMemo(() => {
+    const lookup = new Map<string, ChecklistSubmission>();
+    userSubmissions.forEach((submission) => {
+      const current = lookup.get(submission.checklist_id);
+      if (!current) {
+        lookup.set(submission.checklist_id, submission);
+        return;
+      }
+
+      const currentTime = new Date(current.updated_at || current.created_at || current.started_at).getTime();
+      const nextTime = new Date(submission.updated_at || submission.created_at || submission.started_at).getTime();
+      if (nextTime > currentTime) lookup.set(submission.checklist_id, submission);
+    });
+    return lookup;
+  }, [userSubmissions]);
+
+  const availableChecklists = useMemo(() => (
+    checklists.filter(c => {
+      if (c.company_id !== company?.id || c.status !== 'ACTIVE') return false;
+      return checkChecklistAccess(c, user, orgUnits, orgTopLevels);
+    })
+  ), [checklists, company?.id, user, orgUnits, orgTopLevels]);
+
+  const foldersWithChecklists = useMemo<FolderView[]>(() => {
+    const visibleFolders = folders
+      .map(folder => ({
+        ...folder,
+        checklists: availableChecklists.filter(checklist => checklist.folder_id === folder.id),
+      }))
+      .filter(folder => folder.checklists.length > 0);
+
+    const rootChecklists = availableChecklists.filter(checklist => !checklist.folder_id);
+    if (rootChecklists.length === 0) return visibleFolders;
+
+    return [
+      ...visibleFolders,
+      {
+        id: 'root',
+        company_id: company?.id || '',
+        name: 'Sem pasta',
+        color: '#64748B',
+        checklists: rootChecklists,
+      },
+    ];
+  }, [folders, availableChecklists, company?.id]);
+
+  const query = normalizeText(searchTerm);
+  const selectedFolder = activeFolderId && activeFolderId !== 'ALL'
+    ? foldersWithChecklists.find(folder => folder.id === activeFolderId)
+    : null;
+
+  const filteredChecklists = availableChecklists.filter(checklist => {
+    const folder = foldersWithChecklists.find(item => item.checklists.some(c => c.id === checklist.id));
+    const inProgress = submissionByChecklistId.has(checklist.id);
+    const matchesFolder = !selectedFolder || folder?.id === selectedFolder.id;
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'IN_PROGRESS' && inProgress) ||
+      (statusFilter === 'PENDING' && !inProgress);
+    const matchesSearch =
+      !query ||
+      normalizeText(checklist.title).includes(query) ||
+      normalizeText(checklist.description).includes(query) ||
+      normalizeText(folder?.name).includes(query);
+
+    return matchesFolder && matchesStatus && matchesSearch;
+  });
+
+  const inProgressChecklists = availableChecklists.filter(checklist => submissionByChecklistId.has(checklist.id));
+  const pendingChecklists = availableChecklists.filter(checklist => !submissionByChecklistId.has(checklist.id));
+  const folderInProgressCounts = new Map<string, number>(
+    foldersWithChecklists.map(folder => [
+      folder.id,
+      folder.checklists.filter(checklist => submissionByChecklistId.has(checklist.id)).length,
+    ]),
+  );
+
+  const handleOpen = async (checklist: Checklist) => {
+    const existingSubmission = getLatestSubmission(userSubmissions, checklist.id);
+    if (existingSubmission) {
+      navigate(`/${companySlug}/checklists/${existingSubmission.id}`);
+      return;
+    }
+
     if (!user) return;
     try {
       const submission = await checklistActions.startSubmission(
-        checklistId, 
-        user.id, 
-        company?.id || '', 
-        user.org_unit_id
+        checklist.id,
+        user.id,
+        company?.id || '',
+        user.org_unit_id,
       );
       navigate(`/${companySlug}/checklists/${submission.id}`);
     } catch (err) {
@@ -47,185 +277,192 @@ export const UserChecklists = () => {
     }
   };
 
-  if (isLoading || foldersLoading) {
-    return (
-      <div className="pt-32 flex items-center justify-center min-h-screen">
-        <div className="w-12 h-12 border-4 border-[var(--c-primary)] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  // Filtragem básica por permissões (Simplificada para o MVP)
-  const availableChecklists = checklists.filter(c => {
-    if (c.status !== 'ACTIVE') return false;
-
-    // 1. Verifica Lista Negra (Usuários excluídos individualmente)
-    if (user?.id && c.excluded_user_ids?.includes(user.id)) return false;
-
-    // 2. Verifica Tipo de Acesso
-    if (c.access_type === 'ALL') return true;
-
-    // 3. Se Restrito, verifica Unidade, Região ou Usuário Permitido
-    if (c.access_type === 'RESTRICTED') {
-      const isUserAllowed = user?.id && c.allowed_user_ids?.includes(user.id);
-      const isUnitAllowed = user?.org_unit_id && c.allowed_store_ids?.includes(user.org_unit_id);
-      const isRegionAllowed = user?.org_top_level_id && c.allowed_region_ids?.includes(user.org_top_level_id);
-      
-      return isUserAllowed || isUnitAllowed || isRegionAllowed;
-    }
-    return false;
-  });
-
-  // Agrupamento por pastas
-  const foldersWithChecklists = folders.map(f => ({
-    ...f,
-    checklists: availableChecklists.filter(c => c.folder_id === f.id)
-  })).filter(f => f.checklists.length > 0);
-
-  const rootChecklists = availableChecklists.filter(c => !c.folder_id);
-
-  if (rootChecklists.length > 0) {
-    foldersWithChecklists.push({
-      id: 'root',
-      company_id: company?.id || '',
-      name: 'Diversos',
-      color: '#64748B',
-      checklists: rootChecklists
-    });
-  }
-
-  const viewingChecklists = activeFolderId 
-    ? foldersWithChecklists.find(f => f.id === activeFolderId)?.checklists || []
-    : [];
+  const clearFilters = () => {
+    setSearchTerm('');
+    setActiveFolderId('ALL');
+    setStatusFilter('ALL');
+  };
 
   return (
-    <div className="pt-24 pb-12 px-4 md:px-12 max-w-[1600px] mx-auto min-h-screen bg-[#0a0a0a]">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-        <div className="flex items-center gap-4">
-          <ClipboardCheck size={36} className="text-[var(--c-primary)] drop-shadow-md" />
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight drop-shadow-md">Central de Auditoria</h1>
-        </div>
-        
-        {/* Busca Compacta no Topo */}
-        <div className="relative w-full md:w-72 group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-[var(--c-primary)] transition-colors" size={18} />
-          <Input 
-            placeholder="Buscar..." 
-            className="bg-white/5 border-white/10 pl-10 h-10 text-sm rounded-xl focus:ring-[var(--c-primary)] focus:border-[var(--c-primary)] text-white placeholder-zinc-500 transition-all font-medium"
+    <UserPageShell loading={isLoading || foldersLoading || submissionsLoading || orgLoading} className="space-y-7">
+      <UserPageHeader
+        icon={ClipboardCheck}
+        title="Central de Auditoria"
+        subtitle="Abra suas pastas de auditoria, continue rotinas em andamento e encontre cada checklist digital sem perder tempo."
+        action={
+          <UserSearchField
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={setSearchTerm}
+            placeholder="Buscar checklists..."
           />
-        </div>
-      </div>
+        }
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
-        <button 
-          onClick={() => setActiveTab('CHECKLISTS')}
-          className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${activeTab === 'CHECKLISTS' ? 'bg-[var(--c-primary)] text-black' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
-        >
-          <ClipboardCheck size={14} /> Meus Checklists
-        </button>
-        <button 
-          onClick={() => setActiveTab('ACTION_PLANS')}
-          className={`text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${activeTab === 'ACTION_PLANS' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}
-        >
-           Planos de Ação
-        </button>
-      </div>
+      <UserSegmentedTabs
+        tabs={checklistTabs}
+        active={activeTab}
+        onChange={(v) => setActiveTab(v as ChecklistTab)}
+      />
 
       {activeTab === 'ACTION_PLANS' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           <ActionPlans />
         </div>
-      ) : foldersWithChecklists.length > 0 ? (
-        activeFolderId === null ? (
-          // --- VISAO DE PASTAS ---
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl font-black text-white mb-6 flex items-center gap-2"><FolderOpen className="text-blue-500" /> Categorias</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-              {foldersWithChecklists
-                .filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map(folder => (
-                <div 
-                  key={folder.id}
-                  onClick={() => setActiveFolderId(folder.id)}
-                  className="group relative bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] border-t border-white/10 rounded-[2rem] p-6 hover:border-[var(--c-primary)]/40 transition-all duration-300 cursor-pointer shadow-2xl hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
-                >
-                  <div className="flex flex-col items-center text-center gap-4">
-                     {/* Pasta 3D Icon */}
-                     <div className="text-6xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] transform group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-500">
-                        🗂️
-                     </div>
-                     <div>
-                       <h3 className="text-xl font-black text-white mb-1 group-hover:text-[var(--c-primary)] transition-colors">{folder.name}</h3>
-                       <p className="text-xs font-bold text-zinc-500 bg-white/5 py-1 px-3 rounded-full inline-block mt-1">{folder.checklists.length} checklist(s)</p>
-                     </div>
-                  </div>
+      ) : availableChecklists.length > 0 ? (
+        <div className="space-y-7 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <section className="audit-folder-hero user-template-panel relative overflow-hidden rounded-3xl border p-5 md:p-7">
+            <div className="relative z-10 grid gap-5 md:grid-cols-[1.15fr_0.85fr] md:items-end">
+              <div>
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/[0.15] bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-white/80">
+                  <FolderOpen size={14} />
+                  Arquivo digital
                 </div>
-              ))}
+                <h2 className="max-w-3xl text-3xl font-black tracking-tight text-white md:text-5xl">
+                  {inProgressChecklists.length > 0 ? 'Você tem auditorias em andamento' : 'Tudo pronto para a próxima verificação'}
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/75 md:text-base">
+                  Cada pasta mostra somente checklists liberados para você. Use coleções, status e busca para chegar direto na rotina certa.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="audit-folder-metric rounded-2xl p-4">
+                  <Gauge className="mb-3 text-white" size={22} />
+                  <p className="text-2xl font-black text-white">{availableChecklists.length}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-white/70">Liberados</p>
+                </div>
+                <div className="audit-folder-metric rounded-2xl p-4">
+                  <RotateCcw className="mb-3 text-amber-400" size={22} />
+                  <p className="text-2xl font-black text-white">{inProgressChecklists.length}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-white/70">Em andamento</p>
+                </div>
+                <div className="audit-folder-metric rounded-2xl p-4">
+                  <Clock3 className="mb-3 text-white" size={22} />
+                  <p className="text-2xl font-black text-white">{pendingChecklists.length}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-white/70">Pendentes</p>
+                </div>
+                <div className="audit-folder-metric rounded-2xl p-4">
+                  <Layers3 className="mb-3 text-white" size={22} />
+                  <p className="text-2xl font-black text-white">{foldersWithChecklists.length}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-white/70">Coleções</p>
+                </div>
+              </div>
             </div>
-          </div>
-        ) : (
-          // --- VISAO INTERNA DA PASTA ---
-          <div className="animate-in fade-in slide-in-from-right-8 duration-500">
-            <div className="flex flex-col gap-4 mb-8">
-              <Button variant="ghost" onClick={() => setActiveFolderId(null)} className="w-fit text-zinc-400 hover:text-white px-0 font-bold hover:bg-transparent tracking-widest text-[10px] uppercase">
-                <ChevronLeft size={14} className="mr-1" /> Voltar para Pastas
-              </Button>
-              <h2 className="text-3xl font-black text-white flex items-center gap-3">
-                <span className="text-4xl drop-shadow-md">🗂️</span> 
-                {foldersWithChecklists.find(f => f.id === activeFolderId)?.name}
-              </h2>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="theme-subtle-text text-[11px] font-black uppercase tracking-[0.22em]">Filtros rápidos</p>
+                <h2 className="user-section-title text-xl font-black">Coleções e status</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {statusFilters.map(filter => {
+                  const Icon = filter.icon;
+                  const active = statusFilter === filter.id;
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      onClick={() => setStatusFilter(filter.id)}
+                      aria-pressed={active}
+                      className={`user-chip inline-flex min-h-12 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--c-primary)]/50 ${
+                        active ? 'bg-[var(--c-primary)] text-white' : 'theme-surface-soft hover:border-[var(--c-primary)]/35'
+                      }`}
+                    >
+                      <Icon size={15} />
+                      {filter.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {viewingChecklists
-                .filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map(checklist => (
-                  <div 
-                    key={checklist.id}
-                    className="group flex flex-col md:flex-row md:items-center justify-between bg-[#141414] border border-white/5 rounded-2xl p-4 hover:border-[var(--c-primary)]/40 hover:bg-white/[0.02] transition-all duration-300 cursor-pointer shadow-lg hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:-translate-y-1"
-                    onClick={() => handleStart(checklist.id)}
-                  >
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 shrink-0 rounded-xl bg-[var(--c-primary)]/10 flex items-center justify-center text-[var(--c-primary)] shadow-inner group-hover:scale-110 transition-transform">
-                          <ClipboardCheck size={24} />
-                       </div>
-                       <div className="flex-1">
-                         <h3 className="text-lg font-black text-white group-hover:text-[var(--c-primary)] transition-colors leading-tight">
-                           {checklist.title}
-                         </h3>
-                         <div className="flex items-center gap-2 mt-1">
-                            {userSubmissions.some(s => s.checklist_id === checklist.id) ? (
-                              <span className="text-[10px] font-black uppercase tracking-widest text-[#FFF] bg-[var(--c-primary)]/40 px-2 py-0.5 rounded">Em Andamento</span>
-                            ) : (
-                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1"><Clock size={10}/> Ativo</span>
-                            )}
-                         </div>
-                       </div>
-                    </div>
-                    <ChevronRight className="hidden md:block text-zinc-600 group-hover:text-[var(--c-primary)] transition-transform group-hover:translate-x-1 shrink-0" />
-                  </div>
-                ))}
+            <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar snap-x">
+              <FolderChip
+                folder={{
+                  id: 'ALL',
+                  company_id: company?.id || '',
+                  name: 'Todas as coleções',
+                  checklists: availableChecklists,
+                }}
+                active={activeFolderId === 'ALL'}
+                onClick={() => setActiveFolderId('ALL')}
+                inProgressCount={inProgressChecklists.length}
+              />
+              {foldersWithChecklists.map(folder => (
+                <FolderChip
+                  key={folder.id}
+                  folder={folder}
+                  active={activeFolderId === folder.id}
+                  onClick={() => setActiveFolderId(folder.id)}
+                  inProgressCount={folderInProgressCounts.get(folder.id) || 0}
+                />
+              ))}
             </div>
-            
-            {viewingChecklists.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-              <div className="py-20 text-center text-zinc-500 font-medium">
-                Nenhum checklist encontrado com a busca "{searchTerm}" nesta pasta.
+          </section>
+
+          <section className="audit-folder-stage user-template-panel relative overflow-hidden rounded-3xl border p-4 md:p-6">
+            <div className="relative z-10 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="theme-subtle-text text-[11px] font-black uppercase tracking-[0.22em]">
+                  {selectedFolder ? selectedFolder.name : 'Todos os checklists'}
+                </p>
+                <h2 className="user-section-title text-2xl font-black">
+                  {filteredChecklists.length} resultado{filteredChecklists.length === 1 ? '' : 's'}
+                </h2>
               </div>
+              {(query || activeFolderId !== 'ALL' || statusFilter !== 'ALL') && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="w-fit text-sm font-black text-[var(--c-primary)] transition-opacity hover:opacity-75"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+
+            {filteredChecklists.length > 0 ? (
+              <div className="relative z-10 mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {filteredChecklists.map(checklist => {
+                  const folder = foldersWithChecklists.find(item => item.checklists.some(c => c.id === checklist.id));
+                  return (
+                    <ChecklistCard
+                      key={checklist.id}
+                      checklist={checklist}
+                      folder={folder}
+                      submission={submissionByChecklistId.get(checklist.id)}
+                      onOpen={handleOpen}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <UserEmptyState
+                icon={Search}
+                title="Nenhum checklist encontrado"
+                message="Ajuste a busca ou os filtros para visualizar outros checklists liberados para você."
+                action={
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="rounded-full bg-[var(--c-primary)] px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                  >
+                    Limpar filtros
+                  </button>
+                }
+              />
             )}
-          </div>
-        )
-      ) : (
-        <div className="py-24 flex flex-col items-center justify-center text-center">
-           <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center text-zinc-700 mb-8 border border-white/5">
-              <FolderOpen size={48} />
-           </div>
-           <h2 className="text-2xl font-black text-white mb-3">Nenhuma pasta disponível</h2>
-           <p className="text-zinc-500 max-w-sm">Sua empresa ainda não disponibilizou checklists.</p>
+          </section>
         </div>
+      ) : (
+        <UserEmptyState
+          icon={CheckCircle2}
+          title="Nenhum checklist disponível"
+          message="Sua empresa ainda não disponibilizou checklists para o seu acesso."
+        />
       )}
-    </div>
+    </UserPageShell>
   );
 };

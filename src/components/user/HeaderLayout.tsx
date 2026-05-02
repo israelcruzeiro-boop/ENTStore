@@ -35,7 +35,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
   switch (layout) {
     case 'immersive':
       return (
-        <header className={`${containerClasses} h-[35vh] min-h-[300px] overflow-hidden`}>
+        <header className={`${containerClasses} h-[52vh] min-h-[420px] overflow-hidden`}>
           <div className="absolute inset-0">
             <img 
               src={image} 
@@ -47,12 +47,12 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               }}
             />
             <div 
-              className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/60 to-black/90" 
-              style={{ backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.3), ${theme.background})` }} 
+              className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/55 to-black/90" 
+              style={{ backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.18), rgba(0,0,0,0.55), ${theme.background})` }} 
             />
           </div>
           
-          <div className="relative z-10 w-full h-full flex flex-col justify-center items-start px-8">
+          <div className="relative z-10 w-full h-full flex flex-col justify-end items-start px-6 md:px-12 pb-10 md:pb-16">
             {logoUrl && isPublic && (
               <div className="w-20 h-20 md:w-28 md:h-28 rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl mb-6 backdrop-blur-md bg-black/40">
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover rounded-xl" />
@@ -66,12 +66,12 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
             {title && (
-              <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-white drop-shadow-lg mb-4 leading-tight">
+              <h1 className="text-4xl md:text-7xl font-black tracking-tight drop-shadow-lg mb-4 leading-[0.92] max-w-5xl" style={{ color: theme.text }}>
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-base md:text-lg text-white/90 max-w-2xl font-medium leading-relaxed drop-shadow-md mb-6">
+              <p className="text-base md:text-xl max-w-3xl font-medium leading-relaxed drop-shadow-md mb-6" style={{ color: theme.text, opacity: 0.9 }}>
                 {subtitle}
               </p>
             )}
@@ -84,7 +84,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
       
     case 'gradient':
       return (
-        <header className={`${containerClasses} pt-24 pb-12 ${isPublic ? '' : 'px-6 md:px-12'} ${align === 'left' ? 'text-left' : 'text-center'} overflow-hidden`}>
+        <header className={`${containerClasses} pt-28 pb-16 ${isPublic ? '' : 'px-6 md:px-12'} ${align === 'left' ? 'text-left' : 'text-center'} overflow-hidden`}>
           <div className="absolute inset-0 opacity-60">
             <img 
               src={image} 
@@ -96,17 +96,14 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               }}
             />
             <div className="absolute inset-0 backdrop-blur-3xl" style={{ backgroundColor: theme.background, opacity: 0.7 }} />
-            <div 
-              className="absolute top-0 left-1/2 -translate-x-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] rounded-full blur-[120px] opacity-30 mix-blend-screen" 
-              style={{ backgroundColor: theme.primary }} 
-            />
+            <div className="absolute inset-x-0 top-0 h-32 opacity-50" style={{ backgroundImage: `linear-gradient(90deg, ${theme.primary}, transparent, ${theme.secondary})` }} />
             <div 
               className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80" 
               style={{ backgroundImage: `linear-gradient(to bottom, transparent, ${theme.background})` }} 
             />
           </div>
           
-          <div className="relative z-10 w-full h-full flex flex-col justify-center items-start px-8">
+          <div className="relative z-10 w-full h-full flex flex-col justify-center items-start px-4 md:px-8 border-l-4 border-[var(--c-primary)]">
             {logoUrl && isPublic && (
               <div className="w-24 h-24 rounded-full overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.3)] mb-6 bg-black/50 border border-white/10 backdrop-blur-xl">
                 <img src={logoUrl} alt={title} className="w-full h-full object-cover" />
@@ -120,12 +117,12 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
             {title && (
-              <h1 className="text-3xl md:text-5xl font-black tracking-tight drop-shadow-sm mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/70">
+              <h1 className="text-3xl md:text-6xl font-black tracking-tight drop-shadow-sm mb-4 max-w-4xl" style={{ color: theme.text }}>
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-base md:text-lg opacity-80 max-w-2xl font-medium leading-relaxed mb-6 text-white/90">
+              <p className="text-base md:text-lg opacity-80 max-w-2xl font-medium leading-relaxed mb-6" style={{ color: theme.text }}>
                 {subtitle}
               </p>
             )}
@@ -307,7 +304,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
             />
           </div>
           
-          <div className="relative z-10 -mt-24 md:-mt-32 flex flex-col items-start px-8 w-full">
+          <div className="relative z-10 -mt-20 md:-mt-28 flex flex-col items-start px-6 md:px-10 w-full max-w-5xl">
             {logoUrl && isPublic ? (
               <div 
                 className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 bg-white shadow-xl mb-4 shrink-0" 
@@ -332,7 +329,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
             {title && (
-              <h1 className="text-2xl md:text-5xl font-black tracking-tighter mb-3 leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
+              <h1 className="text-2xl md:text-5xl font-black tracking-tight mb-3 leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
                 {title}
               </h1>
             )}

@@ -125,6 +125,37 @@ Observacoes:
 | PUT | `/api/admin/users/:id` | Atualiza role, status, lotacao e dados administrativos | Admin |
 | DELETE | `/api/admin/users/:id` | Soft delete de usuario | Admin |
 | DELETE | `/api/admin/users/invites/:id` | Cancela ou remove convite provisionado | Admin |
+| GET | `/api/users/me/visible-users` | Lista usuarios visiveis/atribuiveis ao usuario autenticado, sem dados sensiveis | Auth |
+
+### GET `/api/users/me/visible-users`
+
+Endpoint autenticado para telas USER que precisam exibir nomes publicos ou atribuir plano de acao.
+
+Query opcional:
+```json
+{
+  "ids": "uuid-1,uuid-2"
+}
+```
+
+Regras:
+- resolver `companyId` pela sessao autenticada
+- retornar apenas usuarios ativos do mesmo tenant
+- quando `ids` for informado, limitar a resposta aos ids solicitados e ainda aplicar as regras de visibilidade
+- para usuario comum, a visibilidade recomendada e: proprio usuario, usuarios da mesma unidade organizacional e usuarios explicitamente envolvidos em action plans que o usuario pode ver
+- nao retornar e-mail, CPF, status administrativo, convites ou metadados sensiveis
+
+Resposta:
+```json
+[
+  {
+    "id": "uuid",
+    "name": "Fulano",
+    "avatarUrl": null,
+    "orgUnitId": "uuid"
+  }
+]
+```
 
 ### Estrutura organizacional
 
@@ -189,6 +220,7 @@ Observacoes:
 | :--- | :--- | :--- | :--- |
 | POST | `/api/metrics/views` | Registra visualizacao de conteudo ou aula | Auth |
 | POST | `/api/metrics/ratings` | Registra ou atualiza avaliacao por estrelas | Auth |
+| GET | `/api/metrics/content-summaries` | Retorna agregados seguros de visualizacoes e avaliacoes por conteudo visivel ao usuario | Auth |
 | GET | `/api/admin/metrics/repositories` | Consolida metricas de repositorios e conteudos | Admin |
 | GET | `/api/admin/metrics/users/:id/activity` | Retorna atividade de consumo de um usuario | Admin |
 | GET | `/api/admin/metrics/summary` | Resumo consolidado para dashboard administrativo | Admin |
@@ -199,6 +231,38 @@ Observacoes:
   "content_id": "uuid",
   "rating": 5
 }
+```
+
+### GET `/api/metrics/content-summaries`
+
+Endpoint autenticado para telas USER. Nao deve retornar eventos brutos nem `userId` de outros usuarios.
+
+Query opcional:
+```json
+{
+  "repositoryId": "uuid"
+}
+```
+
+Regras:
+- resolver `companyId` pela sessao autenticada
+- retornar somente conteudos de repositorios ativos e visiveis ao usuario autenticado
+- se `repositoryId` for informado, validar acesso ao repositorio antes de agregar
+- agregar por `contentId`
+- `currentUserRating` deve representar apenas a nota do usuario autenticado, quando existir
+
+Resposta:
+```json
+[
+  {
+    "contentId": "uuid",
+    "repositoryId": "uuid",
+    "viewsCount": 12,
+    "ratingsCount": 3,
+    "averageRating": 8.7,
+    "currentUserRating": 9
+  }
+]
 ```
 
 ---

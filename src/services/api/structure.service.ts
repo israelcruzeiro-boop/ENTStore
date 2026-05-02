@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { ApiOrgTopLevel, ApiOrgUnit, ApiStructure } from './types';
+import type { ApiCompanyAuthenticatedView, ApiOrgTopLevel, ApiOrgUnit, ApiStructure } from './types';
 
 export interface CreateTopLevelPayload {
   name: string;
@@ -27,6 +27,13 @@ export interface UpdateUnitPayload {
   active?: boolean;
 }
 
+export interface InsertParentLevelTransitionPayload {
+  orgLevels: string[];
+  orgUnitName?: string;
+  parentName: string;
+  childTopLevelIds: string[];
+}
+
 export const adminStructureService = {
   getStructure: () => api.get<ApiStructure>('/admin/structure'),
 
@@ -42,6 +49,9 @@ export const adminStructureService = {
 
   deleteTopLevel: (id: string) =>
     api.delete<{ deleted: boolean; id: string }>(`/admin/structure/top-levels/${id}`),
+
+  insertParentLevelTransition: (payload: InsertParentLevelTransitionPayload) =>
+    api.post<ApiCompanyAuthenticatedView>('/admin/structure/transitions/insert-parent-level', payload),
 
   createUnit: (payload: CreateUnitPayload) =>
     api.post<ApiOrgUnit>('/admin/structure/units', payload),

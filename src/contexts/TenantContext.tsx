@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { usePublicTenant } from '@/hooks/useApiData';
 import type { Company } from '@/types';
+import { DEFAULT_THEME, hexToRgbChannel, normalizeTheme } from '@/lib/appearance';
 
 interface TenantContextType {
   tenantCompany: Company | null;
@@ -18,19 +19,18 @@ export const TenantProvider = () => {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (tenantCompany && tenantCompany.theme) {
-      root.style.setProperty('--c-primary', tenantCompany.theme.primary);
-      root.style.setProperty('--c-secondary', tenantCompany.theme.secondary);
-      root.style.setProperty('--c-bg', tenantCompany.theme.background);
-      root.style.setProperty('--c-card', tenantCompany.theme.card);
-      root.style.setProperty('--c-text', tenantCompany.theme.text);
-    } else {
-      root.style.setProperty('--c-primary', '#3b82f6');
-      root.style.setProperty('--c-secondary', '#1d4ed8');
-      root.style.setProperty('--c-bg', '#09090b');
-      root.style.setProperty('--c-card', '#18181b');
-      root.style.setProperty('--c-text', '#ffffff');
-    }
+    const theme = normalizeTheme(tenantCompany?.theme ?? DEFAULT_THEME);
+
+    root.style.setProperty('--c-primary', theme.primary);
+    root.style.setProperty('--c-primary-rgb', hexToRgbChannel(theme.primary, '37 99 235'));
+    root.style.setProperty('--c-secondary', theme.secondary);
+    root.style.setProperty('--c-secondary-rgb', hexToRgbChannel(theme.secondary, '29 78 216'));
+    root.style.setProperty('--c-bg', theme.background);
+    root.style.setProperty('--c-bg-rgb', hexToRgbChannel(theme.background, '9 9 11'));
+    root.style.setProperty('--c-card', theme.card);
+    root.style.setProperty('--c-card-rgb', hexToRgbChannel(theme.card, hexToRgbChannel(theme.background, '24 24 27')));
+    root.style.setProperty('--c-text', theme.text);
+    root.style.setProperty('--c-text-rgb', hexToRgbChannel(theme.text, '255 255 255'));
   }, [tenantCompany]);
 
   return (

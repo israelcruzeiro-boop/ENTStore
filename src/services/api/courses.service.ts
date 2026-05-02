@@ -29,6 +29,7 @@ export interface CoursePayload {
   targetAudience?: string[];
   passingScore?: number;
   diplomaTemplate?: string;
+  layoutTemplate?: ApiCourse['layoutTemplate'];
 }
 
 export interface CourseModulePayload {
@@ -102,7 +103,7 @@ export const coursesService = {
   listAnswers: (enrollmentId: string) => api.get<ApiCourseAnswer[]>(`/courses/enrollments/${enrollmentId}/answers`),
   submitAnswer: (
     enrollmentId: string,
-    payload: { questionId: string; selectedOptionId?: string | null; complexAnswer?: unknown | null; isCorrect: boolean },
+    payload: { questionId: string; selectedOptionId?: string | null; complexAnswer?: unknown | null; isCorrect: boolean; finalize?: boolean },
   ) => api.post<ApiCourseAnswer>(`/courses/enrollments/${enrollmentId}/answers`, payload),
   completeEnrollment: (enrollmentId: string, payload: { totalCorrect: number; totalQuestions: number; startedAt?: string }) =>
     api.post<ApiCourseEnrollment>(`/courses/enrollments/${enrollmentId}/complete`, payload),

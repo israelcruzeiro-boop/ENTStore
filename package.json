@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:frontend": "vite --host 0.0.0.0 --port 8080",
+    "dev:backend": "npm --prefix ../StorePage_back run dev",
+    "dev:all": "node scripts/dev-all.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
@@ -39,6 +43,7 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
+    "@rollup/rollup-linux-x64-gnu": "^4.60.2",
     "@tanstack/react-query": "^5.56.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -64,7 +69,6 @@
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.3",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8",
     "zustand": "^5.0.11"
   },
@@ -87,5 +91,18 @@
     "typescript-eslint": "^8.0.1",
     "vite": "^6.3.4",
     "vite-plugin-pwa": "^1.2.0"
-  }
+  },
+  "description": "",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/israelcruzeiro-boop/ENTStore.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/israelcruzeiro-boop/ENTStore/issues"
+  },
+  "homepage": "https://github.com/israelcruzeiro-boop/ENTStore#readme"
 }

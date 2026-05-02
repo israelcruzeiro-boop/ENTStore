@@ -12,7 +12,7 @@ export interface ProvisionTenantAdminPayload {
   role?: 'ADMIN' | 'MANAGER' | 'USER';
 }
 
-export type ProvisionTenantAdminStatus = 'invited' | 'updated_existing';
+export type ProvisionTenantAdminStatus = 'created_user' | 'updated_existing';
 
 export interface ProvisionTenantAdminResult {
   status: ProvisionTenantAdminStatus;
@@ -39,22 +39,23 @@ export interface SuperAdminCompanyPayload {
   landingPageActive?: boolean;
   landingPageLayout?: string | null;
   checklistsEnabled?: boolean;
+  surveysEnabled?: boolean;
 }
 
 export interface SuperAdminUserPayload {
   name?: string;
   email?: string;
-  role?: 'ADMIN' | 'USER';
+  role?: 'ADMIN' | 'MANAGER' | 'USER';
   status?: ApiUserStatus;
   active?: boolean;
 }
 
 /**
- * HTTP wrapper for the legacy `provision_invite` database RPC.
+ * HTTP wrapper for super-admin platform operations.
  *
  * The backend route (`POST /api/super-admin/companies/:id/provision-admin`)
- * requires SUPER_ADMIN role. The frontend never picks the temp password — the
- * invitee defines their own secret on first login.
+ * requires SUPER_ADMIN role. Temporary first-access credentials are owned by
+ * the backend and are never generated or returned by the frontend.
  */
 export const superAdminService = {
   listCompanies: (query: { includeDeleted?: boolean } = {}) =>

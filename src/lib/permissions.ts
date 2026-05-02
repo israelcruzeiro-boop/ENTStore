@@ -1,4 +1,5 @@
 import { User, Repository, Course, OrgUnit, OrgTopLevel, Checklist } from '../types';
+import type { Survey } from '../types/surveys';
 
 /**
  * Interface genérica para objetos que possuem regras de acesso.
@@ -107,3 +108,10 @@ export const checkChecklistAccess = (
   orgUnits: OrgUnit[],
   orgTopLevels: OrgTopLevel[]
 ): boolean => validateAccess(checklist, user, orgUnits, orgTopLevels);
+
+export const checkSurveyAccess = (
+  survey: Survey,
+  user: User | null | undefined,
+  orgUnits: OrgUnit[],
+  orgTopLevels: OrgTopLevel[]
+): boolean => validateAccess(survey, user, orgUnits, orgTopLevels);

@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
 import { APPEARANCE_STEPS } from '../../data/tourSteps';
+import { normalizeTheme } from '../../lib/appearance';
 
 export const AdminAppearance = () => {
   const { company, refreshUser } = useAuth();
@@ -73,6 +74,8 @@ export const AdminAppearance = () => {
           surface: localTheme.background,
           text: localTheme.text,
         },
+        landingPageActive,
+        landingPageLayout,
       });
 
       toast.success('Aparência atualizada e aplicada com sucesso!');
@@ -98,6 +101,7 @@ export const AdminAppearance = () => {
     { key: 'card', label: 'Cor dos Cards (Superfícies)' },
     { key: 'text', label: 'Cor do Texto Principal' },
   ];
+  const previewTheme = normalizeTheme(localTheme);
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
@@ -169,8 +173,8 @@ export const AdminAppearance = () => {
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-1">Estilo de Capa Global (Banner)</h2>
-               <p className="text-sm text-slate-500 mb-4">Define o layout visual da capa aplicado na Home do usuário, Detalhes de Repositório e Landing Page.</p>
+               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2 mb-1">Template do Ambiente</h2>
+               <p className="text-sm text-slate-500 mb-4">Define o layout visual aplicado em todo o ambiente do usuário: Home, páginas internas, repositórios e landing page.</p>
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                  {[
                    { id: 'classic', label: 'Clássico', desc: 'Capa padrão com avatar sobreposto.', icon: <LayoutTemplate size={18}/> },
@@ -189,7 +193,7 @@ export const AdminAppearance = () => {
                          {layout.icon}
                       </div>
                       <span className={`font-semibold text-sm transition-colors ${landingPageLayout === layout.id ? 'text-indigo-900' : 'text-slate-700'}`}>{layout.label}</span>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{layout.desc} Aplicado na Home, Repositórios e Landing Page.</p>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{layout.desc} Aplicado em todo o ambiente do usuário.</p>
                    </button>
                  ))}
                </div>
@@ -241,12 +245,12 @@ export const AdminAppearance = () => {
                </div>
                
                <div 
-                  style={{ backgroundColor: localTheme.background, color: localTheme.text }} 
+                  style={{ backgroundColor: previewTheme.background, color: previewTheme.text }} 
                   className="min-h-[500px] relative transition-colors duration-300 font-sans"
                >
                   <header className="px-6 py-4 flex justify-between items-center bg-black/20 backdrop-blur-sm border-b border-white/5">
                      <div className="font-bold text-xl flex gap-1">
-                        ENT<span style={{ color: localTheme.primary }}>Store</span>
+                        ENT<span style={{ color: previewTheme.primary }}>Store</span>
                      </div>
                      <div className="flex gap-4 opacity-70">
                         <Search size={18} />
@@ -255,22 +259,22 @@ export const AdminAppearance = () => {
                   </header>
 
                   <div className="px-6 py-10 relative overflow-hidden">
-                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: localTheme.primary, background: `linear-gradient(45deg, ${localTheme.background}, ${localTheme.primary})` }}></div>
+                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: previewTheme.primary, background: `linear-gradient(45deg, ${previewTheme.background}, ${previewTheme.primary})` }}></div>
                      <div className="relative z-10">
                         <h2 className="text-3xl font-bold mb-3">Boas-vindas, Colaborador!</h2>
                         <p className="opacity-80 text-sm mb-6 max-w-sm leading-relaxed">
-                           Sua identidade visual será aplicada em todos os botões, links, fundos e textos do ambiente logado.
+                           Sua identidade visual será aplicada em todas as páginas, botões, links, fundos e textos do ambiente logado.
                         </p>
                         <div className="flex gap-3">
                            <button 
                               className="flex items-center gap-2 px-6 py-2.5 rounded-md font-bold transition-transform hover:scale-105 shadow-lg" 
-                              style={{ backgroundColor: localTheme.primary, color: '#ffffff' }}
+                              style={{ backgroundColor: previewTheme.primary, color: '#ffffff' }}
                            >
                               <Play size={16} fill="currentColor" /> Explorar App
                            </button>
                            <button 
                               className="flex items-center gap-2 px-6 py-2.5 rounded-md font-bold transition-transform hover:bg-black/20" 
-                              style={{ backgroundColor: localTheme.secondary, color: '#ffffff' }}
+                              style={{ backgroundColor: previewTheme.secondary, color: '#ffffff' }}
                            >
                               Saber mais
                            </button>
@@ -281,22 +285,22 @@ export const AdminAppearance = () => {
                   <div className="px-6 pb-10">
                      <h3 className="text-lg font-semibold mb-4 flex items-center group">
                         Meus Repositórios 
-                        <ChevronRight className="ml-1 opacity-50 transition-colors" style={{ color: localTheme.primary }} />
+                        <ChevronRight className="ml-1 opacity-50 transition-colors" style={{ color: previewTheme.primary }} />
                      </h3>
                      <div className="flex gap-4 overflow-hidden">
                         {[1, 2].map(i => (
-                           <div key={i} className="w-48 rounded-lg overflow-hidden shrink-0 border border-white/5 shadow-md" style={{ backgroundColor: localTheme.card }}>
+                           <div key={i} className="w-48 rounded-lg overflow-hidden shrink-0 border border-white/5 shadow-md" style={{ backgroundColor: previewTheme.card }}>
                               <div className="h-32 bg-black/20 relative group">
                                  <div className="absolute inset-0 opacity-20 bg-gradient-to-tr from-black to-transparent"></div>
                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 cursor-pointer">
-                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-xl transition-transform hover:scale-110" style={{ backgroundColor: localTheme.primary }}>
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-xl transition-transform hover:scale-110" style={{ backgroundColor: previewTheme.primary }}>
                                        <Play size={16} fill="currentColor" className="ml-1" />
                                     </div>
                                  </div>
                               </div>
                               <div className="p-4">
-                                 <div className="h-4 w-3/4 rounded mb-2 opacity-80" style={{ backgroundColor: localTheme.text }}></div>
-                                 <div className="h-3 w-1/2 rounded opacity-40" style={{ backgroundColor: localTheme.text }}></div>
+                                 <div className="h-4 w-3/4 rounded mb-2 opacity-80" style={{ backgroundColor: previewTheme.text }}></div>
+                                 <div className="h-3 w-1/2 rounded opacity-40" style={{ backgroundColor: previewTheme.text }}></div>
                               </div>
                            </div>
                         ))}
