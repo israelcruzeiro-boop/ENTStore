@@ -1,12 +1,13 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import { Home, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, Target, MessageSquare } from 'lucide-react';
+import { Home, MonitorPlay, UserCircle, LogOut, BookOpen, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useOrgStructure, useRepositories, useCourses } from '../hooks/usePlatformData';
 import { useChecklists } from '../hooks/useChecklists';
-import { checkRepoAccess, checkCourseAccess, checkChecklistAccess } from '../lib/permissions';
+import { useSurveys } from '../hooks/useSurveys';
+import { checkRepoAccess, checkCourseAccess, checkChecklistAccess, checkSurveyAccess } from '../lib/permissions';
 import { useTourContext } from '../contexts/TourContext';
 import { HelpButton } from '../components/user/HelpButton';
 import { getTourKeyByPath } from '../data/userTourSteps';
@@ -26,6 +27,7 @@ export const UserLayout = () => {
   const { repositories } = useRepositories(company?.id);
   const { courses } = useCourses(company?.id);
   const { checklists } = useChecklists(company?.id);
+  const { surveys } = useSurveys(company?.id);
 
   const availableRepos = repositories.filter(r => r.company_id === company?.id && r.status === 'ACTIVE' && checkRepoAccess(r, user, orgUnits, orgTopLevels));
   const hasHubs = availableRepos.length > 0;
@@ -35,6 +37,13 @@ export const UserLayout = () => {
 
   const availableChecklists = checklists.filter(c => c.status === 'ACTIVE' && checkChecklistAccess(c, user, orgUnits, orgTopLevels));
   const hasChecklists = company?.checklists_enabled && availableChecklists.length > 0;
+
+  const surveysFeatureEnabled = company?.surveys_enabled !== false;
+  const availableSurveys = surveysFeatureEnabled ? surveys.filter(s => {
+    if (s.company_id !== company?.id || s.status !== 'ACTIVE') return false;
+    return checkSurveyAccess(s, user, orgUnits, orgTopLevels);
+  }) : [];
+  const hasSurveys = availableSurveys.length > 0;
 
   const { 
     steps, 
@@ -187,7 +196,9 @@ export const UserLayout = () => {
             {hasChecklists && (
               <Link to={`${basePath}/checklists`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-checklist ${isActive('/checklists') ? 'text-[var(--c-text)] font-bold' : ''}`}>Checklists</Link>
             )}
-            <Link to={`${basePath}/pesquisas`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-text)] font-bold' : ''}`}>Pesquisas</Link>
+            {hasSurveys && (
+              <Link to={`${basePath}/pesquisas`} className={`transition-colors hover:text-[var(--c-text)] tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-text)] font-bold' : ''}`}>Pesquisas</Link>
+            )}
           </nav>
         </div>
         
@@ -239,10 +250,12 @@ export const UserLayout = () => {
               <span className="text-[10px] font-medium">Checklist</span>
            </Link>
          )}
-         <Link to={`${basePath}/pesquisas`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
-            <MessageSquare size={22} />
-            <span className="text-[10px] font-medium">Pesquisas</span>
-         </Link>
+          {hasSurveys && (
+            <Link to={`${basePath}/pesquisas`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-pesquisa ${isActive('/pesquisas') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
+               <MessageSquare size={22} />
+               <span className="text-[10px] font-medium">Pesquisas</span>
+            </Link>
+          )}
          <Link to={`${basePath}/perfil`} className={`flex flex-col items-center gap-1 w-16 py-2 rounded-xl transition-colors tour-nav-perfil ${isActive('/perfil') ? 'text-[var(--c-primary)]' : 'text-zinc-500 hover:text-zinc-300'}`}>
             {user?.avatar_url ? (
                <img src={user.avatar_url} alt="avatar" className="w-6 h-6 rounded-full object-cover" />

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSurveys, useUserSurveyResponses } from '../../hooks/useSurveys';
@@ -22,8 +22,10 @@ export const UserSurveys = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { pendingSurveys, completedSurveys } = useMemo(() => {
-    if (!surveys || !responses) return { pendingSurveys: [], completedSurveys: [] };
+  const isLoading = isLoadingSurveys || isLoadingResponses || isLoadingOrg;
+
+  const { pendingSurveys, completedSurveys, availableSurveyCount } = useMemo(() => {
+    if (!surveys || !responses) return { pendingSurveys: [], completedSurveys: [], availableSurveyCount: 0 };
 
     // Get responded IDs
     const respondedIds = new Set(responses.map(r => r.survey_id));
@@ -45,12 +47,21 @@ export const UserSurveys = () => {
     const searchLow = searchQuery.toLowerCase();
     return {
       pendingSurveys: pending.filter(s => s.title.toLowerCase().includes(searchLow) || s.description?.toLowerCase().includes(searchLow)),
-      completedSurveys: completed.filter(s => s.title.toLowerCase().includes(searchLow) || s.description?.toLowerCase().includes(searchLow))
+      completedSurveys: completed.filter(s => s.title.toLowerCase().includes(searchLow) || s.description?.toLowerCase().includes(searchLow)),
+      availableSurveyCount: activeSurveys.length,
     };
   }, [surveys, responses, searchQuery, company?.id, company?.surveys_enabled, user, orgUnits, orgTopLevels]);
 
+  useEffect(() => {
+    if (!isLoading && availableSurveyCount === 0 && companySlug) {
+      navigate(`/${companySlug}/home`, { replace: true });
+    }
+  }, [availableSurveyCount, companySlug, isLoading, navigate]);
+
+  if (!isLoading && availableSurveyCount === 0) return null;
+
   return (
-    <UserPageShell loading={isLoadingSurveys || isLoadingResponses || isLoadingOrg}>
+    <UserPageShell loading={isLoading}>
       <UserPageHeader
         icon={MessageSquareText}
         title="Pesquisas"

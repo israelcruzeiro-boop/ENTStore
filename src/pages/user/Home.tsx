@@ -167,6 +167,7 @@ export const UserHome = () => {
      if (s.company_id !== company?.id || s.status !== 'ACTIVE') return false;
      return checkSurveyAccess(s, user, orgUnits, orgTopLevels);
   }) : [];
+  const hasSurveys = companySurveys.length > 0;
   const pendingSurveys = companySurveys.filter(s => s.allow_multiple_responses || !respondedSurveyIds.has(s.id!));
   const hasUserRespondedSurvey = (surveyId?: string) => !!surveyId && respondedSurveyIds.has(surveyId);
   const isSurveyAvailableToAnswer = (survey: (typeof companySurveys)[number]) => survey.allow_multiple_responses || !hasUserRespondedSurvey(survey.id);
@@ -198,7 +199,7 @@ export const UserHome = () => {
   const isRepoFilter = activeFilter ? repoTypeFilters.has(activeFilter) : false;
   const showCourses = !activeFilter || activeFilter === 'COURSE';
   const showChecklists = (!activeFilter || activeFilter === 'CHECKLIST') && company?.checklists_enabled !== false;
-  const showSurveys = (!activeFilter || activeFilter === 'SURVEY') && company?.surveys_enabled !== false;
+  const showSurveys = (!activeFilter || activeFilter === 'SURVEY') && hasSurveys;
   const filteredHubsByMain = isRepoFilter ? hubRepos.filter(r => r.type === activeFilter) : (!activeFilter ? hubRepos : []);
   const filteredLibsByMain = isRepoFilter ? libraryRepos.filter(r => r.type === activeFilter) : (!activeFilter ? libraryRepos : []);
   const surveysForMainFilter = activeFilter === 'SURVEY' ? companySurveys : pendingSurveys;
@@ -265,7 +266,7 @@ export const UserHome = () => {
             >
               Todos
             </button>
-            {filters.filter(f => f.id !== 'SURVEY' || surveysFeatureEnabled).map(f => (
+            {filters.filter(f => f.id !== 'SURVEY' || hasSurveys).map(f => (
               <button
                 key={f.id}
                 onClick={() => setActiveFilter(f.id)}

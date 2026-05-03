@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSurvey, useSurveyQuestions } from '../../hooks/useSurveys';
+import { useOrgStructure } from '../../hooks/usePlatformData';
+import { checkSurveyAccess } from '../../lib/permissions';
 import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Send, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,9 +15,19 @@ import { Input } from '@/components/ui/input';
 export const SurveyPlayer = () => {
   const { companySlug, surveyId } = useParams();
   const navigate = useNavigate();
+  const { user, company } = useAuth();
   
   const { survey, isLoading: isLoadingSurvey } = useSurvey(surveyId);
-  const { questions, isLoading: isLoadingQuestions } = useSurveyQuestions(surveyId);
+  const { orgUnits, orgTopLevels, isLoading: isLoadingOrg } = useOrgStructure(company?.id);
+  const surveyAccessReady = !isLoadingSurvey && !isLoadingOrg;
+  const hasSurveyAccess =
+    surveyAccessReady &&
+    !!survey &&
+    company?.surveys_enabled !== false &&
+    survey.company_id === company?.id &&
+    survey.status === 'ACTIVE' &&
+    checkSurveyAccess(survey, user, orgUnits, orgTopLevels);
+  const { questions, isLoading: isLoadingQuestions } = useSurveyQuestions(hasSurveyAccess ? surveyId : undefined);
   
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +84,7 @@ export const SurveyPlayer = () => {
     }
   };
 
-  if (isLoadingSurvey || isLoadingQuestions) {
+  if (isLoadingSurvey || isLoadingOrg || (hasSurveyAccess && isLoadingQuestions)) {
     return (
       <div className="flex h-screen items-center justify-center pt-16">
         <Loader2 className="animate-spin text-blue-600 mb-4" size={32} />
@@ -80,7 +92,7 @@ export const SurveyPlayer = () => {
     );
   }
 
-  if (!survey) {
+  if (!hasSurveyAccess) {
     return (
       <div className="pt-32 text-center text-white">
         Pesquisa não encontrada.

@@ -1,201 +1,229 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect } from 'react';
 import {
-  Smartphone, FolderOpen, BarChart3, Building2, BookOpen, Shield,
-  Settings, Upload, Users, MessageCircle, Zap, Lock, Globe,
-  ChevronRight, Play, Star, ArrowRight, Sparkles, Link as LinkIcon, FileText
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  ClipboardCheck,
+  FolderOpen,
+  GraduationCap,
+  Layers3,
+  LineChart,
+  LockKeyhole,
+  MessageCircle,
+  MonitorSmartphone,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Users,
 } from 'lucide-react';
 
-const WHATSAPP_LINK = 'https://wa.me/5561996593376?text=Ol%C3%A1!%20Tenho%20interesse%20no%20Store%20Page.%20Gostaria%20de%20saber%20mais!';
+const WHATSAPP_PHONE_PARTS = ['55', '61', '99659', '3376'];
+const WHATSAPP_MESSAGE =
+  'Ola! Tenho interesse no Store Page. Gostaria de contratar o sistema.';
 
-// Product images
-const IMAGES = {
-  heroShowcase: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png',
-  whatIs: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20001.jpg',
-  features: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20005.jpg',
-  howItWorks: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20003.jpg',
-  ctaBackground: 'https://ik.imagekit.io/lflb43qwh/StorePage/StorePage%20004.jpg',
+function openWhatsAppContact() {
+  const phone = WHATSAPP_PHONE_PARTS.join('');
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`;
+  const newWindow = window.open(url, '_blank', 'noopener,noreferrer');
+  if (newWindow) newWindow.opener = null;
+}
+
+const BRAND = {
+  logo: '/landing-ai/storepage-logo-transparent-cropped.png',
 };
 
-// Hook for scroll-triggered animations
-function useScrollReveal() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
+const IMAGES = {
+  hero: '/landing-ai/hero-impact.jpg',
+  development: '/landing-ai/pillar-development.jpg',
+  surveys: '/landing-ai/pillar-surveys.jpg',
+  checks: '/landing-ai/pillar-checks.jpg',
+  library: '/landing-ai/pillar-library.jpg',
+};
 
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setIsVisible(true); },
-      { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+const pillars = [
+  {
+    id: 'desenvolvimento',
+    icon: GraduationCap,
+    image: IMAGES.development,
+    eyebrow: 'Desenvolvimento',
+    title: 'Colaboradores evoluindo com trilhas claras.',
+    description:
+      'Treinamentos, conteúdos, avaliações e certificados deixam de ser ações soltas e viram uma jornada contínua.',
+    benefits: ['Mais adesão aos treinamentos', 'Menos retrabalho na integração', 'Conhecimento aplicado na rotina'],
+  },
+  {
+    id: 'pesquisas',
+    icon: BarChart3,
+    image: IMAGES.surveys,
+    eyebrow: 'Pesquisas',
+    title: 'Escuta interna que vira decisão.',
+    description:
+      'Pesquisas de clima, pulso, satisfação e diagnóstico ajudam a empresa a entender sinais antes que eles virem problema.',
+    benefits: ['Mais clareza sobre equipes', 'Diagnósticos rápidos', 'Gestores com contexto real'],
+  },
+  {
+    id: 'checagens',
+    icon: ClipboardCheck,
+    image: IMAGES.checks,
+    eyebrow: 'Checagens',
+    title: 'Processos checados com padrão e evidência.',
+    description:
+      'Rotinas, auditorias, visitas e planos de ação passam a ter estrutura, acompanhamento e menos dependência de planilhas.',
+    benefits: ['Execução mais padronizada', 'Acompanhamento por processo', 'Qualidade com rastreabilidade'],
+  },
+  {
+    id: 'biblioteca',
+    icon: FolderOpen,
+    image: IMAGES.library,
+    eyebrow: 'Biblioteca',
+    title: 'Links, arquivos e mídias em um centro vivo.',
+    description:
+      'Vídeos, documentos, manuais e links importantes ficam organizados para o colaborador encontrar o que precisa.',
+    benefits: ['Menos conteúdo perdido', 'Busca mais simples', 'Acesso organizado por necessidade'],
+  },
+];
 
-  return { ref, isVisible };
-}
+const gains = [
+  {
+    icon: Target,
+    title: 'Adoção mais rápida',
+    description: 'A experiência visual e o acesso simples reduzem atrito para equipes começarem a usar.',
+  },
+  {
+    icon: LineChart,
+    title: 'Gestão com mais sinais',
+    description: 'Treinamentos, pesquisas e checagens passam a compor uma visão mais clara da operação.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Menos improviso operacional',
+    description: 'Processos importantes deixam de depender de mensagens soltas, arquivos perdidos e controles paralelos.',
+  },
+];
 
-// Animated counter
-function AnimatedCounter({ target, suffix = '' }: { target: string; suffix?: string }) {
-  const { ref, isVisible } = useScrollReveal();
-  const [count, setCount] = useState(0);
-  const numericTarget = parseInt(target.replace(/\D/g, ''), 10) || 0;
+const governance = [
+  {
+    icon: LockKeyhole,
+    title: 'Controle de acesso',
+    text: 'Conteúdos e jornadas podem ser organizados para públicos diferentes.',
+  },
+  {
+    icon: Search,
+    title: 'Conhecimento encontrável',
+    text: 'A empresa reduz o tempo gasto procurando links, documentos e materiais importantes.',
+  },
+  {
+    icon: Layers3,
+    title: 'Estrutura por operação',
+    text: 'O sistema se adapta a áreas, unidades, times e objetivos internos.',
+  },
+  {
+    icon: MonitorSmartphone,
+    title: 'Uso web e mobile',
+    text: 'Acesso prático para colaboradores no computador ou celular.',
+  },
+];
 
-  useEffect(() => {
-    if (!isVisible || numericTarget === 0) return;
-    let current = 0;
-    const step = Math.max(1, Math.floor(numericTarget / 40));
-    const timer = setInterval(() => {
-      current += step;
-      if (current >= numericTarget) { setCount(numericTarget); clearInterval(timer); }
-      else setCount(current);
-    }, 30);
-    return () => clearInterval(timer);
-  }, [isVisible, numericTarget]);
+function SalesButton({
+  children,
+  variant = 'primary',
+  className = '',
+}: {
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary';
+  className?: string;
+}) {
+  const styles =
+    variant === 'primary'
+      ? 'bg-[#ff4b1f] text-white shadow-[0_24px_70px_rgba(255,75,31,0.28)] hover:bg-[#ef2d16]'
+      : 'border border-white/12 bg-white/[0.045] text-white hover:border-[#ff4b1f]/40 hover:bg-white/[0.07]';
 
-  return <span ref={ref}>{count}{suffix}</span>;
-}
-
-// Section wrapper with reveal animation
-function RevealSection({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const { ref, isVisible } = useScrollReveal();
   return (
-    <div
-      ref={ref}
-      className={className}
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(40px)',
-        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ease ${delay}ms`,
-      }}
+    <button
+      type="button"
+      onClick={openWhatsAppContact}
+      aria-label="Abrir conversa no WhatsApp para contratar o Store Page"
+      className={`inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl px-6 font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff7a45] ${styles} ${className}`}
     >
       {children}
+    </button>
+  );
+}
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-[#ff4b1f]/25 bg-[#ff4b1f]/10 px-3 py-1 text-xs font-black uppercase tracking-[0.08em] text-[#ff7a45]">
+      {children}
+    </span>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+  align = 'center',
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  align?: 'center' | 'left';
+}) {
+  return (
+    <div className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <h2 className="mt-5 text-3xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
+        {title}
+      </h2>
+      <p className="mt-5 text-base leading-7 text-zinc-400 md:text-lg">{description}</p>
     </div>
   );
 }
 
-// Feature card component
-function FeatureCard({ icon: Icon, title, description, index }: {
-  icon: React.ElementType; title: string; description: string; index: number;
+function ImagePanel({
+  src,
+  alt,
+  priority = false,
+  className = '',
+}: {
+  src: string;
+  alt: string;
+  priority?: boolean;
+  className?: string;
 }) {
   return (
-    <RevealSection delay={index * 100}>
-      <div className="group relative bg-white/[0.03] backdrop-blur-sm border border-white/[0.06] rounded-2xl p-6 md:p-8 hover:bg-white/[0.06] hover:border-orange-500/20 transition-all duration-500 h-full">
-        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        <div className="relative z-10">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500/20 to-red-500/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
-            <Icon size={22} className="text-orange-400" />
-          </div>
-          <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-          <p className="text-zinc-400 text-sm leading-relaxed">{description}</p>
-        </div>
-      </div>
-    </RevealSection>
-  );
-}
-
-// Step card for "Como Funciona"
-function StepCard({ number, title, description, icon: Icon, index }: {
-  number: string; title: string; description: string; icon: React.ElementType; index: number;
-}) {
-  return (
-    <RevealSection delay={index * 150} className="relative">
-      <div className="relative bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center hover:border-orange-500/20 transition-all duration-500 h-full group">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform duration-300">
-          <Icon size={28} className="text-white" />
-        </div>
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-zinc-900 border border-orange-500/30 text-orange-400 text-sm font-bold">
-            {number}
-          </span>
-        </div>
-        <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
-        <p className="text-zinc-400 text-sm leading-relaxed">{description}</p>
-      </div>
-    </RevealSection>
-  );
-}
-
-// Benefit card
-function BenefitCard({ icon: Icon, title, description, stat, index }: {
-  icon: React.ElementType; title: string; description: string; stat: string; index: number;
-}) {
-  return (
-    <RevealSection delay={index * 120}>
-      <div className="group text-center p-6 md:p-8">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-red-500/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-          <Icon size={26} className="text-orange-400" />
-        </div>
-        <div className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-2">
-          {stat}
-        </div>
-        <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-        <p className="text-zinc-400 text-sm leading-relaxed">{description}</p>
-      </div>
-    </RevealSection>
-  );
-}
-
-// Floating particles background
-function FloatingParticles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {Array.from({ length: 20 }).map((_, i) => (
-        <div
-          key={i}
-          className="absolute w-1 h-1 rounded-full bg-orange-500/20"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animation: `float-particle ${5 + Math.random() * 10}s ease-in-out infinite`,
-            animationDelay: `${Math.random() * 5}s`,
-          }}
-        />
-      ))}
+    <div className={`relative overflow-hidden rounded-[1.4rem] border border-white/10 bg-black shadow-[0_34px_120px_rgba(0,0,0,0.45)] ${className}`}>
+      <img
+        src={src}
+        alt={alt}
+        width={1440}
+        height={823}
+        loading={priority ? 'eager' : 'lazy'}
+        className="aspect-[16/9] w-full object-cover"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,transparent_0%,transparent_38%,rgba(0,0,0,0.42)_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent" />
     </div>
   );
 }
-
-const FEATURES = [
-  { icon: FolderOpen, title: 'Repositórios Organizados', description: 'Crie Hubs temáticos e Bibliotecas para armazenar vídeos, PDFs, links e documentos de forma estruturada e sempre acessível.' },
-  { icon: LinkIcon, title: 'Links de Mídias & Docs', description: 'Armazene links para vídeos do YouTube, Vimeo, Google Drive, PDFs, planilhas e qualquer recurso digital. Tudo num só lugar.' },
-  { icon: BarChart3, title: 'Painel Administrativo', description: 'Dashboard poderoso para gerenciar repositórios, conteúdos, usuários e métricas de visualização em tempo real.' },
-  { icon: Smartphone, title: 'Acesso de Qualquer Lugar', description: 'Web e mobile (PWA). Seus arquivos e links disponíveis em qualquer dispositivo, a qualquer momento.' },
-];
-
-const STEPS = [
-  { icon: Settings, title: 'Configure Sua Empresa', description: 'Personalize logo, cores e estrutura organizacional. Crie repositórios e defina quem acessa o quê.' },
-  { icon: Upload, title: 'Armazene Seus Conteúdos', description: 'Adicione links de vídeos, PDFs, documentos e mídias organizados em Hubs e Bibliotecas com categorias claras.' },
-  { icon: Users, title: 'Equipe Acessa Facilmente', description: 'Seus colaboradores encontram tudo organizado, com busca rápida e acesso direto pelo celular ou computador.' },
-];
-
-const BENEFITS = [
-  { icon: Zap, title: 'Rápido', description: 'Acesso instantâneo a qualquer conteúdo armazenado, sem fricção.', stat: '100%' },
-  { icon: Lock, title: 'Seguro', description: 'Controle total de quem vê e acessa cada repositório.', stat: '100%' },
-  { icon: Star, title: 'Personalizável', description: 'Webapp com visual próprio e estrutura sob medida.', stat: '100%' },
-];
 
 export const LandingPage = () => {
-  const [scrollY, setScrollY] = useState(0);
-  const heroRef = useRef<HTMLElement>(null);
-
-  const handleScroll = useCallback(() => {
-    setScrollY(window.scrollY);
-  }, []);
-
   useEffect(() => {
-    document.title = 'STORE PAGE — Armazenamento Inteligente de Mídias e Documentos';
+    document.title = 'Store Page | Desenvolvimento, pesquisas, checagens e biblioteca corporativa';
+    const description =
+      'Store Page é o sistema corporativo para desenvolver colaboradores, criar pesquisas, executar checagens de processos e centralizar arquivos, links e mídias.';
     const metaDesc = document.querySelector('meta[name="description"]');
+
     if (metaDesc) {
-      metaDesc.setAttribute('content', 'STORE PAGE é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.');
+      metaDesc.setAttribute('content', description);
     } else {
       const meta = document.createElement('meta');
       meta.name = 'description';
-      meta.content = 'STORE PAGE é a plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar para toda a sua empresa.';
+      meta.content = description;
       document.head.appendChild(meta);
     }
 
-    // JSON-LD Schema
     const existingSchema = document.getElementById('lpage-schema');
     if (!existingSchema) {
       const script = document.createElement('script');
@@ -206,396 +234,283 @@ export const LandingPage = () => {
         '@type': 'SoftwareApplication',
         name: 'Store Page',
         applicationCategory: 'BusinessApplication',
-        operatingSystem: 'Web, Android, iOS',
-        description: 'Plataforma de armazenamento fácil de links de mídias e documentos corporativos. Organize vídeos, PDFs e links num só lugar.',
+        operatingSystem: 'Web',
+        description,
         offers: { '@type': 'Offer', category: 'SaaS' },
-        creator: { '@type': 'Organization', name: 'Store Page', contactPoint: { '@type': 'ContactPoint', telephone: '+55-61-99659-3376', contactType: 'sales' } },
+        creator: { '@type': 'Organization', name: 'Store Page' },
       });
       document.head.appendChild(script);
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       const schemaEl = document.getElementById('lpage-schema');
       if (schemaEl) schemaEl.remove();
     };
-  }, [handleScroll]);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden bg-[#050505] text-white selection:bg-[#ff4b1f] selection:text-white">
       <style>{`
-        @keyframes float-particle {
-          0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
-          25% { transform: translateY(-20px) translateX(10px); opacity: 0.5; }
-          50% { transform: translateY(-40px) translateX(-5px); opacity: 0.3; }
-          75% { transform: translateY(-20px) translateX(15px); opacity: 0.6; }
-        }
-        @keyframes glow-pulse {
-          0%, 100% { opacity: 0.15; transform: scale(1); }
-          50% { opacity: 0.25; transform: scale(1.05); }
-        }
-        @keyframes slide-up-hero {
-          from { opacity: 0; transform: translateY(30px); }
+        @keyframes store-page-rise {
+          from { opacity: 0; transform: translateY(18px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .hero-animate { animation: slide-up-hero 0.8s ease forwards; }
-        .hero-animate-delay-1 { animation: slide-up-hero 0.8s ease 0.15s forwards; opacity: 0; }
-        .hero-animate-delay-2 { animation: slide-up-hero 0.8s ease 0.3s forwards; opacity: 0; }
-        .hero-animate-delay-3 { animation: slide-up-hero 0.8s ease 0.45s forwards; opacity: 0; }
+
+        .sp-rise {
+          animation: store-page-rise 700ms ease both;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .sp-rise {
+            animation: none !important;
+          }
+        }
       `}</style>
 
-      {/* ═══════════════════════ HERO ═══════════════════════ */}
-      <header
-        ref={heroRef}
-        className="relative min-h-screen flex flex-col items-center justify-center px-4 md:px-8 overflow-hidden"
-      >
-        {/* Background glows */}
-        <div
-          className="absolute top-[-30%] left-[-20%] w-[80%] h-[80%] rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%)',
-            animation: 'glow-pulse 8s ease-in-out infinite',
-            transform: `translateY(${scrollY * 0.1}px)`,
-          }}
-        />
-        <div
-          className="absolute bottom-[-30%] right-[-20%] w-[70%] h-[70%] rounded-full pointer-events-none"
-          style={{
-            background: 'radial-gradient(circle, rgba(239,68,68,0.1) 0%, transparent 70%)',
-            animation: 'glow-pulse 10s ease-in-out infinite 2s',
-            transform: `translateY(${scrollY * -0.05}px)`,
-          }}
-        />
-        <FloatingParticles />
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 bg-[#050505]/84 backdrop-blur-xl">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-8" aria-label="Principal">
+          <a
+            href="#topo"
+            className="flex items-center gap-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#ff7a45]"
+          >
+            <img src={BRAND.logo} alt="StorePage" className="h-7 w-auto object-contain sm:h-8" />
+          </a>
 
-        <div className="relative z-10 text-center max-w-4xl mx-auto">
-          {/* Logo */}
-          <div className="hero-animate mb-8">
-            <img
-              src="https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png"
-              alt="Store Page"
-              className="h-14 md:h-20 w-auto mx-auto drop-shadow-2xl"
-            />
-          </div>
-
-          {/* Badge */}
-          <div className="hero-animate-delay-1 mb-6">
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs md:text-sm font-medium">
-              <Sparkles size={14} />
-              Armazenamento de Mídias & Documentos
-            </span>
-          </div>
-
-          {/* Headline */}
-          <h1 className="hero-animate-delay-1 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight mb-6">
-            Seus arquivos{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-500 to-red-500">
-              organizados
-            </span>
-            <br />
-            num só lugar
-          </h1>
-
-          {/* Subtitle */}
-          <p className="hero-animate-delay-2 text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Armazene links de vídeos, PDFs, documentos e mídias da sua empresa de forma
-            simples e organizada. Acesso rápido para toda a equipe, de qualquer dispositivo.
-          </p>
-
-          {/* CTAs */}
-          <div className="hero-animate-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href={WHATSAPP_LINK}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Entrar em contato via WhatsApp"
-              className="group inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold text-base md:text-lg shadow-2xl shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
-            >
-              <MessageCircle size={22} />
-              Fale Conosco
-              <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          <div className="hidden items-center gap-6 text-sm font-medium text-zinc-400 lg:flex">
+            <a className="transition hover:text-white" href="#solucao">
+              Solução
             </a>
-            <a
-              href="#funcionalidades"
-              className="inline-flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-medium hover:bg-white/10 transition-all duration-300"
-            >
-              <Play size={18} />
-              Explore as Funcionalidades
+            <a className="transition hover:text-white" href="#pilares">
+              Pilares
+            </a>
+            <a className="transition hover:text-white" href="#ganhos">
+              Ganhos
             </a>
           </div>
-        </div>
 
-        {/* Hero Showcase Image */}
-        <div className="hero-animate-delay-3 mt-16 relative max-w-4xl mx-auto w-full px-4">
-          <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl shadow-orange-500/10">
-            <img
-              src={IMAGES.heroShowcase}
-              alt="Store Page — Plataforma de armazenamento de mídias"
-              className="w-full h-auto object-cover"
-              loading="eager"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent opacity-60 pointer-events-none" />
-          </div>
-          {/* Glow under image */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-orange-500/15 blur-[60px] rounded-full pointer-events-none" />
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-zinc-600">
-          <span className="text-xs tracking-widest uppercase">Scroll</span>
-          <div className="w-5 h-8 rounded-full border border-zinc-700 flex items-start justify-center p-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce" />
-          </div>
-        </div>
+          <SalesButton className="min-h-11 rounded-xl px-4 text-sm">
+            Contratar
+            <MessageCircle size={17} aria-hidden="true" />
+          </SalesButton>
+        </nav>
       </header>
 
-      <main>
-        {/* ═══════════════════════ O QUE É ═══════════════════════ */}
-        <section className="relative py-24 md:py-32 px-4 md:px-8">
-          <div className="max-w-5xl mx-auto text-center">
-            <RevealSection>
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-6">
-                A Plataforma
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black mb-6">
-                O que é a{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  STORE PAGE
-                </span>
-                ?
-              </h2>
-              <p className="text-zinc-400 text-lg md:text-xl max-w-3xl mx-auto leading-relaxed mb-12">
-                A <strong className="text-white">STORE PAGE</strong> é a <strong className="text-white">plataforma de armazenamento inteligente</strong> para
-                organizar todos os recursos digitais da sua empresa. Centralize links de vídeos, PDFs, documentos
-                e mídias num repositório com a cara da sua marca — acessível para a equipe,
-                de qualquer lugar.
+      <main id="topo">
+        <section className="relative isolate overflow-hidden border-b border-white/10 px-4 pb-16 pt-20 md:px-8 md:pb-20 md:pt-24 lg:pt-28">
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.032)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.032)_1px,transparent_1px)] bg-[size:64px_64px]" />
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(110deg,rgba(255,75,31,0.14),transparent_24%,transparent_68%,rgba(239,45,22,0.12)),linear-gradient(180deg,transparent,rgba(0,0,0,0.72))]" />
+
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
+            <div className="sp-rise">
+              <img
+                src={BRAND.logo}
+                alt="StorePage"
+                width={420}
+                height={97}
+                className="mb-7 h-auto w-[min(410px,88vw)] object-contain drop-shadow-[0_22px_60px_rgba(255,75,31,0.22)] md:w-[min(460px,46vw)]"
+              />
+              <Eyebrow>
+                <Sparkles size={14} aria-hidden="true" />
+                Sistema corporativo para pessoas e processos
+              </Eyebrow>
+              <h1 className="mt-5 max-w-3xl text-4xl font-black leading-[1.02] text-white sm:text-5xl md:text-6xl">
+                Transforme conhecimento espalhado em execução que aparece.
+              </h1>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-300 md:text-xl">
+                Desenvolva colaboradores, crie pesquisas, execute checagens e organize conteúdos em uma experiência visual, simples e pronta para a rotina da empresa.
               </p>
-            </RevealSection>
 
-            {/* Content type icons */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl mx-auto mb-16">
-              {[
-                { icon: Play, label: 'Vídeos' },
-                { icon: FileText, label: 'PDFs' },
-                { icon: LinkIcon, label: 'Links' },
-                { icon: FolderOpen, label: 'Repositórios' },
-              ].map((item, i) => (
-                <RevealSection key={item.label} delay={i * 100}>
-                  <div className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-orange-500/20 transition-all duration-300 group">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500/15 to-red-500/10 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <item.icon size={22} className="text-orange-400" />
-                    </div>
-                    <span className="text-sm font-medium text-zinc-300">{item.label}</span>
-                  </div>
-                </RevealSection>
-              ))}
-            </div>
-
-            {/* Showcase image - Film strip */}
-            <RevealSection>
-              <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-4xl mx-auto">
-                <img
-                  src={IMAGES.whatIs}
-                  alt="Store Page — Armazene vídeos, PDFs, links e documentos corporativos"
-                  className="w-full h-auto object-cover"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/80 via-transparent to-[#050505]/30 pointer-events-none" />
+              <div className="mt-7 flex flex-col gap-4 sm:flex-row">
+                <SalesButton className="min-h-14 px-7 text-base">
+                  Quero contratar o sistema
+                  <ArrowRight size={20} aria-hidden="true" />
+                </SalesButton>
+                <a
+                  href="#pilares"
+                  className="inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl border border-white/12 bg-white/[0.045] px-7 text-base font-bold text-white transition hover:border-[#ff4b1f]/40 hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ff7a45]"
+                >
+                  Ver os ganhos
+                  <ArrowRight size={19} aria-hidden="true" />
+                </a>
               </div>
-            </RevealSection>
-          </div>
-        </section>
-
-        {/* ═══════════════════════ FUNCIONALIDADES ═══════════════════════ */}
-        <section id="funcionalidades" className="relative py-24 md:py-32 px-4 md:px-8">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-orange-500/[0.02] to-transparent pointer-events-none" />
-          <div className="max-w-6xl mx-auto relative z-10">
-            <RevealSection className="text-center mb-16">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-6">
-                Funcionalidades
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black mb-4">
-                Tudo que sua empresa{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  precisa
-                </span>
-              </h2>
-              <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-                Cada funcionalidade foi pensada para simplificar o armazenamento e a organização dos seus conteúdos.
-              </p>
-            </RevealSection>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6 mb-16">
-              {FEATURES.map((feature, index) => (
-                <FeatureCard key={feature.title} {...feature} index={index} />
-              ))}
             </div>
 
-            {/* Features showcase image - Vortex */}
-            <RevealSection>
-              <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-5xl mx-auto">
-                <img
-                  src={IMAGES.features}
-                  alt="Store Page — Central de armazenamento de mídias e documentos"
-                  className="w-full h-auto object-cover max-h-[400px]"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-[#050505]/40 pointer-events-none" />
-              </div>
-            </RevealSection>
-          </div>
-        </section>
-
-        {/* ═══════════════════════ COMO FUNCIONA ═══════════════════════ */}
-        <section className="relative py-24 md:py-32 px-4 md:px-8">
-          <div className="max-w-5xl mx-auto">
-            <RevealSection className="text-center mb-16">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-6">
-                Simples e Poderoso
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black mb-4">
-                Como{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  funciona
-                </span>
-                ?
-              </h2>
-              <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-                Em 3 passos simples, sua empresa centraliza e organiza todos os seus conteúdos digitais.
-              </p>
-            </RevealSection>
-
-            {/* Office showcase image */}
-            <RevealSection className="mb-16">
-              <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] shadow-xl max-w-4xl mx-auto">
-                <img
-                  src={IMAGES.howItWorks}
-                  alt="Equipe acessando conteúdos armazenados no Store Page"
-                  className="w-full h-auto object-cover max-h-[420px]"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/80 via-transparent to-[#050505]/20 pointer-events-none" />
-              </div>
-            </RevealSection>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {STEPS.map((step, index) => (
-                <StepCard key={step.title} {...step} number={String(index + 1)} index={index} />
-              ))}
-            </div>
-
-            {/* Connecting line (desktop only) */}
-            <div className="hidden md:block absolute top-1/2 left-[20%] right-[20%] h-px bg-gradient-to-r from-transparent via-orange-500/20 to-transparent" style={{ marginTop: '60px' }} />
-          </div>
-        </section>
-
-        {/* ═══════════════════════ BENEFÍCIOS ═══════════════════════ */}
-        <section className="relative py-24 md:py-32 px-4 md:px-8">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-red-500/[0.02] to-transparent pointer-events-none" />
-          <div className="max-w-5xl mx-auto relative z-10">
-            <RevealSection className="text-center mb-16">
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-medium mb-6">
-                Resultados Reais
-              </span>
-              <h2 className="text-3xl md:text-5xl font-black mb-4">
-                Por que escolher a{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                  Store Page
-                </span>
-                ?
-              </h2>
-            </RevealSection>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              {BENEFITS.map((benefit, index) => (
-                <BenefitCard key={benefit.title} {...benefit} index={index} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ═══════════════════════ CTA CONTATO ═══════════════════════ */}
-        <section className="relative py-24 md:py-32 px-4 md:px-8">
-          {/* Background image - Futuristic Hall */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <img
-              src={IMAGES.ctaBackground}
-              alt=""
-              className="w-full h-full object-cover opacity-[0.08]"
-              loading="lazy"
-              aria-hidden="true"
+            <ImagePanel
+              src={IMAGES.hero}
+              alt="Imagem IA representando ganhos empresariais ao contratar o Store Page"
+              priority
+              className="sp-rise lg:mt-6"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#050505] via-transparent to-[#050505]" />
           </div>
+        </section>
 
-          <div className="max-w-3xl mx-auto relative z-10">
-            <RevealSection>
-              <div className="relative bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-md border border-white/[0.08] rounded-3xl p-10 md:p-16 text-center overflow-hidden">
-                {/* Glow behind */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-orange-500/10 blur-[100px] pointer-events-none" />
-
-                <div className="relative z-10">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-orange-500/30">
-                    <MessageCircle size={30} className="text-white" />
-                  </div>
-
-                  <h2 className="text-3xl md:text-4xl font-black mb-4">
-                    Pronto para{' '}
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500">
-                      organizar
-                    </span>
-                    {' '}seus conteúdos?
-                  </h2>
-
-                  <p className="text-zinc-400 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
-                    Fale com a nossa equipe e descubra como o Store Page pode centralizar
-                    todos os documentos e mídias da sua empresa. Sem compromisso.
-                  </p>
-
-                  <a
-                    href={WHATSAPP_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Entrar em contato via WhatsApp para assinar"
-                    className="group inline-flex items-center gap-3 px-10 py-5 rounded-2xl bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold text-lg shadow-2xl shadow-orange-500/25 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300"
-                  >
-                    <MessageCircle size={22} />
-                    Entre em Contato — WhatsApp
-                    <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                  </a>
-
-                  <p className="text-zinc-500 text-sm mt-6">
-                    📱 (61) 99659-3376 • Resposta rápida
-                  </p>
-                </div>
+        <section id="solucao" className="px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+              <SectionHeading
+                align="left"
+                eyebrow="A troca certa"
+                title="Sai a sensação de sistema fragmentado. Entra uma marca forte para aprender, ouvir e executar."
+                description="A nova direção visual usa imagens IA com o símbolo O/play como assinatura, deixando a página mais comercial, mais memorável e menos parecida com uma tela administrativa."
+              />
+              <div className="grid gap-4 sm:grid-cols-3">
+                {gains.map((gain) => {
+                  const Icon = gain.icon;
+                  return (
+                    <article key={gain.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                      <Icon size={24} className="text-[#ff7a45]" aria-hidden="true" />
+                      <h3 className="mt-5 text-lg font-black text-white">{gain.title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-zinc-400">{gain.description}</p>
+                    </article>
+                  );
+                })}
               </div>
-            </RevealSection>
+            </div>
+          </div>
+        </section>
+
+        <section id="pilares" className="border-y border-white/10 bg-[#090909] px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto max-w-7xl">
+            <SectionHeading
+              eyebrow="Pilares da solução"
+              title="Cada ponto da proposta agora tem uma imagem própria."
+              description="As imagens foram criadas para vender o ganho da contratação: mais desenvolvimento, mais escuta, mais padrão operacional e mais conhecimento disponível."
+            />
+
+            <div className="mt-12 grid gap-8">
+              {pillars.map((pillar, index) => {
+                const Icon = pillar.icon;
+                const reversed = index % 2 === 1;
+
+                return (
+                  <article
+                    key={pillar.id}
+                    className="grid gap-7 rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-4 md:p-5 lg:grid-cols-2 lg:items-center"
+                  >
+                    <ImagePanel
+                      src={pillar.image}
+                      alt={`Imagem IA representando ${pillar.eyebrow.toLowerCase()} no Store Page`}
+                      className={reversed ? 'lg:order-2' : ''}
+                    />
+                    <div className={`p-2 md:p-5 ${reversed ? 'lg:order-1' : ''}`}>
+                      <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[#ff4b1f]/14 text-[#ff7a45]">
+                        <Icon size={24} aria-hidden="true" />
+                      </span>
+                      <p className="mt-6 text-xs font-black uppercase tracking-[0.08em] text-[#ff7a45]">
+                        {pillar.eyebrow}
+                      </p>
+                      <h3 className="mt-3 text-3xl font-black leading-tight text-white">{pillar.title}</h3>
+                      <p className="mt-4 text-base leading-7 text-zinc-400">{pillar.description}</p>
+                      <ul className="mt-6 space-y-3">
+                        {pillar.benefits.map((benefit) => (
+                          <li key={benefit} className="flex items-center gap-3 text-sm font-semibold text-zinc-200">
+                            <CheckCircle2 size={18} className="text-[#ff7a45]" aria-hidden="true" />
+                            {benefit}
+                          </li>
+                        ))}
+                      </ul>
+                      <SalesButton className="mt-8 min-h-12 px-5 text-sm">
+                        Contratar para este cenário
+                        <ArrowRight size={18} aria-hidden="true" />
+                      </SalesButton>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="ganhos" className="px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+            <ImagePanel
+              src={IMAGES.hero}
+              alt="Imagem IA com símbolo O/play representando crescimento e organização empresarial"
+            />
+            <div>
+              <SectionHeading
+                align="left"
+                eyebrow="Ganho da contratação"
+                title="A empresa não compra só uma página. Ela compra clareza operacional."
+                description="A contratação do Store Page posiciona o conhecimento da empresa em um lugar mais forte: treinamentos, pesquisas, checagens e conteúdos deixam de competir entre si e passam a empurrar a operação na mesma direção."
+              />
+              <div className="mt-8 grid gap-4">
+                {[
+                  'Menos tempo explicando onde está cada material.',
+                  'Mais facilidade para padronizar processos e acompanhar execução.',
+                  'Mais presença visual da marca na experiência dos colaboradores.',
+                ].map((item) => (
+                  <div key={item} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                    <CheckCircle2 size={21} className="mt-0.5 shrink-0 text-[#ff7a45]" aria-hidden="true" />
+                    <p className="text-sm font-semibold leading-6 text-zinc-200">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-white/10 bg-[#090909] px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+            <SectionHeading
+              align="left"
+              eyebrow="Governança"
+              title="Visual forte, promessa responsável."
+              description="A página destaca benefícios reais sem inventar números, certificações ou clientes. O foco é mostrar valor, clareza e utilidade para empresas."
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {governance.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
+                    <Icon size={22} className="text-[#ff7a45]" aria-hidden="true" />
+                    <h3 className="mt-5 text-lg font-black text-white">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-400">{item.text}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="contratar" className="px-4 py-16 md:px-8 md:py-24">
+          <div className="mx-auto max-w-5xl overflow-hidden rounded-[1.5rem] border border-[#ff4b1f]/30 bg-[#ff4b1f]/10 p-6 shadow-[0_34px_120px_rgba(255,75,31,0.12)] md:p-10">
+            <div className="grid gap-8 lg:grid-cols-[1fr_0.75fr] lg:items-center">
+              <div>
+                <img src={BRAND.logo} alt="StorePage" className="mb-8 h-auto w-[min(300px,80vw)] object-contain" />
+                <Eyebrow>
+                  <MessageCircle size={14} aria-hidden="true" />
+                  Contratação
+                </Eyebrow>
+                <h2 className="mt-5 text-3xl font-black leading-tight text-white md:text-5xl">
+                  Pronto para transformar treinamento, pesquisa, checagem e conteúdo em uma experiência só?
+                </h2>
+                <p className="mt-5 text-lg leading-8 text-zinc-300">
+                  O próximo passo é conversar com a equipe e entender como o Store Page pode entrar na rotina da sua empresa.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/35 p-5">
+                <p className="text-sm font-semibold text-zinc-400">Canal de contratação</p>
+                <p className="mt-2 text-2xl font-black leading-tight text-white">Atendimento direto pelo WhatsApp</p>
+                <SalesButton className="mt-6 w-full min-h-14 px-6">
+                  Contratar pelo WhatsApp
+                  <ArrowRight size={19} aria-hidden="true" />
+                </SalesButton>
+              </div>
+            </div>
           </div>
         </section>
       </main>
 
-      {/* ═══════════════════════ FOOTER ═══════════════════════ */}
-      <footer className="border-t border-white/[0.05] py-10 px-4 md:px-8">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <img src="https://ik.imagekit.io/lflb43qwh/StorePage/StorePage/StorePage.png" alt="Store Page" className="h-8 w-auto opacity-70" />
+      <footer className="border-t border-white/10 bg-[#050505] px-4 py-10 md:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <img src={BRAND.logo} alt="StorePage" className="h-auto w-[190px] object-contain" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <SalesButton variant="secondary" className="min-h-11 rounded-xl px-4 text-sm">
+              Falar com a equipe
+              <MessageCircle size={16} aria-hidden="true" />
+            </SalesButton>
           </div>
-
-          <p className="text-zinc-500 text-sm text-center">
-            © {new Date().getFullYear()} STORE PAGE. Todos os direitos reservados.
-          </p>
-
-          <a
-            href={WHATSAPP_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="WhatsApp Store Page"
-            className="inline-flex items-center gap-2 text-zinc-400 hover:text-orange-400 transition-colors text-sm"
-          >
-            <MessageCircle size={16} />
-            (61) 99659-3376
-          </a>
         </div>
       </footer>
     </div>
