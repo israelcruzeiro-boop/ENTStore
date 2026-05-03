@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { FirstAccessModal } from '../components/user/FirstAccessModal';
 import { useCompanies } from '../hooks/usePlatformData';
 import { LayoutDashboard, Users, FolderTree, Settings, LogOut, Palette, ArrowLeft, Building, AlertTriangle, ShieldAlert, Network, Menu, Loader2, BookOpen, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) => {
   const { user, logout } = useAuth();
-  const { companies, isLoading } = useCompanies();
+  const { companies, isLoading } = useCompanies(false, !user?.first_access);
   const navigate = useNavigate();
   const location = useLocation();
   const { companySlug } = useParams();
@@ -43,6 +44,14 @@ export const AdminLayout = ({ superAdmin = false }: { superAdmin?: boolean }) =>
 
   // 1. Identifica a empresa alvo a partir da URL
   const targetCompany = companySlug ? companies.find(c => c.link_name === companySlug || c.slug === companySlug) : undefined;
+
+  if (user?.first_access) {
+    return (
+      <div className="min-h-screen bg-slate-950">
+        <FirstAccessModal />
+      </div>
+    );
+  }
 
   // 2. Estado de Carregamento (Apenas se não hover dados e estiver carregando)
   if (isLoading && companies.length === 0) {
