@@ -251,7 +251,7 @@ export const AdminCourseDashboard = () => {
         { name: 'Em Andamento', value: inProgress.length }
       ].filter(d => d.value > 0)
     };
-  }, [enrollments, answers, questions, courses, users, orgUnits, orgTopLevels, selectedCourseId, selectedUnitId, dateRange, now, startDate, questionSort]);
+  }, [enrollments, answers, questions, courses, users, orgUnits, orgTopLevels, selectedCourseId, selectedUnitId, dateRange, now, startDate, questionSort, company?.name]);
 
   // -- EXPORTS -- //
   const handleExportCSV = async () => {

@@ -819,7 +819,7 @@ export const SurveyDashboard = () => {
     const completionRate = eligible > 0 ? Math.round((uniqueUsers / eligible) * 100) : 0;
 
     return { totalResponses, uniqueUsers, uniqueStores, npsScore, chartDataMap, completionRate };
-  }, [survey, questions, responses, answers, users, responseLookup]);
+  }, [survey, questions, responses, answers, users, responseLookup, selectedUserId]);
 
   // ── Build full per-response × per-question table
   const rawRows = useMemo<ResponseRow[]>(() => {

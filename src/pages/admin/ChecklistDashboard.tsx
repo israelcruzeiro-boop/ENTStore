@@ -355,7 +355,7 @@ export const AdminChecklistDashboard = () => {
         { name: 'Não Conforme', value: totalNC }
       ]
     };
-  }, [submissions, answers, users, dateRange, selectedChecklist, allQuestions, orgUnits, orgTopLevels]);
+  }, [submissions, answers, users, dateRange, selectedChecklist, allQuestions, orgUnits, orgTopLevels, checklists]);
 
   // Handle Export
   const handleExportFull = async () => {

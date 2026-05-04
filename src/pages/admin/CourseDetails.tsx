@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { mutate as globalMutate } from 'swr';
 import { cn } from '../../lib/utils';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useCompanies, useCourses, useCourseModules, useCourseContents, useOrgStructure, useUsers, useCourseQuestions, resetEnrollment } from '../../hooks/usePlatformData';
+import { useCompanies, useCourses, useCourseModules, useCourseContentsByCourse, useOrgStructure, useUsers, useCourseQuestionsByCourse, resetEnrollment } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, 
@@ -120,6 +120,9 @@ export const AdminCourseDetails = () => {
   const { orgTopLevels, orgUnits, isLoading: loadingOrg } = useOrgStructure(company?.id);
   
   const { modules, isLoading: loadingModules, mutate: mutateModules } = useCourseModules(courseId);
+  const moduleIds = useMemo(() => modules.map(module => module.id), [modules]);
+  const { contentsByModule, isLoading: loadingContentsByModule, mutate: mutateContentsByModule } = useCourseContentsByCourse(moduleIds);
+  const { questionsByModule, isLoading: loadingQuestionsByModule, mutate: mutateQuestionsByModule } = useCourseQuestionsByCourse(moduleIds);
   
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [courseTitle, setCourseTitle] = useState('');
@@ -366,7 +369,7 @@ export const AdminCourseDetails = () => {
         description: newContent.description,
         type: newContent.type as any,
         url: publicUrl,
-        order_index: modules.find(m => m.id === selectedModuleId)?.contents?.length || 0
+        order_index: contentsByModule.get(selectedModuleId)?.length || 0
       });
 
       toast.success("Conteúdo adicionado!");
@@ -374,6 +377,7 @@ export const AdminCourseDetails = () => {
       setNewContent({ title: '', description: '', type: 'PDF', file: null, url: '', html_content: '' });
       setAddMethod('upload');
       mutateModules();
+      mutateContentsByModule();
 
     } catch (error: unknown) {
       const err = error as Error;
@@ -389,6 +393,7 @@ export const AdminCourseDetails = () => {
     if (!confirm("Deseja remover esta aula?")) return;
     try {
       await courseService.deleteContent(id);
+      mutateContentsByModule();
       toast.success("Conteúdo removido da lista");
       mutateModules();
     } catch (err) {
@@ -560,7 +565,7 @@ export const AdminCourseDetails = () => {
           </Button>
         </div>
 
-        {loadingModules ? (
+        {loadingModules || loadingContentsByModule || loadingQuestionsByModule ? (
           <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-blue-600" /></div>
         ) : (
           <Accordion type="single" collapsible className="space-y-4">
@@ -577,6 +582,10 @@ export const AdminCourseDetails = () => {
                 onDeleteContent={handleDeleteContent}
                 onAddQuestion={handleAddQuestion}
                 onEditQuestion={handleEditQuestion}
+                contents={contentsByModule.get(module.id) || []}
+                questions={questionsByModule.get(module.id) || []}
+                onMutateContents={mutateContentsByModule}
+                onMutateQuestions={mutateQuestionsByModule}
               />
             ))}
           </Accordion>
@@ -1600,6 +1609,7 @@ export const AdminCourseDetails = () => {
                   ]);
                   globalMutate(`course_questions_${questionModuleId}`);
                   mutateModules();
+                  mutateQuestionsByModule();
                 } catch (err: unknown) {
                   Logger.error(`Erro ao salvar pergunta:`, err);
                   toast.error(editingQuestionId ? 'Erro ao atualizar pergunta' : 'Erro ao criar pergunta');
@@ -1624,7 +1634,11 @@ const ModuleItem = ({
   onAddContent,
   onDeleteContent,
   onAddQuestion,
-  onEditQuestion
+  onEditQuestion,
+  contents,
+  questions,
+  onMutateContents,
+  onMutateQuestions
 }: { 
   module: { id: string; title: string }, 
   onDelete: () => void, 
@@ -1632,9 +1646,12 @@ const ModuleItem = ({
   onAddContent: () => void,
   onDeleteContent: (id: string) => void,
   onAddQuestion: (moduleId: string) => void,
-  onEditQuestion: (question: CoursePhaseQuestion) => void
+  onEditQuestion: (question: CoursePhaseQuestion) => void,
+  contents: CourseContent[],
+  questions: CoursePhaseQuestion[],
+  onMutateContents: () => void,
+  onMutateQuestions: () => void
 }) => {
-  const { contents, mutate: mutateContents } = useCourseContents(module.id);
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(module.title);
 
@@ -1643,7 +1660,7 @@ const ModuleItem = ({
       await courseService.updateModule(module.id, { title });
       setIsEditing(false);
       toast.success("Módulo renomeado");
-      mutateContents();
+      onMutateContents();
     } catch (err) {
       Logger.error("Erro ao renomear módulo:", err);
       toast.error("Erro ao renomear módulo.");
@@ -1693,6 +1710,8 @@ const ModuleItem = ({
               moduleId={module.id} 
               onAddQuestion={onAddQuestion} 
               onEditQuestion={onEditQuestion} 
+              questions={questions}
+              onMutateQuestions={onMutateQuestions}
             />
         </div>
       </AccordionContent>
@@ -1749,19 +1768,21 @@ const ContentRow = ({
 const ModuleQuestionsSection = ({ 
   moduleId, 
   onAddQuestion, 
-  onEditQuestion 
+  onEditQuestion,
+  questions,
+  onMutateQuestions
 }: { 
   moduleId: string; 
   onAddQuestion: (moduleId: string) => void;
   onEditQuestion: (question: CoursePhaseQuestion) => void;
+  questions: CoursePhaseQuestion[];
+  onMutateQuestions: () => void;
 }) => {
-  const { questions, mutate } = useCourseQuestions(moduleId);
-  
   const handleDeleteQuestion = async (questionId: string) => {
     if (!confirm("Remover esta pergunta?")) return;
     try {
       await courseService.deleteQuestion(questionId);
-      mutate();
+      onMutateQuestions();
       toast.success('Pergunta removida');
     } catch (err) {
       const error = err as Error;

@@ -1,13 +1,20 @@
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRepositories, useContents, useOrgStructure, useContentMetricSummaries, addContentView, rateContent } from '../../hooks/usePlatformData';
 import { checkRepoAccess } from '../../lib/permissions';
-import { Viewer } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Eye, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { Logger } from '../../utils/logger';
+
+const Viewer = lazy(() => import('../../components/user/Viewer').then(m => ({ default: m.Viewer })));
+
+const ViewerFallback = () => (
+  <div className="w-full max-w-6xl mx-auto h-[75vh] max-h-[900px] rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center" role="status" aria-live="polite">
+    <div className="w-10 h-10 border-4 border-[var(--c-primary)] border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+  </div>
+);
 
 export const ContentDetail = () => {
   const { id } = useParams();
@@ -125,7 +132,9 @@ export const ContentDetail = () => {
           <ArrowLeft size={20} /> Voltar para {repo.name}
        </Link>
 
-       <Viewer content={content} />
+       <Suspense fallback={<ViewerFallback />}>
+         <Viewer content={content} />
+       </Suspense>
 
        <div className="max-w-6xl mx-auto mt-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="w-full">

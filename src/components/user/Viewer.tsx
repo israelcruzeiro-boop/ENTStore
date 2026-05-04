@@ -126,6 +126,16 @@ export const MusicPlayer = ({
   const [duration, setDuration] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [volume, setVolume] = useState(100);
+  const onEndedRef = useRef(onEnded);
+  const volumeRef = useRef(volume);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
 
   // Carrega a YouTube IFrame API e cria o player
   useEffect(() => {
@@ -159,7 +169,7 @@ export const MusicPlayer = ({
           onReady: (event: YTEvent) => {
             setDuration(event.target.getDuration());
             setIsReady(true);
-            event.target.setVolume(volume);
+            event.target.setVolume(volumeRef.current);
             event.target.playVideo();
           },
           onStateChange: (event: YTEvent) => {
@@ -176,7 +186,7 @@ export const MusicPlayer = ({
                 clearInterval(intervalRef.current);
                 intervalRef.current = null;
               }
-              if (onEnded) onEnded();
+              if (onEndedRef.current) onEndedRef.current();
             } else {
               setIsPlaying(false);
               if (intervalRef.current) {
@@ -422,6 +432,11 @@ export const VideoPlayer = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isReady, setIsReady] = useState(false);
   const [volume, setVolume] = useState(100);
+  const onEndedRef = useRef(onEnded);
+
+  useEffect(() => {
+    onEndedRef.current = onEnded;
+  }, [onEnded]);
 
   const toggleMute = () => {
     if (!playerRef.current) return;
@@ -476,7 +491,7 @@ export const VideoPlayer = ({
           },
           onStateChange: (event: YTEvent) => {
             if (event.data === YT.PlayerState.ENDED) {
-              if (onEnded) onEnded();
+              if (onEndedRef.current) onEndedRef.current();
             }
           },
         },

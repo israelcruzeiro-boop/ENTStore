@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../contexts/AuthContext';
-import { useRepository, useRepositoryCatalog } from '../../hooks/useApiData';
+import { useRepositoryCatalog } from '../../hooks/useApiData';
 import { contentsService } from '../../services/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -73,8 +73,8 @@ export const AdminRepositoryContents = () => {
   const { companySlug, repoId } = useParams();
   const { company } = useAuth();
 
-  const { repository: repo } = useRepository(repoId);
   const {
+    repository: repo,
     contents,
     simpleLinks,
     categories: repoCategories,

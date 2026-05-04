@@ -386,6 +386,7 @@ export interface ApiCourse {
   diplomaTemplate: string;
   layoutTemplate?: CourseLayoutTemplate;
   moduleCount?: number;
+  contentCount?: number;
   createdAt: string;
   updatedAt: string;
 }

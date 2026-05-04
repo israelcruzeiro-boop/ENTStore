@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { usePublicTenant } from '@/hooks/useApiData';
 import type { Company } from '@/types';
@@ -16,6 +16,7 @@ export const TenantProvider = () => {
   const { company: tenantCompany } = usePublicTenant(companySlug);
 
   const slug = companySlug ?? '';
+  const contextValue = useMemo(() => ({ tenantCompany, slug }), [tenantCompany, slug]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -34,7 +35,7 @@ export const TenantProvider = () => {
   }, [tenantCompany]);
 
   return (
-    <TenantContext.Provider value={{ tenantCompany, slug }}>
+    <TenantContext.Provider value={contextValue}>
       <Outlet />
     </TenantContext.Provider>
   );

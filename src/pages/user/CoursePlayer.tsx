@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense, memo
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   useCourseModules,
-  useCourseContents,
   useCourses,
-  useCourseQuestions,
   useCourseContentsByCourse,
   useCourseQuestionsByCourse,
   useCourseEnrollment,
@@ -56,7 +54,7 @@ const Viewer = lazy(() => import('../../components/user/Viewer').then(m => ({ de
 import { CourseQuestionPlayer } from '../../components/user/CourseQuestionPlayer';
 import { CourseResultScreen } from '../../components/user/CourseResultScreen';
 import type { Content } from '../../types';
-import { printDiploma, type DiplomaTemplateId } from '../../components/user/CourseDiploma';
+import type { DiplomaTemplateId } from '../../components/user/CourseDiploma';
 import { getPublicStorageUrl } from '../../lib/storage';
 import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { Logger } from '../../utils/logger';
@@ -160,12 +158,16 @@ export const UserCoursePlayer = () => {
   const { enrollment, isLoading: enrollmentLoading, mutate: mutateEnrollment } = useCourseEnrollment(courseId, user?.id);
   const enrollmentStartInFlight = useRef(false);
   const questionResumeHandled = useRef(false);
+  const finalizedAnswerIdsRef = useRef(new Set<string>());
+  const pendingFinalAnswerSavesRef = useRef(new Map<string, Promise<void>>());
 
   const [totalCorrect, setTotalCorrect] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
 
   useEffect(() => {
     questionResumeHandled.current = false;
+    finalizedAnswerIdsRef.current.clear();
+    pendingFinalAnswerSavesRef.current.clear();
   }, [courseId, enrollment?.id]);
 
   useEffect(() => {
@@ -179,13 +181,19 @@ export const UserCoursePlayer = () => {
   const { answers: savedAnswers, isLoading: answersLoading, mutate: mutateAnswers } = useCourseAnswers(enrollment?.id);
 
   // Busca conteÃƒÂºdos do mÃƒÂ³dulo ativo
-  const { contents: activeModuleContents } = useCourseContents(activeModuleId || undefined);
+  const activeModuleContents = useMemo(
+    () => (activeModuleId ? contentsByModule.get(activeModuleId) || [] : []),
+    [activeModuleId, contentsByModule]
+  );
   
   // Busca perguntas do mÃƒÂ³dulo ativo
-  const { questions: moduleQuestions } = useCourseQuestions(activeModuleId || undefined);
+  const moduleQuestions = useMemo(
+    () => (activeModuleId ? questionsByModule.get(activeModuleId) || [] : []),
+    [activeModuleId, questionsByModule]
+  );
 
   // Encontra o conteÃƒÂºdo atual
-  const currentContent = activeModuleContents?.find(c => c.id === activeContentId);
+  const currentContent = activeModuleContents.find(c => c.id === activeContentId);
 
   // ÃƒÂndices para UI
   const currentModuleIndex = modules.findIndex(m => m.id === activeModuleId);
@@ -205,6 +213,10 @@ export const UserCoursePlayer = () => {
     () => new Map(finalSavedAnswers.map(answer => [answer.question_id, answer])),
     [finalSavedAnswers]
   );
+
+  useEffect(() => {
+    finalSavedAnswers.forEach(answer => finalizedAnswerIdsRef.current.add(answer.question_id));
+  }, [finalSavedAnswers]);
 
   const currentModuleInitialAnswers = useMemo(() => Object.fromEntries(
     moduleQuestions
@@ -506,11 +518,26 @@ export const UserCoursePlayer = () => {
     payload: QuestionAnswerSnapshot
   ) => {
     if (!enrollment) return;
+    const isFinalized = Boolean(payload.finalized);
+    let savePromise: Promise<void> | null = null;
     try {
-      await submitCourseAnswer(enrollment.id, questionId, payload.optionId, payload.isCorrect, payload.complexAnswer, Boolean(payload.finalized));
-      mutateAnswers();
+      savePromise = submitCourseAnswer(enrollment.id, questionId, payload.optionId, payload.isCorrect, payload.complexAnswer, isFinalized)
+        .then(() => {
+          if (isFinalized) finalizedAnswerIdsRef.current.add(questionId);
+        });
+
+      if (isFinalized) {
+        pendingFinalAnswerSavesRef.current.set(questionId, savePromise);
+      }
+
+      await savePromise;
+      await mutateAnswers();
     } catch (err) {
-        Logger.warn('Autosave answer failed', err);
+      Logger.warn('Autosave answer failed', err);
+    } finally {
+      if (isFinalized && savePromise && pendingFinalAnswerSavesRef.current.get(questionId) === savePromise) {
+        pendingFinalAnswerSavesRef.current.delete(questionId);
+      }
     }
   }, [enrollment, mutateAnswers]);
 
@@ -536,10 +563,21 @@ export const UserCoursePlayer = () => {
     if (enrollment) {
       for (const [questionId, answer] of Object.entries(answers)) {
         if (!answer.finalized) continue;
+        const pendingFinalSave = pendingFinalAnswerSavesRef.current.get(questionId);
+        if (pendingFinalSave) {
+          try {
+            await pendingFinalSave;
+            continue;
+          } catch (err) {
+            Logger.warn('Pending final answer save failed', err);
+          }
+        }
+        if (finalizedAnswerIdsRef.current.has(questionId) || finalSavedAnswersByQuestionId.has(questionId)) continue;
         try {
           await submitCourseAnswer(enrollment.id, questionId, answer.optionId, answer.isCorrect, answer.complexAnswer, true);
+          finalizedAnswerIdsRef.current.add(questionId);
         } catch (err) {
-      Logger.warn('Error saving answer', err);
+          Logger.warn('Error saving answer', err);
         }
       }
       await mutateAnswers();
@@ -675,14 +713,14 @@ export const UserCoursePlayer = () => {
           setShowPhaseQuestions(Boolean(firstModuleWithQuestions));
         } : undefined}
         onPrintDiploma={scoreForDiploma >= (course?.passing_score || 70) ? () => {
-          printDiploma(
+          void import('../../components/user/CourseDiploma').then(({ printDiploma }) => printDiploma(
             user?.name || 'Aluno',
             course?.title || 'Curso',
             tenantCompany?.name || 'Empresa',
             finalEnrollment,
             (course?.diploma_template || 'azul') as DiplomaTemplateId,
             tenantCompany?.logo_url
-          );
+          ));
         } : undefined}
       />
     );

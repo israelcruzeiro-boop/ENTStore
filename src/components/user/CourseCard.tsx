@@ -12,7 +12,11 @@ interface CourseCardProps {
 
 export const CourseCard = ({ course, fullWidth = false, status = 'NOT_STARTED' }: CourseCardProps) => {
   const { companySlug } = useParams();
-  const { moduleStats } = useCourseModuleStats(course.id);
+  const inlineModuleStats = typeof course.module_count === 'number' && typeof course.content_count === 'number'
+    ? { totalModules: course.module_count, totalContents: course.content_count }
+    : undefined;
+  const { moduleStats: fetchedModuleStats } = useCourseModuleStats(inlineModuleStats ? undefined : course.id);
+  const moduleStats = inlineModuleStats ?? fetchedModuleStats;
 
   return (
     <Link 

@@ -1,8 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { usePublicRepositoryContents, usePublicRepositorySimpleLinks } from '../../hooks/usePlatformData';
 import { Repository, Theme, Content, SimpleLink } from '../../types';
 import { X, PlaySquare, FileText, Music, Image as ImageIcon, ExternalLink, ArrowLeft, Globe, FileCode } from 'lucide-react';
-import { Viewer } from './Viewer';
+
+const Viewer = lazy(() => import('./Viewer').then(m => ({ default: m.Viewer })));
+
+const ViewerFallback = () => (
+  <div className="w-full h-[60vh] rounded-xl bg-zinc-950 border border-white/10 flex items-center justify-center" role="status" aria-live="polite">
+    <div className="w-10 h-10 border-4 border-white/20 border-t-[var(--c-primary)] rounded-full animate-spin" aria-hidden="true" />
+  </div>
+);
 
 interface PublicRepoModalProps {
   isOpen: boolean;
@@ -117,13 +124,15 @@ export function PublicRepoModal({ isOpen, onClose, repository, theme }: PublicRe
                 
                 {activeItem ? (
                   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <Viewer 
-                      content={{
-                        ...activeItem,
-                        title: 'title' in activeItem ? activeItem.title : activeItem.name,
-                        type: 'type' in activeItem ? (activeItem.type as Content['type']) : 'LINK'
-                      } as Content} 
-                    />
+                    <Suspense fallback={<ViewerFallback />}>
+                      <Viewer
+                        content={{
+                          ...activeItem,
+                          title: 'title' in activeItem ? activeItem.title : activeItem.name,
+                          type: 'type' in activeItem ? (activeItem.type as Content['type']) : 'LINK'
+                        } as Content}
+                      />
+                    </Suspense>
                   </div>
                 ) : (
                   <>

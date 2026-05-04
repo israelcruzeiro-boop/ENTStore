@@ -822,10 +822,8 @@ export function useOwnCourseEnrollments(courseIds: string[], userId?: string, co
   const { data, error, isLoading, mutate } = useSWR<CourseEnrollment[]>(
     key,
     async () => {
-      const enrollments = await Promise.all(uniqueCourseIds.map((courseId) => coursesService.getEnrollment(courseId)));
-      return enrollments
-        .filter((enrollment): enrollment is NonNullable<typeof enrollment> => Boolean(enrollment))
-        .map(mapApiCourseEnrollmentToFrontend);
+      const enrollments = await coursesService.listOwnEnrollments(uniqueCourseIds);
+      return enrollments.map(mapApiCourseEnrollmentToFrontend);
     },
     { revalidateOnFocus: false }
   );

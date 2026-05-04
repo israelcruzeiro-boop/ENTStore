@@ -97,6 +97,8 @@ export const coursesService = {
   deleteQuestion: (questionId: string) => api.delete<{ deleted: boolean; id: string }>(`/admin/course-questions/${questionId}`),
 
   getEnrollment: (courseId: string) => api.get<ApiCourseEnrollment | null>(`/courses/${courseId}/enrollment`),
+  listOwnEnrollments: (courseIds: string[]) =>
+    api.get<ApiCourseEnrollment[]>('/courses/enrollments', { query: { courseIds: courseIds.join(',') } }),
   startEnrollment: (courseId: string) => api.post<ApiCourseEnrollment>(`/courses/${courseId}/enroll`),
   updateProgress: (enrollmentId: string, payload: { moduleId?: string | null; contentId?: string | null }) =>
     api.put<ApiCourseEnrollment>(`/courses/enrollments/${enrollmentId}/progress`, payload),

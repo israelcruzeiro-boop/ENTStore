@@ -22,6 +22,7 @@ export default defineConfig(() => ({
           '**/vendor-xlsx-*.js',
           '**/vendor-charts-*.js',
           '**/vendor-forms-*.js',
+          '**/vendor-data-*.js',
           '**/vendor-motion-*.js',
           '**/vendor-tour-*.js',
           '**/vendor-validation-*.js',
@@ -91,7 +92,17 @@ export default defineConfig(() => ({
       output: {
         manualChunks(id) {
           if (id.includes('vite/preload-helper')) return 'vendor-core';
+          if (id.includes('commonjsHelpers')) return 'vendor-core';
           if (id.includes('node_modules')) {
+            const normalizedId = id.replace(/\\/g, '/');
+            if (
+              normalizedId.includes('/react/') ||
+              normalizedId.includes('/react-dom/') ||
+              normalizedId.includes('/react-router/') ||
+              normalizedId.includes('/react-router-dom/') ||
+              normalizedId.includes('/@remix-run/router/') ||
+              normalizedId.includes('/scheduler/')
+            ) return 'vendor-core';
             if (id.includes('xlsx')) return 'vendor-xlsx';
             if (id.includes('jspdf') || id.includes('html2canvas')) return 'vendor-pdf';
             if (id.includes('recharts')) return 'vendor-charts';
@@ -100,9 +111,15 @@ export default defineConfig(() => ({
             if (id.includes('zod')) return 'vendor-validation';
             if (id.includes('framer-motion')) return 'vendor-motion';
             if (id.includes('lucide-react')) return 'vendor-lucide';
+            if (
+              id.includes('class-variance-authority') ||
+              id.includes('clsx') ||
+              id.includes('tailwind-merge')
+            ) return 'vendor-classes';
             if (id.includes('@radix-ui')) return 'vendor-ui';
             if (id.includes('date-fns')) return 'vendor-utils';
-            return 'vendor-core';
+            if (id.includes('swr') || id.includes('zustand') || id.includes('@tanstack')) return 'vendor-data';
+            if (id.includes('sonner')) return 'vendor-notifications';
           }
         }
       }

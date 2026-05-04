@@ -24,34 +24,6 @@ export const AdminRepositories = () => {
   const { companySlug } = useParams();
   const { company } = useAuth();
 
-  const { users, isLoading: loadingUsers } = useAdminUsers();
-  const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories();
-  const { orgTopLevels, orgUnits, isLoading: loadingOrg } = useAdminStructure(company?.id);
-
-  // Tour Guiado (Tutorial) - Regras dos Hooks exigem que seja no topo!
-  const { startTour, joyrideProps } = useTour(REPOSITORIES_STEPS);
-  
-  // Ordenação segura
-  const companyRepos = useMemo(() => {
-    return repositories
-      .sort((a, b) => {
-         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-         return timeB - timeA;
-      });
-  }, [repositories]);
-
-  const companyUsers = users.filter(u => u.role === 'USER');
-  const companyTopLevels = orgTopLevels.filter(o => o.active);
-  const companyUnitsLocal = orgUnits.filter(u => u.active);
-
-  const unitLabel = company?.org_unit_name || 'Unidade';
-  const orgHierarchy = useMemo(
-    () => deriveOrgHierarchy(company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: 'Regional' }]),
-    [company?.org_levels],
-  );
-  const org_levels = orgHierarchy.levels;
-
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -73,6 +45,37 @@ export const AdminRepositories = () => {
     banner_brightness: 100,
     show_in_landing: false
   });
+
+  const shouldLoadAccessData = isFormOpen && formData.access_type === 'RESTRICTED';
+
+  const { users, isLoading: loadingUsers, isError: usersError } = useAdminUsers(shouldLoadAccessData);
+  const { repositories, mutate: mutateRepos, isLoading: loadingRepos } = useRepositories();
+  const { orgTopLevels, orgUnits, isLoading: loadingOrg, isError: orgError } = useAdminStructure(company?.id, shouldLoadAccessData);
+
+  // Tour Guiado (Tutorial) - Regras dos Hooks exigem que seja no topo!
+  const { startTour, joyrideProps } = useTour(REPOSITORIES_STEPS);
+  
+  // Ordenação segura
+  const companyRepos = useMemo(() => {
+    return repositories
+      .sort((a, b) => {
+         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+         return timeB - timeA;
+      });
+  }, [repositories]);
+
+  const companyUsers = useMemo(() => users.filter(u => u.role === 'USER'), [users]);
+  const companyTopLevels = useMemo(() => orgTopLevels.filter(o => o.active), [orgTopLevels]);
+  const companyUnitsLocal = useMemo(() => orgUnits.filter(u => u.active), [orgUnits]);
+  const accessDataReady = shouldLoadAccessData && !loadingUsers && !loadingOrg && !usersError && !orgError;
+
+  const unitLabel = company?.org_unit_name || 'Unidade';
+  const orgHierarchy = useMemo(
+    () => deriveOrgHierarchy(company?.org_levels?.length ? company.org_levels : [{ id: 'legacy', name: 'Regional' }]),
+    [company?.org_levels],
+  );
+  const org_levels = orgHierarchy.levels;
 
   const REPO_TYPES = [
     { id: 'FULL', label: 'Completo', icon: MonitorPlay, description: 'Layout rico (estilo Netflix) com thumbnails, vídeos, PDFs e preview.' },
@@ -103,13 +106,17 @@ export const AdminRepositories = () => {
   }, [formData.allowed_region_ids, formData.allowed_store_ids, companyUsers, companyUnitsLocal, companyTopLevels]);
 
   useEffect(() => {
+    if (!accessDataReady) return;
+
     setFormData(prev => {
+      if (prev.access_type !== 'RESTRICTED') return prev;
+
       const inScopeIds = new Set(usersInScope.map(u => u.id));
       const filteredExclusions = prev.excluded_user_ids.filter(id => inScopeIds.has(id));
       if (filteredExclusions.length !== prev.excluded_user_ids.length) return { ...prev, excluded_user_ids: filteredExclusions };
       return prev;
     });
-  }, [usersInScope]);
+  }, [accessDataReady, usersInScope]);
 
   if (loadingRepos) {
     return <div className="flex h-[50vh] items-center justify-center">

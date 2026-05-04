@@ -1,4 +1,5 @@
 import useSWR from 'swr';
+import { useMemo } from 'react';
 import type { Company, OrgTopLevel, OrgUnit, User, Repository, Content, Category, SimpleLink } from '@/types';
 import {
   adminStructureService,
@@ -72,7 +73,10 @@ export function usePublicTenant(slug?: string) {
     { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 
-  const company: Company | null = data ? mapTenantBrandingToCompany(data) : null;
+  const company: Company | null = useMemo(
+    () => (data ? mapTenantBrandingToCompany(data) : null),
+    [data],
+  );
 
   return {
     tenant: data ?? null,
@@ -90,7 +94,10 @@ export function useCurrentCompany(enabled = true) {
     { revalidateOnFocus: false },
   );
 
-  const company: Company | null = data ? mapApiCompanyToFrontend(data) : null;
+  const company: Company | null = useMemo(
+    () => (data ? mapApiCompanyToFrontend(data) : null),
+    [data],
+  );
 
   return {
     raw: data ?? null,

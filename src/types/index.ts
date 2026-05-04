@@ -132,6 +132,8 @@ export interface Course {
   passing_score?: number;
   diploma_template?: string;
   layout_template?: CourseLayoutTemplate;
+  module_count?: number;
+  content_count?: number;
   created_at: string;
   updated_at?: string;
 }

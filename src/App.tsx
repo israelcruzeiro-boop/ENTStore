@@ -7,8 +7,8 @@ import { TenantProvider } from './contexts/TenantContext';
 import { TourProvider } from './contexts/TourContext';
 
 // Layouts
-import { UserLayout } from './layouts/UserLayout';
-import { AdminLayout } from './layouts/AdminLayout';
+const UserLayout = lazy(() => import('./layouts/UserLayout').then(m => ({ default: m.UserLayout })));
+const AdminLayout = lazy(() => import('./layouts/AdminLayout').then(m => ({ default: m.AdminLayout })));
 
 // Lazy Loaded Pages
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
@@ -51,6 +51,15 @@ const SurveyDashboard = lazy(() => import('./pages/admin/SurveyDashboard').then(
 const UserSurveys = lazy(() => import('./pages/user/Surveys').then(m => ({ default: m.UserSurveys })));
 const SurveyPlayer = lazy(() => import('./pages/user/SurveyPlayer').then(m => ({ default: m.SurveyPlayer })));
 
+const FullPageLoading = ({ message, accent = 'border-indigo-500' }: { message: string; accent?: string }) => (
+  <div className="flex h-[100dvh] items-center justify-center bg-slate-950" role="status" aria-live="polite">
+    <div className="flex flex-col items-center gap-4">
+      <div className={`animate-spin rounded-full h-10 w-10 border-b-2 ${accent}`} aria-hidden="true"></div>
+      <p className="text-zinc-500 text-xs font-bold animate-pulse uppercase tracking-widest">{message}</p>
+    </div>
+  </div>
+);
+
 // Route Protectors
 const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: React.ReactNode, role?: string, allowSuperAdmin?: boolean }) => {
   const { user, company, loading: authLoading } = useAuth();
@@ -58,14 +67,7 @@ const RequireAuth = ({ children, role, allowSuperAdmin = false }: { children: Re
   const currentSlug = params.companySlug;
 
   if (authLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-          <p className="text-zinc-500 text-sm animate-pulse">Carregando segurança...</p>
-        </div>
-      </div>
-    );
+    return <FullPageLoading message="Carregando segurança..." accent="border-primary" />;
   }
 
   if (!user) {
@@ -175,14 +177,7 @@ const App = () => (
     <Sonner />
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={
-          <div className="flex h-[100dvh] items-center justify-center bg-slate-950">
-            <div className="flex flex-col items-center gap-4">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500"></div>
-              <p className="text-zinc-500 text-xs font-bold animate-pulse uppercase tracking-widest">Carregando interface...</p>
-            </div>
-          </div>
-        }>
+        <Suspense fallback={<FullPageLoading message="Carregando interface..." />}>
           <AppRoutes />
         </Suspense>
       </BrowserRouter>

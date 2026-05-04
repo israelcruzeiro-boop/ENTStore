@@ -328,7 +328,7 @@ export function mapApiVisibleUserToFrontend(user: ApiVisibleUser): User {
   };
 }
 
-export function mapApiCourseToFrontend(course: ApiCourse): Course & { module_count?: number } {
+export function mapApiCourseToFrontend(course: ApiCourse): Course {
   return {
     id: course.id,
     company_id: course.companyId,
@@ -347,7 +347,8 @@ export function mapApiCourseToFrontend(course: ApiCourse): Course & { module_cou
     passing_score: course.passingScore,
     diploma_template: course.diplomaTemplate,
     layout_template: course.layoutTemplate ?? 'focus',
-    module_count: course.moduleCount ?? 0,
+    module_count: course.moduleCount,
+    content_count: course.contentCount,
     created_at: course.createdAt,
     updated_at: course.updatedAt,
   };

@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useSWRConfig } from 'swr';
 import { toast } from 'sonner';
 import { authService } from '@/services/api/auth.service';
 import {
@@ -29,10 +30,22 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { mutate: mutateSWR } = useSWRConfig();
   const [user, setUser] = useState<User | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
+  const sessionEpochRef = useRef(0);
+  const loadMePromiseRef = useRef<{ epoch: number; promise: Promise<void> } | null>(null);
+
+  const bumpSessionEpoch = useCallback(() => {
+    sessionEpochRef.current += 1;
+    loadMePromiseRef.current = null;
+  }, []);
+
+  const clearClientCache = useCallback(() => {
+    void mutateSWR(() => true, undefined, { revalidate: false });
+  }, [mutateSWR]);
 
   const clearSession = useCallback(() => {
     if (!mountedRef.current) return;
@@ -41,28 +54,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loadMe = useCallback(async () => {
-    try {
-      const me = await authService.me();
-      if (!mountedRef.current) return;
-      setUser(mapApiUserToFrontend(me.user));
-      setCompany(mapApiCompanyToFrontend(me.company));
-    } catch (err) {
-      // Token / session cleanup for 401 with session-expired codes is handled
-      // centrally in services/api/client (clearSessionFromError + onSessionExpired
-      // handler). We only need to log here and propagate for the caller to react.
-      if (err instanceof ApiException) {
-        Logger.warn(`Failed to load authenticated profile (${err.code ?? err.status})`);
-      } else {
-        Logger.error('Failed to load authenticated profile', err);
+    const epoch = sessionEpochRef.current;
+    const inFlight = loadMePromiseRef.current;
+    if (inFlight && inFlight.epoch === epoch) return inFlight.promise;
+
+    const promise = (async () => {
+      try {
+        const me = await authService.me();
+        if (!mountedRef.current || sessionEpochRef.current !== epoch) return;
+        setUser(mapApiUserToFrontend(me.user));
+        setCompany(mapApiCompanyToFrontend(me.company));
+      } catch (err) {
+        // Token / session cleanup for 401 with session-expired codes is handled
+        // centrally in services/api/client (clearSessionFromError + onSessionExpired
+        // handler). We only need to log here and propagate for the caller to react.
+        if (err instanceof ApiException) {
+          Logger.warn(`Failed to load authenticated profile (${err.code ?? err.status})`);
+        } else {
+          Logger.error('Failed to load authenticated profile', err);
+        }
+        throw err;
       }
-      throw err;
+    })();
+
+    loadMePromiseRef.current = { epoch, promise };
+
+    try {
+      await promise;
+    } finally {
+      if (loadMePromiseRef.current?.promise === promise) {
+        loadMePromiseRef.current = null;
+      }
     }
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
     const unregister = onSessionExpired(() => {
+      bumpSessionEpoch();
       clearSession();
+      clearClientCache();
       toast.error('Sua sessão expirou. Faça login novamente.');
     });
 
@@ -72,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!tokenStorage.hasRefreshSessionHint()) return;
           const refreshed = await refreshAccessToken();
           if (!refreshed) return;
+          bumpSessionEpoch();
         }
         await loadMe();
       } catch {
@@ -87,15 +119,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mountedRef.current = false;
       unregister();
     };
-  }, [clearSession, loadMe]);
+  }, [bumpSessionEpoch, clearClientCache, clearSession, loadMe]);
 
-  const login = async (
+  const login = useCallback(async (
     identifier: string,
     password: string,
     companySlug?: string,
   ): Promise<{ user: User; company: Company } | null> => {
     setLoading(true);
     try {
+      bumpSessionEpoch();
+      clearClientCache();
       const session = await authService.login({
         identifier: identifier.trim(),
         password,
@@ -114,15 +148,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         Logger.error('Login unexpected error', err);
       }
       tokenStorage.clear();
+      bumpSessionEpoch();
       clearSession();
+      clearClientCache();
       if (isApiUnavailableError(err)) throw err;
       return null;
     } finally {
       if (mountedRef.current) setLoading(false);
     }
-  };
+  }, [bumpSessionEpoch, clearClientCache, clearSession]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (tokenStorage.getAccess()) {
         await authService.logout();
@@ -131,30 +167,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       Logger.warn('Logout request failed', err);
     } finally {
       tokenStorage.clear();
+      bumpSessionEpoch();
       clearSession();
+      clearClientCache();
     }
-  };
+  }, [bumpSessionEpoch, clearClientCache, clearSession]);
 
-  const clearLocalSession = () => {
+  const clearLocalSession = useCallback(() => {
     tokenStorage.clear();
+    bumpSessionEpoch();
     clearSession();
-  };
+    clearClientCache();
+  }, [bumpSessionEpoch, clearClientCache, clearSession]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       if (!tokenStorage.hasSession()) {
         if (!tokenStorage.hasRefreshSessionHint()) return;
         const refreshed = await refreshAccessToken();
         if (!refreshed) return;
+        bumpSessionEpoch();
       }
       await loadMe();
     } catch {
       // already handled
     }
-  };
+  }, [bumpSessionEpoch, loadMe]);
+
+  const contextValue = useMemo(
+    () => ({ user, company, loading, login, logout, clearLocalSession, refreshUser }),
+    [user, company, loading, login, logout, clearLocalSession, refreshUser],
+  );
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, login, logout, clearLocalSession, refreshUser }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

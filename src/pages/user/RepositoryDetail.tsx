@@ -1,11 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTenant } from '../../contexts/TenantContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useOrgStructure, useRepositories, useCategories, useContents, useSimpleLinks, addContentView, rateContent, useContentMetricSummaries } from '../../hooks/usePlatformData';
+import { useOrgStructure, addContentView, rateContent, useContentMetricSummaries } from '../../hooks/usePlatformData';
+import { useRepositoryCatalog } from '../../hooks/useApiData';
 import { checkRepoAccess } from '../../lib/permissions';
 import { ContentCard } from '../../components/user/ContentCard';
-import { MusicPlayer, VideoPlayer, extractYouTubeId, isYouTubeShorts } from '../../components/user/Viewer';
 import { ArrowLeft, Lock, Calendar, ExternalLink, Search, ArrowDownUp, X, FileText, PlayCircle, FileSpreadsheet, ImageIcon, Presentation, Folder, Link2, ChevronRight, Eye, Star, Music, Play, Pause, PlaySquare, Download } from 'lucide-react';
 import { SimpleLink } from '../../types';
 import { toast } from 'sonner';
@@ -14,6 +14,39 @@ import { downloadFile } from '../../utils/download';
 import { Logger } from '../../utils/logger';
 import { normalizeEnvironmentTemplate, normalizeTheme } from '../../lib/appearance';
 
+const MusicPlayer = lazy(() => import('../../components/user/Viewer').then(m => ({ default: m.MusicPlayer })));
+const VideoPlayer = lazy(() => import('../../components/user/Viewer').then(m => ({ default: m.VideoPlayer })));
+
+const PlayerFallback = () => (
+  <div className="w-full min-h-[280px] bg-black flex items-center justify-center" role="status" aria-live="polite">
+    <div className="w-10 h-10 border-4 border-white/20 border-t-[var(--c-primary)] rounded-full animate-spin" aria-hidden="true" />
+  </div>
+);
+
+const isYouTubeShorts = (url: string): boolean => {
+  return /youtube\.com\/shorts\//i.test(url) || /youtu\.be\/shorts\//i.test(url);
+};
+
+const extractYouTubeId = (url: string): string | null => {
+  try {
+    const shortsMatch = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]+)/);
+    if (shortsMatch?.[1]) return shortsMatch[1];
+
+    if (url.includes('youtube.com/watch')) {
+      const urlObj = new URL(url);
+      return urlObj.searchParams.get('v');
+    }
+
+    const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
+    if (embedMatch?.[1]) return embedMatch[1];
+
+    const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+    if (shortMatch?.[1]) return shortMatch[1];
+  } catch (e) {
+    Logger.warn('Failed to extract YouTube ID', e);
+  }
+  return null;
+};
 
 const getPremiumLinkConfig = (type: string) => {
   const t = type?.toLowerCase();
@@ -44,16 +77,19 @@ export const RepositoryDetail = () => {
   const { company, user } = useAuth();
 
   // SWR Hooks para dados da API
-  const { repositories, isLoading: loadingRepos } = useRepositories(company?.id);
-  const { categories, isLoading: loadingCats } = useCategories(id);
-  const { contents, isLoading: loadingContents } = useContents({ repositoryId: id });
-  const { simpleLinks, isLoading: loadingLinks } = useSimpleLinks({ repositoryId: id });
+  const {
+    repository: catalogRepository,
+    categories,
+    contents,
+    simpleLinks,
+    isLoading: loadingCatalog,
+  } = useRepositoryCatalog(id);
   const { orgUnits, orgTopLevels, isLoading: loadingOrg } = useOrgStructure(company?.id);
   const { metricSummaries, isLoading: loadingMetrics, mutate: mutateMetrics } = useContentMetricSummaries({ repositoryId: id });
 
-  const isLoading = loadingRepos || loadingCats || loadingContents || loadingLinks || loadingOrg || loadingMetrics;
+  const isLoading = loadingCatalog || loadingOrg || loadingMetrics;
 
-  const repo = repositories.find(r => r.id === id && r.status === 'ACTIVE');
+  const repo = catalogRepository?.status === 'ACTIVE' ? catalogRepository : null;
   const isAuthorized = repo ? checkRepoAccess(repo, user, orgUnits, orgTopLevels) : false;
   const theme = normalizeTheme(company?.theme);
   const environmentTemplate = normalizeEnvironmentTemplate(company?.landing_page_layout);
@@ -360,29 +396,31 @@ export const RepositoryDetail = () => {
                               const isShorts = currentItem.url ? isYouTubeShorts(currentItem.url) : false;
                               return (
                                 <div className={`relative group/player md:rounded-2xl overflow-hidden shadow-2xl md:border border-white/10 ring-1 ring-white/5 bg-black mx-auto transition-all duration-500 ${isShorts ? 'aspect-[9/16] max-w-[380px]' : 'aspect-video w-full'}`}>
-                                   {isPlaylist ? (
-                                     <MusicPlayer 
-                                       youtubeId={extractYouTubeId(currentItem.url)} 
-                                       thumbnailUrl={currentItem.thumbnail_url || (extractYouTubeId(currentItem.url) ? `https://img.youtube.com/vi/${extractYouTubeId(currentItem.url)}/hqdefault.jpg` : null)}
-                                       title={currentItem.title}
-                                       onEnded={handleItemEnded}
-                                       onNext={handleNextItem}
-                                       onPrevious={handlePrevItem}
-                                       hasNext={currentIndex < activeContents.length - 1}
-                                       hasPrevious={currentIndex > 0}
-                                     />
-                                   ) : (
-                                     <VideoPlayer
-                                       youtubeId={extractYouTubeId(currentItem.url)} 
-                                       title={currentItem.title}
-                                       isShorts={isShorts}
-                                       onEnded={handleItemEnded}
-                                       onNext={handleNextItem}
-                                       onPrevious={handlePrevItem}
-                                       hasNext={currentIndex < activeContents.length - 1}
-                                       hasPrevious={currentIndex > 0}
-                                     />
-                                   )}
+                                   <Suspense fallback={<PlayerFallback />}>
+                                     {isPlaylist ? (
+                                       <MusicPlayer
+                                         youtubeId={extractYouTubeId(currentItem.url)}
+                                         thumbnailUrl={currentItem.thumbnail_url || (extractYouTubeId(currentItem.url) ? `https://img.youtube.com/vi/${extractYouTubeId(currentItem.url)}/hqdefault.jpg` : null)}
+                                         title={currentItem.title}
+                                         onEnded={handleItemEnded}
+                                         onNext={handleNextItem}
+                                         onPrevious={handlePrevItem}
+                                         hasNext={currentIndex < activeContents.length - 1}
+                                         hasPrevious={currentIndex > 0}
+                                       />
+                                     ) : (
+                                       <VideoPlayer
+                                         youtubeId={extractYouTubeId(currentItem.url)}
+                                         title={currentItem.title}
+                                         isShorts={isShorts}
+                                         onEnded={handleItemEnded}
+                                         onNext={handleNextItem}
+                                         onPrevious={handlePrevItem}
+                                         hasNext={currentIndex < activeContents.length - 1}
+                                         hasPrevious={currentIndex > 0}
+                                       />
+                                     )}
+                                   </Suspense>
                                 </div>
                               );
                             })()}
@@ -598,11 +636,13 @@ export const RepositoryDetail = () => {
                   const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
                   return (
                     <div className="w-full max-w-4xl">
-                      <MusicPlayer 
-                        youtubeId={ytId} 
-                        thumbnailUrl={thumb} 
-                        title={activeLink.name} 
-                      />
+                      <Suspense fallback={<PlayerFallback />}>
+                        <MusicPlayer
+                          youtubeId={ytId}
+                          thumbnailUrl={thumb}
+                          title={activeLink.name}
+                        />
+                      </Suspense>
                     </div>
                   );
                 }
