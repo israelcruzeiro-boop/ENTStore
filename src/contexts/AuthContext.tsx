@@ -29,6 +29,41 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const PROTECTED_TENANT_ROUTES = new Set([
+  'action-plans',
+  'biblioteca',
+  'busca',
+  'checklists',
+  'content',
+  'cursos',
+  'home',
+  'hub',
+  'perfil',
+  'pesquisas',
+  'repo',
+]);
+
+function isKnownProtectedRoute(pathname: string): boolean {
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const segments = normalizedPath.split('/').filter(Boolean);
+  const [rootSegment, tenantRoute] = segments;
+
+  if (rootSegment === 'super-admin') return true;
+  if (rootSegment === 'admin' && segments.length >= 2) return true;
+  if (!rootSegment) return false;
+  if (['login', 'lpage', 'ativar-convite'].includes(rootSegment)) return false;
+  if (tenantRoute === undefined) return true;
+  if (tenantRoute === 'login' || tenantRoute === 'landing') return false;
+
+  return PROTECTED_TENANT_ROUTES.has(tenantRoute);
+}
+
+function shouldAttemptBootstrapRefresh(): boolean {
+  if (tokenStorage.hasRefreshSessionHint()) return true;
+  if (typeof window === 'undefined') return false;
+  return isKnownProtectedRoute(window.location.pathname);
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { mutate: mutateSWR } = useSWRConfig();
   const [user, setUser] = useState<User | null>(null);
@@ -100,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const bootstrap = async () => {
       try {
         if (!tokenStorage.hasSession()) {
-          if (!tokenStorage.hasRefreshSessionHint()) return;
+          if (!shouldAttemptBootstrapRefresh()) return;
           const refreshed = await refreshAccessToken();
           if (!refreshed) return;
           bumpSessionEpoch();
