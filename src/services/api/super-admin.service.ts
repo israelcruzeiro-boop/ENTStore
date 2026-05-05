@@ -2,6 +2,7 @@ import { api } from './client';
 import type {
   ApiAdminUsersList,
   ApiCompanyAuthenticatedView,
+  ApiPaginatedResult,
   ApiUserStatus,
   ApiUserView,
 } from './types';
@@ -27,6 +28,14 @@ export interface SuperAdminUsersQuery {
   status?: 'ALL' | ApiUserStatus;
   includeDeleted?: boolean;
   companyId?: string;
+}
+
+export interface SuperAdminCompaniesQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE';
+  includeDeleted?: boolean;
 }
 
 export interface SuperAdminCompanyPayload {
@@ -60,6 +69,12 @@ export interface SuperAdminUserPayload {
 export const superAdminService = {
   listCompanies: (query: { includeDeleted?: boolean } = {}) =>
     api.get<ApiCompanyAuthenticatedView[]>('/super-admin/companies', { query }),
+
+  listCompaniesPaginated: (query: SuperAdminCompaniesQuery = {}) =>
+    api.get<ApiPaginatedResult<ApiCompanyAuthenticatedView>>(
+      '/super-admin/companies/paginated',
+      { query: { ...query } },
+    ),
 
   createCompany: (payload: SuperAdminCompanyPayload & { name: string }) =>
     api.post<ApiCompanyAuthenticatedView>('/super-admin/companies', payload),

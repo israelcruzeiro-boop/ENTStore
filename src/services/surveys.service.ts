@@ -12,11 +12,13 @@ import {
 import { Logger } from '../utils/logger';
 import { surveyResponsesService, surveysApiService } from './api';
 import type {
+  ApiPaginationMeta,
   ApiSurvey,
   ApiSurveyAnswer,
   ApiSurveyQuestion,
   ApiSurveyResponse,
 } from './api/types';
+import type { AdminSurveysQuery } from './api/surveys.service';
 
 type SurveyWithCount = Survey & { question_count?: number };
 
@@ -96,6 +98,14 @@ export const surveyService = {
   async getSurveys(_companyId: string): Promise<Survey[]> {
     const surveys = await surveysApiService.listSurveys();
     return surveys.map(mapSurvey);
+  },
+
+  async getPaginatedSurveys(_companyId: string, query: AdminSurveysQuery): Promise<{ surveys: Survey[]; meta: ApiPaginationMeta }> {
+    const result = await surveysApiService.listAdminSurveysPaginated(query);
+    return {
+      surveys: result.items.map(mapSurvey),
+      meta: result.meta,
+    };
   },
 
   async getSurveyById(id: string): Promise<Survey | null> {

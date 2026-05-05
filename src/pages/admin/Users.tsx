@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Switch } from '@/components/ui/switch';
 import {
   CheckCircle2,
@@ -36,11 +37,13 @@ import {
   Mail,
   Clock,
   Send,
+  Search,
 } from 'lucide-react';
 import { User, Content, SimpleLink, Repository } from '../../types';
 import { userSchema } from '../../types/schemas';
 import { Joyride } from 'react-joyride';
 import { useTour } from '../../hooks/useTour';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { USERS_STEPS } from '../../data/tourSteps';
 import { Logger } from '../../utils/logger';
 import { exportWorkbook, readFirstSheetRows } from '../../utils/spreadsheet';
@@ -82,7 +85,16 @@ const inviteDeliveryBadgeClass = (delivery?: PendingInvite['activationDelivery']
 export const AdminUsers = () => {
   const { user: currentUser, company } = useAuth();
 
-  const { users, invites, mutate: mutateUsers, isLoading: loadingUsers } = useAdminUsers();
+  const [userPage, setUserPage] = useState(1);
+  const [userSearch, setUserSearch] = useState('');
+  const debouncedUserSearch = useDebouncedValue(userSearch);
+  const usersPageSize = 25;
+  const { users, invites, meta: usersMeta, mutate: mutateUsers, isLoading: loadingUsers } = useAdminUsers({
+    page: userPage,
+    limit: usersPageSize,
+    search: debouncedUserSearch,
+    status: 'ALL',
+  });
   const { orgUnits } = useAdminStructure(company?.id);
   const { contents } = useContents({ companyId: company?.id });
   const { simpleLinks } = useSimpleLinks({ companyId: company?.id });
@@ -375,7 +387,6 @@ export const AdminUsers = () => {
       const rows = await readFirstSheetRows(file);
 
       const cpfSet = new Set<string>();
-      const allUsers = users;
 
         const processed = rows.map((rowItem: unknown, index: number) => {
           const row = rowItem as Record<string, unknown>;
@@ -396,11 +407,7 @@ export const AdminUsers = () => {
           if (!cpf) {
              errors.push('CPF vazio');
           } else {
-             if (allUsers.some(u => u.cpf_raw === cpf)) {
-               errors.push('CPF já cadastrado no sistema');
-               isDuplicate = true;
-             } 
-             else if (cpfSet.has(cpf)) {
+             if (cpfSet.has(cpf)) {
                errors.push('CPF duplicado nesta planilha');
                isDuplicate = true;
              } 
@@ -426,7 +433,28 @@ export const AdminUsers = () => {
           return { nome, cpf, valid: errors.length === 0, errors, isDuplicate, rowNum: index + 2 };
         });
 
-        setParsedData(processed);
+        const candidateCpfs = Array.from(new Set(processed.filter(row => row.cpf).map(row => row.cpf)));
+        const existingCpfs = new Set(
+          (
+            await Promise.all(candidateCpfs.map(async (cpf) => {
+              const result = await adminUsersService.list({ page: 1, limit: 1, search: cpf, status: 'ALL' });
+              const exists = result.users.some(user => user.cpf === cpf) || result.invites.some(invite => invite.cpf === cpf);
+              return exists ? cpf : null;
+            }))
+          ).filter((cpf): cpf is string => Boolean(cpf))
+        );
+
+        const processedWithSystemDuplicates = processed.map(row => {
+          if (!existingCpfs.has(row.cpf)) return row;
+          return {
+            ...row,
+            valid: false,
+            isDuplicate: true,
+            errors: [...row.errors, 'CPF ja cadastrado no sistema'],
+          };
+        });
+
+        setParsedData(processedWithSystemDuplicates);
         setImportStep('preview');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao ler a planilha. Verifique o formato do arquivo.';
@@ -499,6 +527,8 @@ export const AdminUsers = () => {
   const validRows = parsedData.filter(r => r.valid);
   const duplicateRows = parsedData.filter(r => !r.valid && r.isDuplicate);
   const errorRows = parsedData.filter(r => !r.valid && !r.isDuplicate);
+  const totalUserRows = usersMeta?.total ?? Math.max(users.length, invites.length);
+  const totalUserPages = usersMeta?.totalPages ?? Math.max(1, Math.ceil(totalUserRows / usersPageSize));
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -519,6 +549,24 @@ export const AdminUsers = () => {
                + Novo Usuário
             </Button>
          </div>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <Input
+            value={userSearch}
+            onChange={(event) => {
+              setUserSearch(event.target.value);
+              setUserPage(1);
+            }}
+            placeholder="Buscar por nome, e-mail ou CPF"
+            className="pl-9"
+          />
+        </div>
+        <p className="text-xs text-slate-500">
+          Pagina {usersMeta?.page ?? userPage} de {Math.max(1, totalUserPages)}
+        </p>
       </div>
 
       {invites.length > 0 && (
@@ -725,6 +773,14 @@ export const AdminUsers = () => {
              </tbody>
           </table>
         </div>
+        <PaginationControls
+          page={usersMeta?.page ?? userPage}
+          totalPages={totalUserPages}
+          total={totalUserRows}
+          pageSize={usersMeta?.limit ?? usersPageSize}
+          isLoading={loadingUsers}
+          onPageChange={setUserPage}
+        />
       </div>
 
       <Dialog open={isImportModalOpen} onOpenChange={(open) => { if (!open) handleCloseImport(); }}>

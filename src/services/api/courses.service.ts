@@ -9,6 +9,7 @@ import type {
   ApiCourseModuleStats,
   ApiCoursePhaseQuestion,
   ApiCourseStats,
+  ApiPaginatedResult,
   ApiQuiz,
   ApiQuizAttempt,
   ApiQuizQuestion,
@@ -64,9 +65,25 @@ export interface CourseQuestionPayload {
   }>;
 }
 
+export interface AdminCoursesQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: ApiCourse['status'] | 'ALL';
+}
+
 export const coursesService = {
   listCourses: () => api.get<ApiCourse[]>('/courses'),
   getCourse: (courseId: string) => api.get<ApiCourse>(`/courses/${courseId}`),
+  listAdminCoursesPaginated: (query?: AdminCoursesQuery) =>
+    api.get<ApiPaginatedResult<ApiCourse>>('/admin/courses/paginated', {
+      query: {
+        page: query?.page,
+        limit: query?.limit,
+        search: query?.search,
+        status: query?.status,
+      },
+    }),
   createCourse: (payload: CoursePayload) => api.post<ApiCourse>('/admin/courses', payload),
   updateCourse: (courseId: string, payload: Partial<CoursePayload>) => api.put<ApiCourse>(`/admin/courses/${courseId}`, payload),
   deleteCourse: (courseId: string) => api.delete<{ deleted: boolean; id: string }>(`/admin/courses/${courseId}`),

@@ -1,15 +1,16 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useCompanies, useUsers } from '../../hooks/usePlatformData';
+import { useMemo, useState } from 'react';
+import { usePaginatedCompanies, usePaginatedUsers } from '../../hooks/usePlatformData';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { mockThemes } from '../../data/mock';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PaginationControls } from '@/components/ui/pagination-controls';
 import { Switch } from '@/components/ui/switch';
-import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, ArrowLeft, ExternalLink, Upload, Loader2, Plus } from 'lucide-react';
-import { Company, User, Theme } from '../../types';
+import { CheckCircle2, XCircle, Building, Edit2, Trash2, Users, Upload, Loader2, Plus } from 'lucide-react';
+import { Company, User } from '../../types';
 import { Logger } from '../../utils/logger';
 import { uploadFile } from '../../lib/storage';
 import { superAdminService } from '../../services/api';
@@ -24,8 +25,21 @@ const isPendingInvite = (user: AdminListItem) => user.is_invite === true || user
 const isTenantAdminRole = (role: string | undefined) => TENANT_ADMIN_ROLES.has((role || '').toUpperCase());
 
 export const SuperAdminDashboard = () => {
-  const { companies, mutate: mutateCompanies, isLoading: loadingCompanies } = useCompanies(true);
-  const { users, mutate: mutateUsers, isLoading: loadingUsers } = useUsers(undefined, true);
+  const [companyPage, setCompanyPage] = useState(1);
+  const [companySearch, setCompanySearch] = useState('');
+  const debouncedCompanySearch = useDebouncedValue(companySearch);
+  const companyPageSize = 10;
+  const { companies, meta: companiesMeta, mutate: mutateCompanies, isLoading: loadingCompanies } = usePaginatedCompanies({
+    page: companyPage,
+    limit: companyPageSize,
+    search: debouncedCompanySearch,
+    includeDeleted: true,
+  });
+  const { meta: platformUsersMeta, mutate: mutateUserSummary, isLoading: loadingUserSummary } = usePaginatedUsers({
+    page: 1,
+    limit: 1,
+    includeDeleted: true,
+  });
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'admins'>('details');
@@ -50,14 +64,21 @@ export const SuperAdminDashboard = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const { users: companyUsers, mutate: mutateCompanyUsers, isLoading: loadingCompanyUsers } = usePaginatedUsers({
+    page: 1,
+    limit: 100,
+    status: 'ALL',
+    includeDeleted: true,
+    companyId: activeCompany?.id,
+  }, Boolean(activeCompany));
 
   // Estatísticas para os cards
-  const totalCompaniesCount = companies.length;
+  const totalCompaniesCount = companiesMeta?.total ?? companies.length;
   const activeCompaniesCount = companies.filter(c => c.active).length;
-  const inactiveCompaniesCount = totalCompaniesCount - activeCompaniesCount;
-  const totalAdminsCount = users.filter(u => u.role?.toUpperCase() === 'ADMIN' || u.role?.toUpperCase() === 'SUPER_ADMIN').length;
+  const inactiveCompaniesCount = companies.filter(c => !c.active).length;
+  const totalUsersCount = (platformUsersMeta?.totalUsers ?? 0) + (platformUsersMeta?.totalInvites ?? 0);
 
-  const sortedCompanies = [...companies].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const sortedCompanies = companies;
 
   const handleCloseForm = () => {
     setIsFormOpen(false);
@@ -104,8 +125,6 @@ export const SuperAdminDashboard = () => {
     const ckEnabled = (company as any).checklists_enabled ?? (company as any).Checklists_enabled;
     const surveysEnabled = (company as any).surveys_enabled ?? (company as any).Surveys_enabled;
 
-    const companyAdmin = users.find(u => u.company_id === company.id && isTenantAdminRole(u.role));
-
     setFormData({ 
       name: company.name, 
       link_name: company.link_name, 
@@ -114,8 +133,8 @@ export const SuperAdminDashboard = () => {
       landing_page_enabled: lpEnabled === true, 
       checklists_enabled: ckEnabled === true,
       surveys_enabled: surveysEnabled === true,
-      adminName: companyAdmin?.name || '',
-      adminEmail: companyAdmin?.email || '',
+      adminName: '',
+      adminEmail: '',
     });
     setAdminError('');
     setActiveTab('details');
@@ -139,9 +158,17 @@ export const SuperAdminDashboard = () => {
         throw new Error('O nome e o e-mail do administrador são obrigatórios.');
       }
 
-      const existingCompany = companies.find(c => 
-        c.link_name?.toLowerCase().trim() === normalizedLink
-      );
+      const existingCompany = isNew
+        ? (await superAdminService.listCompanies({ includeDeleted: true }))
+            .map(company => ({
+              id: company.id,
+              link_name: company.linkName,
+              deleted_at: company.deletedAt,
+            }))
+            .find(company => company.link_name?.toLowerCase().trim() === normalizedLink)
+        : companies.find(c =>
+            c.link_name?.toLowerCase().trim() === normalizedLink
+          );
 
       const isReactivating = isNew && existingCompany && !!existingCompany.deleted_at;
       let companyIdForSave = editingId || (isReactivating ? existingCompany.id : null);
@@ -209,7 +236,11 @@ export const SuperAdminDashboard = () => {
             email: cleanEmail,
             role: 'ADMIN',
           });
-          toast.success(`Admin ${cleanEmail} ${result.status === 'updated_existing' ? 'atualizado' : 'criado'}!`);
+          toast.success(
+            result.status === 'updated_existing'
+              ? `Admin ${cleanEmail} atualizado!`
+              : `Admin ${cleanEmail} criado!`,
+          );
         } catch (err) {
           const message = err instanceof ApiException ? err.message : (err as Error).message;
           Logger.error('Erro ao provisionar admin:', err);
@@ -220,14 +251,16 @@ export const SuperAdminDashboard = () => {
           setAdminFormData({ name: formData.adminName, email: cleanEmail, active: true });
           setAdminError(`Empresa salva, mas houve erro ao configurar o admin: ${message}`);
           await mutateCompanies();
-          await mutateUsers();
+          await mutateUserSummary();
+          await mutateCompanyUsers();
           toast.warning('Empresa salva, mas o administrador ainda precisa ser configurado.');
           return;
         }
       }
 
       await mutateCompanies();
-      await mutateUsers();
+      await mutateUserSummary();
+      await mutateCompanyUsers();
       handleCloseForm();
     } catch (error: any) {
       Logger.error('Erro ao salvar empresa:', error);
@@ -294,14 +327,16 @@ export const SuperAdminDashboard = () => {
          toast.success('Novo administrador provisionado!');
       }
       
-      await mutateUsers();
+      await mutateUserSummary();
+      await mutateCompanyUsers();
       setAdminFormView(false);
       setEditingAdminId(null);
       setAdminFormData({ name: '', email: '', active: true });
     } catch (error: any) {
       Logger.error('Erro ao salvar admin:', error);
       setAdminError(error.message || 'Falha ao salvar administrador.');
-      await mutateUsers();
+      await mutateUserSummary();
+      await mutateCompanyUsers();
       toast.error(error.message || 'Falha ao salvar administrador.');
     } finally {
       setIsSubmitting(false);
@@ -311,23 +346,34 @@ export const SuperAdminDashboard = () => {
   const toggleUserStatus = async (id: string, currentStatus: boolean) => {
      try {
        await superAdminService.updateUserStatus(id, { active: !currentStatus });
-       mutateUsers();
+       mutateUserSummary();
+       mutateCompanyUsers();
      } catch (error: any) {
        Logger.error('Erro ao alterar status do admin:', error);
        toast.error(error.message || 'Erro ao alterar status do admin.');
      }
   };
 
-  const activeAdmins = (users as AdminListItem[]).filter(u =>
-    u.company_id === activeCompany?.id && isTenantAdminRole(u.role)
+  const activeAdmins = useMemo(
+    () => (companyUsers as AdminListItem[]).filter(u =>
+      u.company_id === activeCompany?.id && isTenantAdminRole(u.role)
+    ),
+    [activeCompany?.id, companyUsers],
   );
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!activeCompany?.id) {
+        toast.error('Salve a empresa antes de enviar o logo.');
+        return;
+      }
+
       try {
         setIsUploading(true);
-        const url = await uploadFile(file, 'uploads', 'companies/logos', 'logo');
+        const url = await uploadFile(file, 'superadmin-company-logo', 'logo', {
+          targetCompanyId: activeCompany.id,
+        });
         if (url) setFormData({ ...formData, logo_url: url });
       } catch (err) {
         Logger.error('Erro upload:', err);
@@ -337,7 +383,7 @@ export const SuperAdminDashboard = () => {
     }
   };
 
-  if (loadingCompanies || loadingUsers) return <div className="flex h-[80vh] items-center justify-center"><Loader2 className="animate-spin text-slate-300" size={40} /></div>;
+  if (loadingCompanies || loadingUserSummary) return <div className="flex h-[80vh] items-center justify-center"><Loader2 className="animate-spin text-slate-300" size={40} /></div>;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -370,19 +416,33 @@ export const SuperAdminDashboard = () => {
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center shrink-0"><CheckCircle2 size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Ativas</p><p className="text-2xl font-bold text-slate-900">{activeCompaniesCount}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Ativas na pagina</p><p className="text-2xl font-bold text-slate-900">{activeCompaniesCount}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center shrink-0"><XCircle size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Inativas</p><p className="text-2xl font-bold text-slate-900">{inactiveCompaniesCount}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Inativas na pagina</p><p className="text-2xl font-bold text-slate-900">{inactiveCompaniesCount}</p></div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0"><Users size={24} /></div>
-          <div><p className="text-sm font-medium text-slate-500">Total Admins</p><p className="text-2xl font-bold text-slate-900">{totalAdminsCount}</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Usuarios</p><p className="text-2xl font-bold text-slate-900">{totalUsersCount}</p></div>
         </div>
       </div>
 
       {/* RESTAURANDO A TABELA PREMIUM */}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Input
+          value={companySearch}
+          onChange={(event) => {
+            setCompanySearch(event.target.value);
+            setCompanyPage(1);
+          }}
+          placeholder="Buscar empresa..."
+          className="sm:max-w-sm"
+        />
+        <p className="text-xs text-slate-500">
+          Pagina {companiesMeta?.page ?? companyPage} de {Math.max(1, companiesMeta?.totalPages ?? 1)}
+        </p>
+      </div>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600">
@@ -442,6 +502,14 @@ export const SuperAdminDashboard = () => {
              </tbody>
           </table>
         </div>
+        <PaginationControls
+          page={companiesMeta?.page ?? companyPage}
+          totalPages={companiesMeta?.totalPages ?? 1}
+          total={companiesMeta?.total ?? sortedCompanies.length}
+          pageSize={companiesMeta?.limit ?? companyPageSize}
+          isLoading={loadingCompanies}
+          onPageChange={setCompanyPage}
+        />
       </div>
 
       <Dialog open={isFormOpen} onOpenChange={(open) => !open && handleCloseForm()}>
@@ -575,7 +643,12 @@ export const SuperAdminDashboard = () => {
                    </form>
                 ) : (
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
-                     {activeAdmins.map(admin => {
+                     {loadingCompanyUsers ? (
+                       <div className="p-8 text-center text-slate-400">
+                         <Loader2 className="mx-auto mb-2 animate-spin" />
+                         Carregando administradores...
+                       </div>
+                     ) : activeAdmins.map(admin => {
                        const pendingInvite = isPendingInvite(admin);
 
                        return (
@@ -608,7 +681,7 @@ export const SuperAdminDashboard = () => {
                         </div>
                        );
                      })}
-                      {activeAdmins.length === 0 && (
+                      {!loadingCompanyUsers && activeAdmins.length === 0 && (
                         <div className="p-12 text-center">
                           <Users className="mx-auto text-slate-300 mb-3" size={32} />
                           <p className="text-slate-500 font-medium">Nenhum administrador encontrado.</p>

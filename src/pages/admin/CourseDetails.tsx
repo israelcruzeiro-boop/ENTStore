@@ -231,7 +231,7 @@ export const AdminCourseDetails = () => {
     if (!company?.id || !courseId) return;
     setIsUploadingCover(true);
     try {
-      const publicUrl = await uploadFile(file, 'assets', `courses/${company.id}/covers`, 'thumbnail');
+      const publicUrl = await uploadFile(file, 'course-cover', 'thumbnail');
       if (publicUrl) {
         setThumbnailUrl(publicUrl);
         toast.success('Capa carregada!');
@@ -350,11 +350,7 @@ export const AdminCourseDetails = () => {
       let publicUrl = '';
       
       if (addMethod === 'upload' && newContent.file) {
-        publicUrl = await uploadFile(
-          newContent.file,
-          'course-materials',
-          `courses/${courseId}/modules/${selectedModuleId}`
-        );
+        publicUrl = await uploadFile(newContent.file, 'course-material', 'generic');
       } else {
         publicUrl = newContent.url;
       }
@@ -1296,11 +1292,7 @@ export const AdminCourseDetails = () => {
                           if (!file || !company?.id) return;
                           try {
                             toast.loading('Enviando imagem...');
-                            const publicUrl = await uploadFile(
-                              file,
-                              'course-materials',
-                              `courses/${courseId}/questions/hotspot`
-                            );
+                            const publicUrl = await uploadFile(file, 'course-hotspot', 'generic');
                             setQuestionImageUrl(publicUrl);
                             toast.dismiss();
                             toast.success('Imagem enviada!');

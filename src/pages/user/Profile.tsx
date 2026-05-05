@@ -85,7 +85,7 @@ export const UserProfile = () => {
       
       try {
         toast.loading('Otimizando e enviando imagem...', { id: 'upload' });
-        const url = await uploadFile(file, 'assets', `companies/${company.id}/avatars`, 'avatar');
+        const url = await uploadFile(file, 'avatar', 'avatar');
         setFormData(prev => ({ ...prev, avatar_url: url }));
         toast.success('Imagem preparada!', { id: 'upload' });
       } catch (error) {

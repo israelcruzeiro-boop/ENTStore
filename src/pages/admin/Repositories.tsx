@@ -137,7 +137,8 @@ export const AdminRepositories = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading('Otimizando e enviando imagem...');
-        const publicUrl = await uploadFile(file, 'assets', `repositories/${company.id}/${field}`, context);
+        const purpose = field === 'banner_image' ? 'repository-banner' : 'repository-cover';
+        const publicUrl = await uploadFile(file, purpose, context);
         toast.dismiss(toastId);
         if (publicUrl) {
           setFormData(prev => ({ ...prev, [field]: publicUrl }));

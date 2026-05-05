@@ -60,6 +60,22 @@ export interface ApiCompanyAuthenticatedView extends ApiCompanyPublicView {
   updatedAt?: string;
 }
 
+export interface ApiPaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  status?: string;
+  search?: string | null;
+}
+
+export interface ApiPaginatedResult<T> {
+  items: T[];
+  meta: ApiPaginationMeta;
+}
+
 export interface ApiTenantBranding {
   companyId: string;
   name: string;
@@ -186,6 +202,10 @@ export interface ApiAdminUsersList {
   meta: {
     page: number;
     limit: number;
+    total: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
     totalUsers: number;
     totalInvites: number;
     status: 'ALL' | ApiUserStatus;

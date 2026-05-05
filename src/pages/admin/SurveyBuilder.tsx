@@ -120,7 +120,7 @@ export const SurveyBuilder = () => {
     if (!company?.id || !surveyId) return;
     setIsUploadingCover(true);
     try {
-      const publicUrl = await uploadFile(file, 'assets', `surveys/${company.id}/covers`, 'thumbnail');
+      const publicUrl = await uploadFile(file, 'survey-cover', 'thumbnail');
       if (publicUrl) {
         setCoverImage(publicUrl);
         toast.success('Capa carregada com sucesso!');

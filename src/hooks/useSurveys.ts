@@ -1,6 +1,7 @@
 import useSWR from 'swr';
 import { surveyService } from '../services/surveys.service';
 import { Survey, SurveyQuestion, SurveyResponse } from '../types/surveys';
+import type { AdminSurveysQuery } from '../services/api/surveys.service';
 
 const EMPTY_SURVEYS: Survey[] = [];
 
@@ -15,6 +16,29 @@ export function useSurveys(companyId?: string) {
 
   return {
     surveys: data || EMPTY_SURVEYS,
+    isLoading,
+    isError: error,
+    mutate
+  };
+}
+
+export function usePaginatedSurveys(companyId?: string, query: AdminSurveysQuery = {}) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 12;
+  const search = query.search?.trim() || undefined;
+  const status = query.status ?? 'ALL';
+
+  const { data, error, isLoading, mutate } = useSWR(
+    companyId ? ['surveys_paginated', companyId, page, limit, search ?? '', status] : null,
+    () => surveyService.getPaginatedSurveys(companyId!, { page, limit, search, status }),
+    {
+      revalidateOnFocus: false,
+    }
+  );
+
+  return {
+    surveys: data?.surveys || EMPTY_SURVEYS,
+    meta: data?.meta ?? null,
     isLoading,
     isError: error,
     mutate

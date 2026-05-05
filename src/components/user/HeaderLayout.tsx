@@ -147,9 +147,16 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               }}
             />
             <div className="absolute inset-0 bg-black/30" />
+            {!isPublic && title && (
+              <div className="absolute inset-x-0 bottom-0 z-10 px-6 pb-5 md:px-10 md:pb-7">
+                <h1 className="max-w-5xl text-2xl md:text-4xl font-black tracking-tight leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
+                  {title}
+                </h1>
+              </div>
+            )}
           </div>
           
-          <div className="relative z-10 -mt-24 md:-mt-32 flex flex-col items-start px-8 w-full">
+          <div className={`relative z-10 flex flex-col items-start px-6 md:px-8 w-full ${isPublic ? '-mt-24 md:-mt-32' : 'mt-0 pt-4 md:pt-5'}`}>
             {logoUrl && isPublic ? (
               <div 
                 className="w-24 h-24 md:w-32 md:h-32 rounded-2xl overflow-hidden border-4 shadow-xl mb-4 relative shrink-0" 
@@ -174,7 +181,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
             {title && (
-              <h1 className="text-2xl md:text-4xl font-black tracking-tighter mb-3" style={{ color: theme.text }}>
+              <h1 className={`${isPublic ? 'block' : 'hidden'} text-2xl md:text-4xl font-black tracking-tighter mb-3`} style={{ color: theme.text }}>
                 {title}
               </h1>
             )}
@@ -302,9 +309,16 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               className="absolute inset-0 bg-gradient-to-b from-black/10 to-transparent" 
               style={{ backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.1), ${theme.background})` }} 
             />
+            {!isPublic && title && (
+              <div className="absolute inset-x-0 bottom-0 z-10 px-6 pb-5 md:px-10 md:pb-7">
+                <h1 className="max-w-5xl text-2xl md:text-5xl font-black tracking-tight leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
+                  {title}
+                </h1>
+              </div>
+            )}
           </div>
           
-          <div className="relative z-10 -mt-20 md:-mt-28 flex flex-col items-start px-6 md:px-10 w-full max-w-5xl">
+          <div className={`relative z-10 flex flex-col items-start px-6 md:px-10 w-full max-w-5xl ${isPublic ? '-mt-20 md:-mt-28' : 'mt-0 pt-4 md:pt-5'}`}>
             {logoUrl && isPublic ? (
               <div 
                 className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 bg-white shadow-xl mb-4 shrink-0" 
@@ -329,7 +343,7 @@ export const HeaderLayout: React.FC<HeaderLayoutProps> = ({
               </div>
             )}
             {title && (
-              <h1 className="text-2xl md:text-5xl font-black tracking-tight mb-3 leading-tight drop-shadow-2xl" style={{ color: theme.text }}>
+              <h1 className={`${isPublic ? 'block' : 'hidden'} text-2xl md:text-5xl font-black tracking-tight mb-3 leading-tight drop-shadow-2xl`} style={{ color: theme.text }}>
                 {title}
               </h1>
             )}

@@ -140,9 +140,9 @@ const QuestionRender = ({
   // Lógica de visibilidade de fotos baseada no tipo e na nova config
   const canShowPhotos = !['TIME', 'DATE'].includes(q.type);
   
-  const isPhotoRequired = q.config?.photo_required && (
-    q.config?.photo_policy === 'ALWAYS' || 
-    (q.config?.photo_policy === 'NON_COMPLIANCE' && answer.value === 'NC')
+  const isPhotoRequired = Boolean(q.config?.photo_required) && !['TIME', 'DATE'].includes(q.type) && (
+    q.config?.photo_policy !== 'NON_COMPLIANCE' ||
+    answer.value === 'NC'
   );
 
   const [isUploading, setIsUploading] = useState(false);
@@ -163,7 +163,7 @@ const QuestionRender = ({
         type: 'image/jpeg',
         lastModified: Date.now(),
       });
-      const publicUrl = await uploadFile(checklistFile, 'checklist-photos', 'checklist', 'generic');
+      const publicUrl = await uploadFile(checklistFile, 'checklist-photo', 'generic');
 
       if (publicUrl) handlePhotoUpload(q.id, publicUrl);
     } catch (err) {
@@ -281,16 +281,17 @@ const QuestionRender = ({
             />
           )}
 
-          {canShowPhotos && (
-            <div className="ml-auto tour-checklist-photo">
-              <input type="file" accept="image/*" onChange={onFileSelect} className="hidden" id={`upload-${q.id}`} disabled={isUploading} />
-              <label htmlFor={`upload-${q.id}`} className="bg-white/5 border border-white/10 text-white text-[9px] font-bold p-2 rounded-lg cursor-pointer flex items-center gap-2 hover:bg-white/10 transition-colors">
-                {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={14} />}
-                {answer.photo_urls.length > 0 ? `${answer.photo_urls.length}/3` : 'Fotos'}
-              </label>
-            </div>
-          )}
         </div>
+        )}
+
+        {canShowPhotos && (
+          <div className={`${q.type === 'CHECK' ? 'ml-12' : 'ml-auto'} tour-checklist-photo`}>
+            <input type="file" accept="image/*" onChange={onFileSelect} className="hidden" id={`upload-${q.id}`} disabled={isUploading} />
+            <label htmlFor={`upload-${q.id}`} className="bg-white/5 border border-white/10 text-white text-[9px] font-bold p-2 rounded-lg cursor-pointer inline-flex items-center gap-2 hover:bg-white/10 transition-colors">
+              {isUploading ? <Loader2 size={12} className="animate-spin" /> : <Camera size={14} />}
+              {answer.photo_urls.length > 0 ? `${answer.photo_urls.length}/3` : 'Fotos'}
+            </label>
+          </div>
         )}
 
         {answer.photo_urls.length > 0 && (
@@ -444,6 +445,26 @@ export const ChecklistPlayer = () => {
   }, [answers]);
 
   const saveTimeoutRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingSaveRefs = useRef<Record<string, Promise<void>>>({});
+
+  const saveAnswerNow = useCallback((qId: string, data: LocalAnswer) => {
+    if (!submissionId) return Promise.resolve();
+
+    const savePromise = checklistActions.saveAnswer(submissionId, qId, data.value, data.note, data.action_plan, data.assigned_user_id, data.photo_urls, data.action_plan_due_date, currentUser?.id)
+      .then(() => {
+        setLastSaved(new Date());
+      })
+      .catch((err) => {
+        Logger.error('Erro ao salvar:', err);
+        throw err;
+      })
+      .finally(() => {
+        delete pendingSaveRefs.current[qId];
+      });
+
+    pendingSaveRefs.current[qId] = savePromise;
+    return savePromise;
+  }, [submissionId, currentUser?.id]);
 
   const scheduleSave = useCallback((qId: string, data: LocalAnswer) => {
     if (!submissionId) return;
@@ -454,13 +475,12 @@ export const ChecklistPlayer = () => {
     
     saveTimeoutRefs.current[qId] = setTimeout(async () => {
       try {
-        await checklistActions.saveAnswer(submissionId, qId, data.value, data.note, data.action_plan, data.assigned_user_id, data.photo_urls, data.action_plan_due_date, currentUser?.id);
-        setLastSaved(new Date());
+        await saveAnswerNow(qId, data);
       } catch (err) {
         Logger.error('Erro ao salvar:', err);
       }
     }, 800); // Salva 800ms após a última digitação na questão
-  }, [submissionId, currentUser?.id]);
+  }, [submissionId, saveAnswerNow]);
 
   const updateStateAndSave = (questionId: string, updates: Partial<LocalAnswer>) => {
     setLocalAnswers(prev => {
@@ -477,11 +497,21 @@ export const ChecklistPlayer = () => {
     if (!submissionId) return;
     setIsFinishing(true);
     try {
+      const entries = Object.entries(localAnswers);
+      for (const [qId] of entries) {
+        if (saveTimeoutRefs.current[qId]) {
+          clearTimeout(saveTimeoutRefs.current[qId]);
+          delete saveTimeoutRefs.current[qId];
+        }
+      }
+      await Promise.all(Object.values(pendingSaveRefs.current));
+      await Promise.all(entries.map(([qId, data]) => saveAnswerNow(qId, data)));
       await checklistActions.completeSubmission(submissionId);
       toast.success('Finalizado!');
       navigate(`/${companySlug}/checklists`);
     } catch (err) {
-      toast.error('Erro ao finalizar');
+      Logger.error('Erro ao finalizar checklist:', err);
+      toast.error(err instanceof Error ? err.message : 'Erro ao finalizar');
       setIsFinishing(false);
     }
   };
@@ -534,14 +564,14 @@ export const ChecklistPlayer = () => {
 
   const validateAll = (): boolean => {
     for (const q of questions) {
-      if (q.required && !localAnswers[q.id]?.value && q.type !== 'CHECK') {
+      if (q.required && !localAnswers[q.id]?.value) {
         toast.error(`Responda a pergunta obrigatória: "${q.text}"`);
         return false;
       }
 
-      const isPhotoReq = q.config?.photo_required && (
-        q.config?.photo_policy === 'ALWAYS' ||
-        (q.config?.photo_policy === 'NON_COMPLIANCE' && localAnswers[q.id]?.value === 'NC')
+      const isPhotoReq = Boolean(q.config?.photo_required) && !['TIME', 'DATE'].includes(q.type) && (
+        q.config?.photo_policy !== 'NON_COMPLIANCE' ||
+        localAnswers[q.id]?.value === 'NC'
       );
 
       if (isPhotoReq && (localAnswers[q.id]?.photo_urls?.length || 0) === 0) {

@@ -158,7 +158,8 @@ export const AdminSettings = () => {
       setIsUploading(true);
       const toastId = toast.loading('Otimizando e enviando imagem...');
       
-      const publicUrl = await uploadFile(file, 'assets', `companies/${company.id}/${field}`, context);
+      const purpose = field === 'logo_url' ? 'company-logo' : 'company-hero';
+      const publicUrl = await uploadFile(file, purpose, context);
       
       toast.dismiss(toastId);
       

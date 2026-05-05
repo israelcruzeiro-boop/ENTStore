@@ -22,6 +22,7 @@ import type {
   ApiRepositoryCatalog,
   ApiPublicRepository,
 } from '@/services/api/types';
+import type { AdminUsersQuery } from '@/services/api/users.service';
 import {
   mapApiCompanyToFrontend,
   mapApiTopLevelToFrontend,
@@ -123,10 +124,17 @@ export function useFeatures(enabled = true) {
   };
 }
 
-export function useAdminUsers(enabled = true) {
+export function useAdminUsers(queryOrEnabled: AdminUsersQuery | boolean = {}, enabled = true) {
+  const query = typeof queryOrEnabled === 'boolean' ? {} : queryOrEnabled;
+  const shouldFetch = typeof queryOrEnabled === 'boolean' ? queryOrEnabled : enabled;
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 25;
+  const status = query.status ?? 'ALL';
+  const search = query.search?.trim() || undefined;
+
   const { data, error, isLoading, mutate } = useSWR<ApiAdminUsersList | null>(
-    enabled ? 'admin_users' : null,
-    () => adminUsersService.list({ limit: 100 }),
+    shouldFetch ? ['admin_users', page, limit, status, search ?? ''] : null,
+    () => adminUsersService.list({ page, limit, status, search }),
     { revalidateOnFocus: false },
   );
 

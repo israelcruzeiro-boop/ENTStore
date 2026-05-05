@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { useChecklists, checklistActions, useChecklistFolders } from '../../hooks/useChecklists';
+import { useChecklists, checklistActions, useChecklistFolders, usePaginatedAdminSubmissions } from '../../hooks/useChecklists';
 import {
   Plus,
   Search,
@@ -24,7 +24,6 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { useAllSubmissions } from '../../hooks/useChecklists';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -61,6 +60,8 @@ import { useTour } from '../../hooks/useTour';
 import { CHECKLISTS_STEPS, CHECKLIST_CONFIG_STEPS } from '../../data/tourSteps';
 import { HelpCircle } from 'lucide-react';
 import { exportWorkbook, readFirstSheetRows } from '../../utils/spreadsheet';
+import { PaginationControls } from '@/components/ui/pagination-controls';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface FolderWithChecklists {
   id: string;
@@ -948,11 +949,23 @@ export const AdminChecklists = () => {
 
 const AdminChecklistHistory = () => {
   const { company } = useAuth();
-  const { submissions, isLoading } = useAllSubmissions(company?.id);
-  const { checklists } = useChecklists(company?.id);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED'>('ALL');
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
+  const { submissions, meta, isLoading } = usePaginatedAdminSubmissions(company?.id, {
+    page,
+    limit: 25,
+    search: debouncedSearch,
+    status: statusFilter === 'ALL' ? undefined : statusFilter,
+  });
   const { users } = useUsers(company?.id);
   const navigate = useNavigate();
   const { companySlug } = useParams();
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statusFilter]);
 
   if (isLoading) return <div className="py-20 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
 
@@ -972,11 +985,21 @@ const AdminChecklistHistory = () => {
            <Input
              placeholder="Buscar por auditor ou unidade..."
              className="pl-10 border-slate-100 font-bold text-slate-900 rounded-xl h-12"
+             value={searchQuery}
+             onChange={(event) => setSearchQuery(event.target.value)}
            />
          </div>
-         <Button variant="outline" className="border-slate-100 text-slate-600 font-bold rounded-xl h-12 px-6">
-           <Filter size={18} className="mr-2" /> Filtrar Período
-         </Button>
+         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
+           <SelectTrigger className="w-full md:w-[190px] border-slate-100 font-bold text-slate-700 rounded-xl h-12">
+             <Filter size={18} className="mr-2 text-slate-400" />
+             <SelectValue />
+           </SelectTrigger>
+           <SelectContent>
+             <SelectItem value="ALL">Todos os status</SelectItem>
+             <SelectItem value="COMPLETED">Concluidas</SelectItem>
+             <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+           </SelectContent>
+         </Select>
        </div>
 
        <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
@@ -992,17 +1015,15 @@ const AdminChecklistHistory = () => {
                 </tr>
              </thead>
              <tbody className="divide-y divide-slate-50">
-                {submissions.sort((a, b) => {
-                   const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                   const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                   return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
-                }).map(sub => {
-                  const checklist = checklists.find(c => c.id === sub.checklist_id);
+                {submissions.map(sub => {
+                  const checklistTitle = Array.isArray(sub.checklist)
+                    ? sub.checklist[0]?.title
+                    : sub.checklist?.title;
                   const auditor = users.find(u => u.id === sub.user_id);
                   return (
                     <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors group">
                        <td className="px-6 py-4">
-                          <p className="text-sm font-black text-slate-900">{checklist?.title || 'Checklist Excluído'}</p>
+                          <p className="text-sm font-black text-slate-900">{checklistTitle || 'Checklist Excluido'}</p>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">ID: {sub.id?.slice(0,8) || '--'}</p>
                        </td>
                        <td className="px-6 py-4">
@@ -1049,6 +1070,16 @@ const AdminChecklistHistory = () => {
              </tbody>
           </table>
        </div>
+       {meta && (
+         <PaginationControls
+           page={meta.page}
+           totalPages={meta.totalPages}
+           total={meta.total}
+           pageSize={meta.limit}
+           isLoading={isLoading}
+           onPageChange={setPage}
+         />
+       )}
     </div>
   );
 };

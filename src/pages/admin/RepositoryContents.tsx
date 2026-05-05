@@ -264,7 +264,7 @@ export const AdminRepositoryContents = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading('Otimizando e enviando capa...');
-        const publicUrl = await uploadFile(file, 'assets', `contents/${company!.id}/thumbnail`, 'thumbnail');
+        const publicUrl = await uploadFile(file, 'content-thumbnail', 'thumbnail');
         toast.dismiss(toastId);
         if (publicUrl) {
           setFormData(prev => ({ ...prev, thumbnail_url: publicUrl }));
@@ -290,7 +290,7 @@ export const AdminRepositoryContents = () => {
       try {
         setIsUploading(true);
         const toastId = toast.loading(`Enviando ${file.name}...`);
-        const publicUrl = await uploadFile(file, 'assets', `contents/${company!.id}/files`, 'generic');
+        const publicUrl = await uploadFile(file, 'content-file', 'generic');
         toast.dismiss(toastId);
         
         if (publicUrl) {

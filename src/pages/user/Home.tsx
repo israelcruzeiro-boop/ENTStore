@@ -196,23 +196,26 @@ export const UserHome = () => {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const repoTypeFilters = new Set(['FULL', 'PLAYLIST', 'VIDEO_PLAYLIST', 'SIMPLE']);
-  const isRepoFilter = activeFilter ? repoTypeFilters.has(activeFilter) : false;
-  const showCourses = !activeFilter || activeFilter === 'COURSE';
-  const showChecklists = (!activeFilter || activeFilter === 'CHECKLIST') && company?.checklists_enabled !== false;
-  const showSurveys = (!activeFilter || activeFilter === 'SURVEY') && hasSurveys;
-  const filteredHubsByMain = isRepoFilter ? hubRepos.filter(r => r.type === activeFilter) : (!activeFilter ? hubRepos : []);
-  const filteredLibsByMain = isRepoFilter ? libraryRepos.filter(r => r.type === activeFilter) : (!activeFilter ? libraryRepos : []);
-  const surveysForMainFilter = activeFilter === 'SURVEY' ? companySurveys : pendingSurveys;
-
   const filters = [
-    { id: 'FULL', label: 'Hubs', icon: <MonitorPlay size={14} /> },
-    { id: 'PLAYLIST', label: 'Playlists', icon: <PlayCircle size={14} /> },
-    { id: 'VIDEO_PLAYLIST', label: 'Vídeos', icon: <PlayCircle size={14} /> },
-    { id: 'SIMPLE', label: 'Links', icon: <Library size={14} /> },
-    { id: 'COURSE', label: 'Cursos', icon: <BookOpen size={14} /> },
-    { id: 'CHECKLIST', label: 'Checklists', icon: <ClipboardCheck size={14} /> },
-    { id: 'SURVEY', label: 'Pesquisas', icon: <MessageSquareText size={14} /> },
-  ];
+    { id: 'FULL', label: 'Hubs', icon: <MonitorPlay size={14} />, hasContent: hubRepos.some(r => r.type === 'FULL' || !r.type) },
+    { id: 'PLAYLIST', label: 'Playlists', icon: <PlayCircle size={14} />, hasContent: hubRepos.some(r => r.type === 'PLAYLIST') },
+    { id: 'VIDEO_PLAYLIST', label: 'Vídeos', icon: <PlayCircle size={14} />, hasContent: hubRepos.some(r => r.type === 'VIDEO_PLAYLIST') },
+    { id: 'SIMPLE', label: 'Links', icon: <Library size={14} />, hasContent: libraryRepos.length > 0 || companyLinks.length > 0 },
+    { id: 'COURSE', label: 'Cursos', icon: <BookOpen size={14} />, hasContent: companyCourses.length > 0 },
+    { id: 'CHECKLIST', label: 'Checklists', icon: <ClipboardCheck size={14} />, hasContent: company?.checklists_enabled !== false && pendingChecklists.length > 0 },
+    { id: 'SURVEY', label: 'Pesquisas', icon: <MessageSquareText size={14} />, hasContent: hasSurveys },
+  ].filter(({ hasContent }) => hasContent);
+
+  const effectiveActiveFilter = activeFilter && filters.some(f => f.id === activeFilter) ? activeFilter : null;
+  const isRepoFilter = effectiveActiveFilter ? repoTypeFilters.has(effectiveActiveFilter) : false;
+  const showCourses = !effectiveActiveFilter || effectiveActiveFilter === 'COURSE';
+  const showChecklists = (!effectiveActiveFilter || effectiveActiveFilter === 'CHECKLIST') && company?.checklists_enabled !== false;
+  const showSurveys = (!effectiveActiveFilter || effectiveActiveFilter === 'SURVEY') && hasSurveys;
+  const filteredHubsByMain = isRepoFilter
+    ? hubRepos.filter(r => effectiveActiveFilter === 'FULL' ? (r.type === 'FULL' || !r.type) : r.type === effectiveActiveFilter)
+    : (!effectiveActiveFilter ? hubRepos : []);
+  const filteredLibsByMain = isRepoFilter ? libraryRepos.filter(r => r.type === effectiveActiveFilter) : (!effectiveActiveFilter ? libraryRepos : []);
+  const surveysForMainFilter = effectiveActiveFilter === 'SURVEY' ? companySurveys : pendingSurveys;
 
   const handleSearchSubmit = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && searchQuery.trim()) {
@@ -260,17 +263,19 @@ export const UserHome = () => {
 
       <div className="home-main-content max-w-[1600px] mx-auto px-4 md:px-10 mt-4 relative z-20">
          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveFilter(null)}
-              className={`user-chip home-chip px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${!activeFilter ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgb(var(--c-primary-rgb)/0.22)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
-            >
-              Todos
-            </button>
-            {filters.filter(f => f.id !== 'SURVEY' || hasSurveys).map(f => (
+            {filters.length > 0 && (
+              <button
+                onClick={() => setActiveFilter(null)}
+                className={`user-chip home-chip min-h-10 px-3.5 py-1.5 md:min-h-11 md:px-5 md:py-2.5 rounded-xl md:rounded-full text-xs md:text-sm font-bold leading-none transition-all duration-300 ${!effectiveActiveFilter ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgb(var(--c-primary-rgb)/0.22)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
+              >
+                Todos
+              </button>
+            )}
+            {filters.map(f => (
               <button
                 key={f.id}
                 onClick={() => setActiveFilter(f.id)}
-                className={`user-chip home-chip flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 ${activeFilter === f.id ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgb(var(--c-primary-rgb)/0.22)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
+                className={`user-chip home-chip flex min-h-10 items-center gap-1.5 px-3.5 py-1.5 md:min-h-11 md:gap-2 md:px-5 md:py-2.5 rounded-xl md:rounded-full text-xs md:text-sm font-bold leading-none transition-all duration-300 ${effectiveActiveFilter === f.id ? 'bg-[var(--c-primary)] text-white shadow-[0_0_20px_rgb(var(--c-primary-rgb)/0.22)]' : 'theme-surface-soft hover:border-[var(--c-primary)]/30'}`}
               >
                 {f.icon} {f.label}
               </button>
@@ -407,7 +412,7 @@ export const UserHome = () => {
              )}
 
              {surveysForMainFilter.length > 0 && showSurveys && (
-                <ContentRow title={activeFilter === 'SURVEY' ? 'Pesquisas Disponíveis' : 'Pesquisas para Responder'}>
+                <ContentRow title={effectiveActiveFilter === 'SURVEY' ? 'Pesquisas Disponíveis' : 'Pesquisas para Responder'}>
                   {surveysForMainFilter.slice(0, 6).map(survey => (
                     <HomeTaskCard
                       key={survey.id}
@@ -422,7 +427,7 @@ export const UserHome = () => {
                 </ContentRow>
              )}
 
-             {featuredHubs.length > 0 && !activeFilter && (
+             {featuredHubs.length > 0 && !effectiveActiveFilter && (
                <ContentRow title="Hubs em Destaque">
                  {featuredHubs.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
@@ -430,7 +435,7 @@ export const UserHome = () => {
                </ContentRow>
              )}
 
-             {featuredLibs.length > 0 && !activeFilter && (
+             {featuredLibs.length > 0 && !effectiveActiveFilter && (
                <ContentRow title="Bibliotecas em Destaque">
                  {featuredLibs.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
@@ -438,7 +443,7 @@ export const UserHome = () => {
                </ContentRow>
              )}
 
-             {recentContents.length > 0 && !activeFilter && (
+             {recentContents.length > 0 && !effectiveActiveFilter && (
                <ContentRow title="Adicionados Recentemente">
                  {recentContents.map(content => (
                    <ContentCard key={content.id} content={content} metricSummaries={metricSummaries} />
@@ -447,7 +452,7 @@ export const UserHome = () => {
              )}
 
              {filteredHubsByMain.length > 0 && (
-               <ContentRow title={activeFilter ? filters.find(f => f.id === activeFilter)?.label + ' Disponíveis' : "Hubs"}>
+               <ContentRow title={effectiveActiveFilter ? filters.find(f => f.id === effectiveActiveFilter)?.label + ' Disponíveis' : "Hubs"}>
                  {filteredHubsByMain.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
                  ))}
@@ -455,7 +460,7 @@ export const UserHome = () => {
              )}
 
              {filteredLibsByMain.length > 0 && (
-               <ContentRow title={activeFilter ? filters.find(f => f.id === activeFilter)?.label + ' Disponíveis' : "Biblioteca"}>
+               <ContentRow title={effectiveActiveFilter ? filters.find(f => f.id === effectiveActiveFilter)?.label + ' Disponíveis' : "Biblioteca"}>
                  {filteredLibsByMain.map(repo => (
                    <RepoCard key={repo.id} repo={repo} />
                  ))}

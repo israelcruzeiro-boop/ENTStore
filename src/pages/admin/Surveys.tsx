@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCompanies } from '../../hooks/usePlatformData';
-import { useSurveys } from '../../hooks/useSurveys';
+import { usePaginatedSurveys } from '../../hooks/useSurveys';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronRight, Layout, Loader2, Search, Target, MessageSquareText, BarChart3, Settings2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -11,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { surveyService } from '../../services/surveys.service';
 import { Logger } from '../../utils/logger';
+import { PaginationControls } from '@/components/ui/pagination-controls';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 export const AdminSurveys = () => {
   const { companySlug } = useParams();
@@ -18,11 +20,17 @@ export const AdminSurveys = () => {
   const { companies } = useCompanies();
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
-  const { surveys, isLoading, mutate } = useSurveys(company?.id);
-  
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
+  const { surveys, meta, isLoading, mutate } = usePaginatedSurveys(company?.id, {
+    page,
+    limit: 12,
+    search: debouncedSearch,
+    status: 'ALL',
+  });
   
   const [newSurvey, setNewSurvey] = useState({
     title: '',
@@ -58,10 +66,9 @@ export const AdminSurveys = () => {
     }
   };
 
-  const filteredSurveys = surveys.filter(s => 
-    s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   return (
     <div className="space-y-6">
@@ -94,9 +101,10 @@ export const AdminSurveys = () => {
           <Loader2 className="animate-spin text-blue-600 mb-4" size={32} />
           <p className="text-slate-500 animate-pulse">Carregando suas pesquisas...</p>
         </div>
-      ) : filteredSurveys.length > 0 ? (
+      ) : surveys.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSurveys.map(survey => (
+          {surveys.map(survey => (
             <Link 
               key={survey.id}
               to={`/admin/${companySlug}/surveys/${survey.id}/builder`}
@@ -144,6 +152,17 @@ export const AdminSurveys = () => {
             </Link>
           ))}
         </div>
+        {meta && (
+          <PaginationControls
+            page={meta.page}
+            totalPages={meta.totalPages}
+            total={meta.total}
+            pageSize={meta.limit}
+            isLoading={isLoading}
+            onPageChange={setPage}
+          />
+        )}
+        </>
       ) : (
         <div className="py-24 flex flex-col items-center justify-center bg-white rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 shadow-inner">
           <MessageSquareText size={64} className="mb-6 opacity-10" />

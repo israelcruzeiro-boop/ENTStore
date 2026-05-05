@@ -1,6 +1,20 @@
 import { api } from '../services/api/client';
 
 export type ImageContext = 'avatar' | 'logo' | 'hero' | 'banner' | 'thumbnail' | 'generic';
+export type StorageUploadPurpose =
+  | 'avatar'
+  | 'company-logo'
+  | 'company-hero'
+  | 'repository-cover'
+  | 'repository-banner'
+  | 'content-thumbnail'
+  | 'content-file'
+  | 'course-cover'
+  | 'course-material'
+  | 'course-hotspot'
+  | 'survey-cover'
+  | 'checklist-photo'
+  | 'superadmin-company-logo';
 
 const CONTEXT_SETTINGS: Record<ImageContext, { maxWidth: number; quality: number }> = {
   avatar: { maxWidth: 256, quality: 0.85 },
@@ -10,6 +24,47 @@ const CONTEXT_SETTINGS: Record<ImageContext, { maxWidth: number; quality: number
   thumbnail: { maxWidth: 640, quality: 0.8 },
   generic: { maxWidth: 1024, quality: 0.82 },
 };
+
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  csv: 'text/csv',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  mov: 'video/quicktime',
+  mp3: 'audio/mpeg',
+  mp4: 'video/mp4',
+  oga: 'audio/ogg',
+  ogg: 'audio/ogg',
+  ogv: 'video/ogg',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  wav: 'audio/wav',
+  webm: 'video/webm',
+  webp: 'image/webp',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
+
+const BLOCKED_UPLOAD_TYPES = new Set([
+  'application/javascript',
+  'application/octet-stream',
+  'application/x-msdownload',
+  'image/svg+xml',
+  'text/html',
+  'text/javascript',
+  'text/xml',
+]);
+
+const COMPRESSIBLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+interface UploadFileOptions {
+  targetCompanyId?: string;
+}
 
 interface StorageUploadResponse {
   bucket: string;
@@ -97,29 +152,29 @@ function fileToBase64(file: File): Promise<string> {
 
 export const uploadFile = async (
   file: File,
-  bucket = 'uploads',
-  folder = 'uploads',
+  purpose: StorageUploadPurpose,
   context: ImageContext = 'generic',
+  options: UploadFileOptions = {},
 ): Promise<string | null> => {
   if (!file) throw new Error('Nenhum arquivo fornecido.');
 
+  const originalContentType = inferContentType(file);
+  if (BLOCKED_UPLOAD_TYPES.has(originalContentType)) {
+    throw new Error('Tipo de arquivo nao permitido para upload.');
+  }
+
   let fileToUpload = file;
-  if (file.type.startsWith('image/')) {
+  if (COMPRESSIBLE_IMAGE_TYPES.has(originalContentType)) {
     fileToUpload = await compressImage(file, context);
   }
 
-  const fileExt = fileToUpload.name.split('.').pop() ?? 'webp';
-  const uuid =
-    typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `${Math.random().toString(36).slice(2)}_${Date.now()}`;
-  const filePath = `${folder}/${uuid}.${fileExt}`;
+  const contentType = inferContentType(fileToUpload);
 
   const data = await api.post<StorageUploadResponse>('/storage/upload', {
-    bucket,
-    folder,
-    fileName: filePath,
-    contentType: fileToUpload.type || 'application/octet-stream',
+    purpose,
+    targetCompanyId: options.targetCompanyId,
+    fileName: fileToUpload.name,
+    contentType,
     base64: await fileToBase64(fileToUpload),
   });
 
@@ -135,3 +190,13 @@ export const getPublicStorageUrl = async (path: string, bucket = 'uploads'): Pro
 
   return data.publicUrl;
 };
+
+function inferContentType(file: File): string {
+  const explicitType = file.type.trim().toLowerCase();
+  if (explicitType && explicitType !== 'application/octet-stream') {
+    return explicitType;
+  }
+
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  return (extension && CONTENT_TYPE_BY_EXTENSION[extension]) || explicitType || 'application/octet-stream';
+}

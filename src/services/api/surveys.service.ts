@@ -4,9 +4,17 @@ import type {
   ApiSurveyAnswer,
   ApiSurveyQuestion,
   ApiSurveyResponse,
+  ApiPaginatedResult,
 } from './types';
 
 type SurveyPayload = Record<string, unknown>;
+
+export interface AdminSurveysQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: ApiSurvey['status'] | 'ALL';
+}
 
 const compact = <T extends Record<string, unknown>>(payload: T): T => {
   Object.keys(payload).forEach((key) => {
@@ -44,6 +52,15 @@ const toQuestionPayload = (payload: SurveyPayload, options?: { includeIdentity?:
 
 export const surveysApiService = {
   listSurveys: () => api.get<ApiSurvey[]>('/surveys'),
+  listAdminSurveysPaginated: (query?: AdminSurveysQuery) =>
+    api.get<ApiPaginatedResult<ApiSurvey>>('/admin/surveys/paginated', {
+      query: {
+        page: query?.page,
+        limit: query?.limit,
+        search: query?.search,
+        status: query?.status,
+      },
+    }),
   getSurvey: (id: string) => api.get<ApiSurvey>(`/surveys/${encodeURIComponent(id)}`),
   listQuestions: (surveyId: string) =>
     api.get<ApiSurveyQuestion[]>(`/surveys/${encodeURIComponent(surveyId)}/questions`),

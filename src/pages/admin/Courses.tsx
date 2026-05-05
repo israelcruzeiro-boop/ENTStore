@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useCompanies, useCourses } from '../../hooks/usePlatformData';
+import { useCompanies, usePaginatedCourses } from '../../hooks/usePlatformData';
 import { Button } from '@/components/ui/button';
 import { Plus, BookOpen, ChevronRight, Layout, Loader2, Search, MoreVertical, Edit2, Archive, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { courseSchema } from '../../types/schemas';
 import { Logger } from '../../utils/logger';
 import { courseService } from '../../services/courseService';
+import { PaginationControls } from '@/components/ui/pagination-controls';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 export const AdminCourses = () => {
   const { companySlug } = useParams();
@@ -18,11 +20,17 @@ export const AdminCourses = () => {
   const { companies } = useCompanies();
   const company = companies.find(c => c.link_name === companySlug || c.slug === companySlug);
   
-  const { courses, isLoading, mutate } = useCourses(company?.id);
-  
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const debouncedSearch = useDebouncedValue(searchQuery, 350);
+  const { courses, meta, isLoading, mutate } = usePaginatedCourses(company?.id, {
+    page,
+    limit: 12,
+    search: debouncedSearch,
+    status: 'ALL',
+  });
   
   const [newCourse, setNewCourse] = useState({
     title: '',
@@ -64,10 +72,9 @@ export const AdminCourses = () => {
     }
   };
 
-  const filteredCourses = courses.filter(c => 
-    c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   return (
     <div className="space-y-6">
@@ -103,9 +110,10 @@ export const AdminCourses = () => {
           <Loader2 className="animate-spin text-blue-600 mb-4" size={32} />
           <p className="text-slate-500 animate-pulse">Carregando seus treinamentos...</p>
         </div>
-      ) : filteredCourses.length > 0 ? (
+      ) : courses.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCourses.map(course => (
+          {courses.map(course => (
             <Link 
               key={course.id}
               to={`/admin/${companySlug}/courses/${course.id}`}
@@ -140,6 +148,17 @@ export const AdminCourses = () => {
             </Link>
           ))}
         </div>
+        {meta && (
+          <PaginationControls
+            page={meta.page}
+            totalPages={meta.totalPages}
+            total={meta.total}
+            pageSize={meta.limit}
+            isLoading={isLoading}
+            onPageChange={setPage}
+          />
+        )}
+        </>
       ) : (
         <div className="py-24 flex flex-col items-center justify-center bg-white rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 shadow-inner">
           <BookOpen size={64} className="mb-6 opacity-10" />

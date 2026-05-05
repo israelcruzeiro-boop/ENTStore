@@ -16,7 +16,14 @@ import type {
   ChecklistSection,
   ChecklistSubmission,
 } from '../types';
-import type { ApiChecklist, ApiChecklistDetail, ApiChecklistSubmission, ApiChecklistSubmissionDetail } from '../services/api';
+import type {
+  AdminChecklistsQuery,
+  AdminSubmissionsQuery,
+  ApiChecklist,
+  ApiChecklistDetail,
+  ApiChecklistSubmission,
+  ApiChecklistSubmissionDetail,
+} from '../services/api';
 
 type ActionPlan = ChecklistAnswer & {
   checklist_submissions?: {
@@ -106,6 +113,40 @@ export function useChecklists(companyId?: string) {
 
   return {
     checklists: data || [],
+    isLoading,
+    isError: error,
+    mutate,
+  };
+}
+
+export function usePaginatedAdminChecklists(companyId?: string, query: AdminChecklistsQuery = {}) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 25;
+  const search = query.search?.trim() || undefined;
+  const status = query.status ?? 'ALL';
+  const includeDeleted = query.includeDeleted ?? false;
+
+  const { data, error, isLoading, mutate } = useSWR(
+    companyId ? ['admin_checklists_paginated', companyId, page, limit, search ?? '', status, includeDeleted] : null,
+    async () => {
+      const result = await checklistsService.listAdminChecklistsPaginated({
+        page,
+        limit,
+        search,
+        status,
+        includeDeleted,
+      });
+      return {
+        checklists: result.items.map(mapApiChecklistToFrontend),
+        meta: result.meta,
+      };
+    },
+    { revalidateOnFocus: false },
+  );
+
+  return {
+    checklists: data?.checklists || [],
+    meta: data?.meta ?? null,
     isLoading,
     isError: error,
     mutate,
@@ -292,6 +333,42 @@ export function useAllSubmissions(companyId?: string) {
     submissions: data || [],
     isLoading,
     isError: error,
+  };
+}
+
+export function usePaginatedAdminSubmissions(companyId?: string, query: AdminSubmissionsQuery = {}) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 25;
+  const search = query.search?.trim() || undefined;
+  const checklistId = query.checklistId;
+  const userId = query.userId;
+  const status = query.status;
+
+  const { data, error, isLoading, mutate } = useSWR(
+    companyId ? ['admin_submissions_paginated', companyId, page, limit, search ?? '', checklistId ?? '', userId ?? '', status ?? ''] : null,
+    async () => {
+      const result = await checklistsService.listAdminSubmissionsPaginated({
+        page,
+        limit,
+        search,
+        checklistId,
+        userId,
+        status,
+      });
+      return {
+        submissions: mapSubmissionList(result.items),
+        meta: result.meta,
+      };
+    },
+    { revalidateOnFocus: false },
+  );
+
+  return {
+    submissions: data?.submissions || [],
+    meta: data?.meta ?? null,
+    isLoading,
+    isError: error,
+    mutate,
   };
 }
 

@@ -10,6 +10,7 @@ import type {
   ApiChecklistSection,
   ApiChecklistSubmission,
   ApiChecklistSubmissionDetail,
+  ApiPaginatedResult,
 } from './types';
 
 type SnakeChecklistPayload = Record<string, unknown>;
@@ -61,6 +62,24 @@ export interface SaveChecklistAnswerPayload {
   photoUrls?: string[];
   actionPlanDueDate?: string | null;
   actionPlanCreatedBy?: string | null;
+}
+
+export interface AdminChecklistsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: ApiChecklist['status'] | 'ALL';
+  includeDeleted?: boolean;
+}
+
+export interface AdminSubmissionsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  checklistId?: string;
+  userId?: string;
+  companyId?: string;
+  status?: ApiChecklistSubmission['status'];
 }
 
 const toAnswerPayload = (payload: SaveChecklistAnswerPayload) => compact({
@@ -121,6 +140,16 @@ export const checklistsService = {
     }),
 
   listAdminChecklists: () => api.get<ApiChecklist[]>('/admin/checklists'),
+  listAdminChecklistsPaginated: (query?: AdminChecklistsQuery) =>
+    api.get<ApiPaginatedResult<ApiChecklist>>('/admin/checklists/paginated', {
+      query: {
+        page: query?.page,
+        limit: query?.limit,
+        search: query?.search,
+        status: query?.status,
+        includeDeleted: query?.includeDeleted,
+      },
+    }),
   createChecklist: (payload: SnakeChecklistPayload) =>
     api.post<ApiChecklist>('/admin/checklists', toChecklistPayload(payload)),
   updateChecklist: (id: string, payload: SnakeChecklistPayload) =>
@@ -170,6 +199,17 @@ export const checklistsService = {
       query: {
         userId: query?.userId,
         companyId: query?.companyId,
+        status: query?.status,
+      },
+    }),
+  listAdminSubmissionsPaginated: (query?: AdminSubmissionsQuery) =>
+    api.get<ApiPaginatedResult<ApiChecklistSubmission>>('/admin/checklists/submissions/paginated', {
+      query: {
+        page: query?.page,
+        limit: query?.limit,
+        search: query?.search,
+        checklistId: query?.checklistId,
+        userId: query?.userId,
         status: query?.status,
       },
     }),

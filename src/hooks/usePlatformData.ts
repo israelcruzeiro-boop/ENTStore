@@ -24,6 +24,7 @@ import {
   mapApiCourseContentToFrontend,
   mapApiCourseEnrollmentToFrontend,
   mapApiCourseQuestionToFrontend,
+  mapApiCourseToFrontend,
   mapApiContentMetricSummaryToFrontend,
   mapApiTopLevelToFrontend,
   mapApiRatingToFrontend,
@@ -42,6 +43,12 @@ import {
   tenantService,
   usersMeService,
 } from '../services/api';
+import type { ApiAdminUsersList } from '../services/api/types';
+import type { AdminCoursesQuery } from '../services/api';
+import type {
+  SuperAdminCompaniesQuery,
+  SuperAdminUsersQuery,
+} from '../services/api/super-admin.service';
 
 export const maskCPF = (cpf: string | null | undefined) => {
   if (!cpf) return cpf;
@@ -80,6 +87,41 @@ export function useCompanies(includeDeleted = false, enabled = true) {
     isLoading,
     isError: error,
     mutate
+  };
+}
+
+export function usePaginatedCompanies(query: SuperAdminCompaniesQuery = {}, enabled = true) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 10;
+  const status = query.status ?? 'ALL';
+  const search = query.search?.trim() || undefined;
+  const includeDeleted = query.includeDeleted ?? false;
+
+  const { data, error, isLoading, mutate } = useSWR(
+    enabled ? ['companies_paginated', page, limit, status, search ?? '', includeDeleted] : null,
+    async () => {
+      const result = await superAdminService.listCompaniesPaginated({
+        page,
+        limit,
+        status,
+        search,
+        includeDeleted,
+      });
+
+      return {
+        companies: result.items.map(mapApiCompanyToFrontend),
+        meta: result.meta,
+      };
+    },
+    { revalidateOnFocus: false }
+  );
+
+  return {
+    companies: data?.companies || [],
+    meta: data?.meta ?? null,
+    isLoading,
+    isError: error,
+    mutate,
   };
 }
 
@@ -139,6 +181,50 @@ export function useUsers(companyId?: string, includeDeleted = false) {
     isLoading,
     isError: error,
     mutate
+  };
+}
+
+export function usePaginatedUsers(query: SuperAdminUsersQuery = {}, enabled = true) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 25;
+  const status = query.status ?? 'ALL';
+  const search = query.search?.trim() || undefined;
+  const includeDeleted = query.includeDeleted ?? false;
+  const companyId = query.companyId;
+
+  const { data, error, isLoading, mutate } = useSWR<ApiAdminUsersList | null>(
+    enabled ? ['users_paginated', page, limit, status, search ?? '', includeDeleted, companyId ?? 'all'] : null,
+    () => superAdminService.listUsers({ page, limit, status, search, includeDeleted, companyId }),
+    { revalidateOnFocus: false }
+  );
+
+  const usersData = data?.users.map(mapApiUserToFrontend) ?? [];
+  const mappedInvites = data?.invites.map(inv => ({
+    id: inv.id,
+    name: inv.name,
+    email: inv.email,
+    role: inv.role,
+    company_id: inv.companyId,
+    org_unit_id: inv.orgUnitId ?? undefined,
+    cpf: undefined,
+    status: 'PENDING_SETUP',
+    active: true,
+    created_at: inv.createdAt,
+    is_invite: true
+  })) ?? [];
+
+  const combined = [...usersData, ...mappedInvites].map(u => ({
+    ...u,
+    cpf_raw: u?.cpf,
+    cpf: maskCPF(u?.cpf)
+  })) as User[];
+
+  return {
+    users: combined,
+    meta: data?.meta ?? null,
+    isLoading,
+    isError: error,
+    mutate,
   };
 }
 
@@ -486,6 +572,39 @@ export function useCourses(companyId?: string) {
     isLoading,
     isError: error,
     mutate
+  };
+}
+
+export function usePaginatedCourses(companyId?: string, query: AdminCoursesQuery = {}) {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 12;
+  const search = query.search?.trim() || undefined;
+  const status = query.status ?? 'ALL';
+
+  const { data, error, isLoading, mutate } = useSWR(
+    companyId ? ['courses_paginated', companyId, page, limit, search ?? '', status] : null,
+    async () => {
+      const result = await coursesService.listAdminCoursesPaginated({
+        page,
+        limit,
+        search,
+        status,
+      });
+
+      return {
+        courses: result.items.map(mapApiCourseToFrontend),
+        meta: result.meta,
+      };
+    },
+    { revalidateOnFocus: false },
+  );
+
+  return {
+    courses: data?.courses || [],
+    meta: data?.meta ?? null,
+    isLoading,
+    isError: error,
+    mutate,
   };
 }
 
